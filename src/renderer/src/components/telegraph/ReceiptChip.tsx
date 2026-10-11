@@ -13,7 +13,7 @@ export function ReceiptChip({ receipt }: { receipt: ReceiptLike }) {
         e.preventDefault()
         if (url) window.open(url, '_blank', 'noopener')
       }}
-      className={`inline-flex items-center gap-1.5 rounded-lg border border-cyan/30 bg-cyan/5 px-2 py-1 text-[11px] text-cyan hover:bg-cyan/10 transition-colors fade-up ${url ? 'cursor-pointer' : 'cursor-default'}`}
+      className={`inline-flex items-center gap-1.5 rounded-lg border border-cyan/25 bg-cyan/[0.06] px-2 py-1 text-[11px] text-cyan hover:bg-cyan/10 transition-colors fade-in ${url ? 'cursor-pointer' : 'cursor-default'}`}
       title={receipt.receiptHash}
     >
       <Zap size={11} />

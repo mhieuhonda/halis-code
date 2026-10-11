@@ -26,7 +26,7 @@ export function SettingsView() {
         {/* language */}
         <section className="rounded-2xl border border-line bg-panel2 p-4">
           <div className="flex items-center gap-2 mb-3">
-            <Globe size={14} className="text-accent" />
+            <Globe size={14} className="text-signal" />
             <span className="text-[13.5px] font-semibold">{t('settings_language')}</span>
           </div>
           <div className="flex gap-2">
@@ -35,7 +35,7 @@ export function SettingsView() {
                 key={lang}
                 onClick={() => void app.setSettings({ language: lang })}
                 className={`px-4 py-2 rounded-xl border text-[13px] cursor-pointer transition-colors ${
-                  settings.language === lang ? 'border-accent bg-accent/15 text-ink' : 'border-line text-muted hover:border-line2'
+                  settings.language === lang ? 'border-signal/60 bg-signal/10 text-ink' : 'border-line text-muted hover:border-line2'
                 }`}
               >
                 {lang === 'en' ? '🇬🇧 English' : '🇻🇳 Tiếng Việt'}
@@ -47,7 +47,7 @@ export function SettingsView() {
         {/* workspace */}
         <section className="rounded-2xl border border-line bg-panel2 p-4">
           <div className="flex items-center gap-2 mb-2">
-            <FolderOpen size={14} className="text-accent" />
+            <FolderOpen size={14} className="text-signal" />
             <span className="text-[13.5px] font-semibold">{t('settings_workspace')}</span>
             {app.workspace.isGit ? <Badge color="#4ADE80">git</Badge> : null}
           </div>
@@ -62,7 +62,7 @@ export function SettingsView() {
         <section className="rounded-2xl border border-line bg-panel2 p-4">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-[13.5px] font-semibold">{t('settings_default_model')}</span>
-            <Badge color="#7C6CFF">{settings.defaultModelId.split('/').pop()}</Badge>
+            <Badge color="#FF7A3E">{settings.defaultModelId.split('/').pop()}</Badge>
           </div>
           <ModelPicker value={settings.defaultModelId} onChange={(id) => void app.setSettings({ defaultModelId: id })} />
         </section>

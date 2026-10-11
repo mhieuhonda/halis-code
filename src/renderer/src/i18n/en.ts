@@ -86,6 +86,7 @@ export const en = {
   key_required_note: 'This model needs an API key. Add it to start using the model.',
   provider_note_free_key: 'Free key: sign in on the provider site, then paste it here.',
   catalog_updated: 'Catalog refreshed',
+  catalog_refresh: 'Refresh',
   models_count: 'models',
 
   /* swarm setup */
@@ -201,6 +202,22 @@ export const en = {
   settings_default_model: 'Default model',
   settings_autoapprove: 'Auto-approve everything (demo mode — not recommended)',
   settings_restart_note: 'Some changes apply to the next turn.',
+
+  /* shell / palette */
+  nav_go: 'Go to',
+  greeting_agent: 'What are we building today?',
+  greeting_swarm: 'Summon the swarm.',
+  suggest_explain: '✦ explain this codebase',
+  suggest_build: '✦ build a small app',
+  suggest_fix: '✦ fix a failing test',
+  suggest_refactor: '✦ refactor a module',
+  jump_latest: 'Jump to latest',
+  no_results: 'No results',
+  palette_placeholder: 'Type a command, a session, a model…',
+  palette_navigate: 'navigate',
+  palette_run: 'run',
+  palette_open: 'command palette',
+  workspace_none_short: 'No workspace',
 
   /* misc */
   beta_badge: 'beta',

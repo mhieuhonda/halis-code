@@ -20,7 +20,7 @@ function TaskCard({ task }: { task: BoardTask }) {
   const agents = useSwarmStore((s) => s.config.agents)
   const agent = agents.find((a) => a.id === task.assignee)
   return (
-    <div className="rounded-xl border border-line bg-panel2 px-3 py-2.5 mb-2 group">
+    <div className="rounded-xl border border-line bg-panel2 px-3 py-2.5 mb-2 group hover:border-line2 transition-colors">
       <div className="text-[12.5px] font-medium leading-snug mb-1.5">{task.title}</div>
       {task.description ? <div className="text-[11px] text-muted leading-relaxed mb-1.5">{task.description}</div> : null}
       <div className="flex items-center gap-1.5 flex-wrap">
@@ -103,10 +103,10 @@ export function TaskBoardView() {
             {COLUMNS.map((col) => {
               const tasks = chat.tasks.filter((task) => task.status === col.status)
               return (
-                <div key={col.status} className="rounded-2xl border border-line bg-panel/40 p-2.5 min-h-[140px]">
+                <div key={col.status} className="rounded-2xl border border-line bg-panel/50 p-2.5 min-h-[140px]">
                   <div className="flex items-center justify-between px-1 mb-2">
                     <span className="text-[11.5px] font-semibold text-muted">{t(col.labelKey)}</span>
-                    <span className="text-[10.5px] text-faint">{tasks.length}</span>
+                    <span className="text-[10.5px] text-faint font-mono">{tasks.length}</span>
                   </div>
                   {tasks.map((task) => (
                     <TaskCard key={task.id} task={task} />

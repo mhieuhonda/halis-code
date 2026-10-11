@@ -10,3 +10,7 @@ dist/
 .vite/
 coverage/
 *.tsbuildinfo
+
+# screenshot harness output
+shots/
+scripts/

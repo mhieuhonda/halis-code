@@ -136,9 +136,9 @@ function ModelRow({ model, isDefault, onSetDefault }: { model: ModelInfo; isDefa
           {testState === 'testing' ? <Spinner size={11} /> : t('test_model')}
         </Button>
         {isDefault ? (
-          <Star size={13} className="text-accent fill-accent" />
+          <Star size={13} className="text-amber fill-amber" />
         ) : (
-          <button className="opacity-0 group-hover:opacity-100 text-faint hover:text-accent cursor-pointer transition-opacity" title={t('set_default')} onClick={onSetDefault}>
+          <button className="opacity-0 group-hover:opacity-100 text-faint hover:text-amber cursor-pointer transition-opacity" title={t('set_default')} onClick={onSetDefault}>
             <Star size={13} />
           </button>
         )}
@@ -209,7 +209,7 @@ export function ModelsView() {
           <SectionTitle hint={catalog ? `${catalog.models.length} ${t('models_count')}` : undefined}>{t('models_title')}</SectionTitle>
           <Button size="sm" variant="ghost" onClick={() => void refresh()}>
             {refreshing ? <Spinner size={12} /> : <RefreshCw size={13} />}
-            {t('catalog_updated')}
+            {t('catalog_refresh')}
           </Button>
         </div>
         <p className="text-[13px] text-muted -mt-2 mb-4">{t('models_subtitle')}</p>

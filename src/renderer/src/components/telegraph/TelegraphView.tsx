@@ -58,7 +58,7 @@ export function TelegraphView() {
         <div className="grid md:grid-cols-2 gap-4">
           <div className="rounded-2xl border border-line bg-panel2 p-4">
             <div className="flex items-center gap-2 mb-3">
-              <KeyRound size={14} className="text-accent" />
+              <KeyRound size={14} className="text-signal" />
               <span className="text-[13.5px] font-semibold">{t('tg_wallet')}</span>
               {status?.walletFunded ? <Badge color="#4ADE80">funded</Badge> : status?.walletAddress ? <Badge color="#FBBF24">no funds</Badge> : null}
             </div>
@@ -168,7 +168,7 @@ export function TelegraphView() {
         {/* ask tester */}
         <div className="rounded-2xl border border-line bg-panel2 p-4">
           <div className="flex items-center gap-2 mb-1">
-            <Search size={14} className="text-accent" />
+            <Search size={14} className="text-signal" />
             <span className="text-[13.5px] font-semibold">{t('tg_ask_title')}</span>
             <span className="text-[11px] text-faint">{t('tg_ask_cost')}</span>
           </div>

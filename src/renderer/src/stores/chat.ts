@@ -25,7 +25,7 @@ interface ChatState {
   sessionsLoaded: boolean
   unsubscribe: (() => void) | null
 
-  init: () => void
+  init: () => () => void
   loadSessions: () => Promise<void>
   openSession: (id: string) => Promise<void>
   newSession: (mode: 'agent' | 'swarm', modelId?: string) => Promise<string | null>
@@ -131,6 +131,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   unsubscribe: null,
 
   init: () => {
+    // Idempotent: StrictMode mounts effects twice; never double-subscribe.
+    if (get().unsubscribe) return get().unsubscribe as () => void
     const unsub = bridge.onEvent((event) => {
       const patch = applyEvent(get(), event as HarnessEvent)
       if (patch) set(patch as Partial<ChatState>)
@@ -139,6 +141,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     })
     set({ unsubscribe: unsub })
+    return unsub
   },
 
   loadSessions: async () => {

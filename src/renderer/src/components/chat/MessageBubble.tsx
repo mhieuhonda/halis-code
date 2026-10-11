@@ -1,6 +1,11 @@
-/** Message bubble: avatar, name, role badge, addressing arrow, markdown, tools, receipts. */
-import { useMemo } from 'react'
-import { ArrowRight, Bot, User as UserIcon } from 'lucide-react'
+/**
+ * Message rendering:
+ * - user    → right-aligned block with an identity rail
+ * - agent   → open layout: identity row, markdown, tool rows, turn tail
+ * - system  → quiet centered pill
+ */
+import { useMemo, useState } from 'react'
+import { ArrowRight, Bot, Check, Copy, User as UserIcon } from 'lucide-react'
 import type { ChatMessage, ReceiptRef, ToolRun } from '@shared/types'
 import { useT } from '../../i18n'
 import { Badge } from '../ui'
@@ -16,17 +21,30 @@ function findReceipts(message: ChatMessage): ReceiptRef[] {
   return out
 }
 
+function fmtTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`
+  return String(n)
+}
+
 export function MessageBubble({ message, swarm, nameOf }: { message: ChatMessage; swarm: boolean; nameOf: (id: string) => string }) {
   const t = useT()
+  const [copied, setCopied] = useState(false)
   const isUser = message.role === 'user'
   const isSystem = message.role === 'system' || message.from === 'system'
-  const color = isUser ? '#8b95ab' : message.agentColor ?? '#7C6CFF'
+  const color = isUser ? '#8b95a8' : message.agentColor ?? '#FF7A3E'
 
   const receipts = useMemo(() => findReceipts(message), [message])
   const toolRuns: ToolRun[] = useMemo(
     () => (message.parts ?? []).filter((p): p is { type: 'tool'; run: ToolRun } => p.type === 'tool').map((p) => p.run),
     [message],
   )
+
+  const copyAll = () => {
+    void navigator.clipboard.writeText(message.content)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1400)
+  }
 
   // Highlight @mentions in swarm text.
   const rendered = useMemo(() => {
@@ -36,7 +54,7 @@ export function MessageBubble({ message, swarm, nameOf }: { message: ChatMessage
       <div className="md-body selectable">
         {parts.map((part, i) =>
           part.startsWith('@') && part.length > 1 ? (
-            <span key={i} className="text-accent font-medium">
+            <span key={i} className="text-signal font-medium">
               {part}
             </span>
           ) : (
@@ -55,70 +73,101 @@ export function MessageBubble({ message, swarm, nameOf }: { message: ChatMessage
 
   if (isSystem) {
     return (
-      <div className="flex justify-center my-3 fade-up">
-        <div className="rounded-lg border border-line bg-panel2/60 px-3.5 py-1.5 text-[12px] text-muted max-w-[640px] text-center selectable">
+      <div className="flex justify-center my-3.5 fade-in">
+        <div className="rounded-full border border-line bg-panel2/70 px-4 py-1.5 text-[12px] text-muted max-w-[640px] text-center selectable">
           {message.content || message.error}
         </div>
       </div>
     )
   }
 
+  /* ------------------------------ user ------------------------------ */
+  if (isUser) {
+    return (
+      <div className="flex flex-col items-end my-4 rise">
+        <div className="max-w-[640px] w-fit rounded-2xl rounded-tr-md border border-line bg-panel2 pl-4 pr-4 py-3 relative overflow-hidden">
+          <span className="absolute left-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-ember to-signal opacity-70" />
+          <div className="md-body selectable whitespace-pre-wrap">{message.content}</div>
+        </div>
+      </div>
+    )
+  }
+
+  /* ----------------------------- agent ------------------------------ */
+  const usage = message.usage
   return (
-    <div className={`flex gap-3 my-3 fade-up ${isUser ? 'flex-row-reverse' : ''}`}>
+    <div className="flex gap-3 my-4 rise group">
       {/* avatar */}
       <div
-        className="w-8 h-8 rounded-lg flex items-center justify-center text-[15px] shrink-0 mt-0.5 border"
-        style={{ backgroundColor: `${color}1a`, borderColor: `${color}45` }}
+        className="w-7 h-7 rounded-lg flex items-center justify-center text-[14px] shrink-0 mt-0.5 border"
+        style={{ backgroundColor: `${color}14`, borderColor: `${color}38` }}
         title={message.fromName}
       >
-        {isUser ? <UserIcon size={15} style={{ color }} /> : message.agentAvatar ? <span>{message.agentAvatar}</span> : <Bot size={15} style={{ color }} />}
+        {message.agentAvatar ? <span>{message.agentAvatar}</span> : <Bot size={14} style={{ color }} />}
       </div>
 
-      <div className={`flex flex-col min-w-0 max-w-[760px] ${isUser ? 'items-end' : 'items-start'}`}>
-        {/* header: name · role badge · addressing arrow */}
-        <div className={`flex items-center gap-2 mb-1 flex-wrap ${isUser ? 'justify-end' : ''}`}>
+      <div className="flex flex-col min-w-0 flex-1 max-w-[720px]">
+        {/* identity row */}
+        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
           <span className="text-[12.5px] font-semibold" style={{ color }}>
-            {isUser ? t('you') : message.fromName}
+            {message.fromName}
           </span>
-          {swarm && !isUser && message.agentRole ? <Badge>{message.agentRole}</Badge> : null}
-          {swarm && (recipients.length > 0 || (!isUser && message.to.includes('user'))) ? (
+          {swarm && message.agentRole ? <Badge>{message.agentRole}</Badge> : null}
+          {swarm && (recipients.length > 0 || message.to.includes('user')) ? (
             <span className="inline-flex items-center gap-1 text-[11px] text-faint">
               <ArrowRight size={11} />
               {recipients.length ? recipients.map(nameOf).join(', ') : t('to_user')}
             </span>
           ) : null}
-          {message.streaming ? <span className="text-[11px] text-cyan">{t('thinking')}…</span> : null}
-          {message.model && !isUser && !swarm ? (
+          {message.model && !swarm ? (
             <span className="text-[10.5px] text-faint font-mono">{message.model.split('/').pop()}</span>
+          ) : null}
+          {message.streaming ? (
+            <span className="shimmer-text text-[11px] font-medium">{t('thinking')}…</span>
+          ) : null}
+          {/* turn tail — quiet actions on hover */}
+          {!message.streaming && message.content ? (
+            <span className="ml-auto flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                className="inline-flex items-center gap-1 text-[10.5px] text-faint hover:text-ink cursor-pointer transition-colors"
+                onClick={copyAll}
+              >
+                {copied ? <Check size={11} className="text-good" /> : <Copy size={11} />}
+                {copied ? t('copied') : t('copy')}
+              </button>
+            </span>
           ) : null}
         </div>
 
         {/* body */}
         {message.content || message.streaming ? (
-          <div
-            className={`rounded-2xl px-4 py-3 border ${isUser ? 'bg-accent-soft/60 border-accent/25 rounded-tr-md' : 'bg-panel2 border-line rounded-tl-md'}`}
-          >
+          <div className="selectable">
             {rendered}
             {message.streaming && !message.content ? (
-              <span className="inline-flex gap-1 ml-1">
+              <span className="inline-flex gap-1 ml-1 align-middle">
                 <span className="typing-dot w-1.5 h-1.5 rounded-full bg-muted inline-block" />
                 <span className="typing-dot w-1.5 h-1.5 rounded-full bg-muted inline-block" style={{ animationDelay: '0.2s' }} />
                 <span className="typing-dot w-1.5 h-1.5 rounded-full bg-muted inline-block" style={{ animationDelay: '0.4s' }} />
               </span>
             ) : null}
+            {message.streaming && message.content ? <span className="stream-caret" /> : null}
           </div>
         ) : null}
 
         {message.reasoning && !isUser ? (
-          <details className="mt-1 w-full">
-            <summary className="text-[11px] text-faint cursor-pointer hover:text-muted select-none">✦ {t('reasoning')}</summary>
-            <div className="mt-1 rounded-lg border border-line bg-panel/60 px-3 py-2 text-[12px] text-muted whitespace-pre-wrap selectable">{message.reasoning}</div>
+          <details className="mt-2 w-full group/reasoning">
+            <summary className="inline-flex items-center gap-1.5 text-[11px] text-faint cursor-pointer hover:text-muted select-none transition-colors">
+              <span className="spark-pulse text-signal">✦</span> {t('reasoning')}
+            </summary>
+            <div className="mt-1.5 rounded-xl border border-line bg-panel/70 px-3.5 py-2.5 text-[12px] text-muted whitespace-pre-wrap selectable">
+              {message.reasoning}
+            </div>
           </details>
         ) : null}
 
         {/* tool runs */}
         {toolRuns.length ? (
-          <div className="mt-1.5 w-full flex flex-col">
+          <div className="mt-2 w-full flex flex-col gap-1">
             {toolRuns.map((run) => (
               <ToolCard key={run.toolCallId} run={run} />
             ))}
@@ -134,8 +183,17 @@ export function MessageBubble({ message, swarm, nameOf }: { message: ChatMessage
           </div>
         ) : null}
 
+        {/* turn tail — token usage (honest numbers or nothing) */}
+        {usage && !message.streaming && (usage.inputTokens > 0 || usage.outputTokens > 0) ? (
+          <div className="mt-2 text-[10.5px] text-faint font-mono flex items-center gap-2">
+            <span>↑ {fmtTokens(usage.inputTokens)} tok</span>
+            <span className="text-line2">·</span>
+            <span>↓ {fmtTokens(usage.outputTokens)} tok</span>
+          </div>
+        ) : null}
+
         {message.error ? (
-          <div className="mt-1.5 rounded-lg border border-red/30 bg-red/5 px-3 py-2 text-[12px] text-red max-w-[640px] selectable">
+          <div className="mt-2 rounded-xl border border-red/25 bg-red/[0.06] px-3.5 py-2.5 text-[12px] text-red max-w-[640px] selectable">
             {message.error}
           </div>
         ) : null}

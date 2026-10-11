@@ -88,6 +88,7 @@ export const vi: Dict = {
   key_required_note: 'Model này cần API key. Thêm key để bắt đầu dùng.',
   provider_note_free_key: 'Key miễn phí: đăng nhập trên trang nhà cung cấp rồi dán vào đây.',
   catalog_updated: 'Đã làm mới danh mục',
+  catalog_refresh: 'Làm mới',
   models_count: 'model',
 
   /* swarm setup */
@@ -203,6 +204,22 @@ export const vi: Dict = {
   settings_default_model: 'Model mặc định',
   settings_autoapprove: 'Tự duyệt mọi thứ (chế độ demo — không khuyến khích)',
   settings_restart_note: 'Một số thay đổi có hiệu lực từ lượt tiếp theo.',
+
+  /* shell / palette */
+  nav_go: 'Đi tới',
+  greeting_agent: 'Hôm nay ta xây gì đây?',
+  greeting_swarm: 'Triệu hồi đàn agent.',
+  suggest_explain: '✦ giải thích codebase này',
+  suggest_build: '✦ build một app nhỏ',
+  suggest_fix: '✦ sửa test đang fail',
+  suggest_refactor: '✦ refactor một module',
+  jump_latest: 'Về tin nhắn mới nhất',
+  no_results: 'Không có kết quả',
+  palette_placeholder: 'Gõ lệnh, phiên, model…',
+  palette_navigate: 'di chuyển',
+  palette_run: 'chạy',
+  palette_open: 'bảng lệnh',
+  workspace_none_short: 'Chưa chọn workspace',
 
   /* misc */
   beta_badge: 'beta',

@@ -93,7 +93,7 @@ function AgentCard({ agent, index }: { agent: AgentConfig; index: number }) {
                     key={emoji}
                     onClick={() => updateAgent(agent.id, { avatar: emoji })}
                     className={`w-7 h-7 rounded-lg text-[15px] flex items-center justify-center border cursor-pointer transition-colors ${
-                      agent.avatar === emoji ? 'border-accent bg-accent/15' : 'border-transparent hover:border-line bg-panel3/50'
+                      agent.avatar === emoji ? 'border-signal/60 bg-signal/15' : 'border-transparent hover:border-line bg-panel3/50'
                     }`}
                   >
                     {emoji}
