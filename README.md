@@ -4,10 +4,15 @@
 
 > **Competition entry — Telegraph Hackathon Season II (1–30 Nov 2026)**
 > Track 3 · Apps & Agents · Commercial mission 10 (Model Economy): *a coding agent that buys the answer instead of hallucinating it.*
-> How it meets the track rules:
-> 1. **The agent buys** — Halis Code never calls a miner's API directly. Paid intelligence routes through the Telegraph Engine (`POST /engine/v1/ask`) and the app consumes the verified, ranked answer.
-> 2. **The money is visible** — the spend panel and inline receipt chips show request, miner, intent, amount, Sepolia tx hash and network label, each click-through to the explorer. Keyed on `receipt_hash`, not the batched tx.
-> 3. **Machines transact** — with a saved "Always allow" or a per-agent USDC limit, agents buy from the network autonomously, no human on that leg.
+> How it meets every criterion:
+>
+> **Rules (all three):**
+> 1. **The agent buys** — Halis Code never calls a miner's API directly. Paid intelligence routes through the Telegraph Engine (`POST /engine/v1/ask`) and the app consumes the verified, ranked answer. Verified live: query → router → miner → answer in ~1s for $0.01.
+> 2. **The money is visible** — the spend panel and inline receipt chips show request, miner, intent, amount, Base Sepolia tx hash and network label, each click-through to the explorer. Keyed on `receipt_hash`, not the batched tx. One-click **copy all tx hashes** and **export receipts (JSON)** make the settled volume countable by a judge.
+> 3. **Machines transact** — with a saved "Always allow" or a per-agent USDC limit, swarm agents buy from the network autonomously, no human on that leg.
+>
+> **Judging weights:** mainnet readiness (network table + testnet boundary on screen, unprompted; flip = `networkId` change) · commercial viability (see [docs/COMMERCIAL.md](docs/COMMERCIAL.md)) · verifiable transaction volume (receipts ledger + export) · network usage (all paid intelligence through the Engine) · novelty (a 20-agent swarm where every agent is an autonomous buyer).
+>
 > The testnet boundary is stated on screen, unprompted, and mainnet is a config flip.
 
 Halis Code is a cross-platform desktop app (Electron + TypeScript 7) that works as a full coding agent — and when one brain is not enough, it becomes a **swarm**: up to 20 AI agents in one group chat, each with its own name, avatar, role, model, API key and permissions, coordinated through an explicit addressing protocol so they never talk over each other.
@@ -80,10 +85,12 @@ The orchestration core, inspired by the harness designs of [opencode](https://gi
 
 - **`telegraph_ask`** — auto-routed paid inference: the Engine's router classifies the query into an Intent and serves it from the top-ranked miner. ~$0.01 per call.
 - **Quote before pay** — the approval card shows the price decoded from the live `402` challenge; nothing moves until you click.
-- **Receipts on screen** — every settled request lands in the spend panel: miner, intent, amount, Base Sepolia tx hash, clickable to the explorer. The ledger keys on `receipt_hash`, which is per-call (facilitators batch txs).
+- **Receipts on screen** — every settled request lands in the spend panel: miner, intent, amount, Base Sepolia tx hash, clickable to the explorer. The ledger keys on `receipt_hash`, which is per-call (facilitators batch txs). Export the whole ledger as JSON or copy every tx hash in one click.
+- **`telegraph_signals`** — every paid answer's verifiable record: list recent signals (hash, miner, intent, cost, tx) and re-check any of them against the node for free.
 - **Machine-to-machine legs** — agents buy from the network autonomously within per-agent limits and saved "always allow" rules; no human on that leg unless a card is raised.
 - **Burner wallet** — created in-app, key stored via OS keychain encryption, never in the renderer, never in session files.
 - **Budgets** — a daily USDC ceiling hard-stops spend, on top of per-agent auto-approve limits.
+- **Master switch** — Settings → Telegraph Protocol turns the whole network surface off (tools, tab, wallet, paid calls) and back on, without touching your wallet or receipt history.
 
 > **Testnet boundary:** on Base Sepolia the routing, competing miners, verification proofs and settlement are real — only the denomination stands in until mainnet. Chain ID, USDC address, node URL and price source are all configuration values (`TELEGRAPH_NETWORKS` in `src/shared/types.ts`); flipping to mainnet is a settings change, not a code change.
 
