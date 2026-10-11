@@ -369,8 +369,8 @@ export interface TelegraphNetworkConfig {
 
 /**
  * Network parameters live here (shared) so the renderer can display them.
- * Per the Season II hard lines: chain ID, token address, node URL and price
- * source are configuration values — flipping to mainnet is a settings change.
+ * Hard design line: chain ID, token address, node URL and price source are
+ * configuration values — flipping to mainnet is a settings change.
  */
 export const TELEGRAPH_NETWORKS: Record<string, TelegraphNetworkConfig> = {
   'base-sepolia': {
@@ -420,6 +420,8 @@ export interface TelegraphReceipt {
   chain: string
   txHash: string
   timestamp: number
+  /** Signal hash of the served answer — the per-call verifiable artifact. */
+  signalHash?: string
   explorerUrl?: string
   query?: string
 }
@@ -454,6 +456,7 @@ export interface TelegraphAskResult {
 }
 
 export interface TelegraphStatus {
+  enabled: boolean
   walletAddress?: string
   walletFunded: boolean
   usdcBalance: string
@@ -478,6 +481,12 @@ export interface AppSettings {
   workspace: string
   defaultModelId: string
   telegraph: TelegraphSettings
+  /**
+   * Master switch for the whole Telegraph Protocol surface of the app.
+   * Off = every Telegraph tool, tab, wallet and paid call is disabled;
+   * on = everything comes back. Wallet + receipts stay stored either way.
+   */
+  telegraphEnabled: boolean
   /** Master switch: auto-approve everything (demo mode). Off by default. */
   autoApproveAll: boolean
   /** MCP servers the harness connects to (opencode/deepseek-style). */

@@ -17,6 +17,17 @@ class DeniedError extends Error {
   }
 }
 
+/** Guard: the whole Telegraph surface can be switched off in Settings. */
+function assertTelegraphEnabled(ctx: ToolContext): ToolResult | undefined {
+  if (ctx.telegraph.enabled === false) {
+    return {
+      output:
+        'Telegraph is disabled in Settings. Ask the user to re-enable it if they want paid network intelligence.',
+    }
+  }
+  return undefined
+}
+
 function formatResult(result: unknown, depth = 0): string {
   if (result === null || result === undefined) return '(empty result)'
   if (typeof result === 'string') return result.slice(0, 4000)
@@ -41,6 +52,8 @@ function formatResult(result: unknown, depth = 0): string {
 /** Shared runner for paid asks: quote → budget check → approval → pay → receipt. */
 async function runPaidAsk(params: { query: string; minerId?: string; ctx: ToolContext; title: string }): Promise<ToolResult> {
   const { ctx } = params
+  const disabled = assertTelegraphEnabled(ctx)
+  if (disabled) return disabled
   if (!ctx.telegraph.privateKey) {
     return {
       output:
@@ -92,7 +105,7 @@ async function runPaidAsk(params: { query: string; minerId?: string; ctx: ToolCo
 
     let receipt: TelegraphReceipt | undefined
     if (result.receipt) {
-      receipt = ledger.append(result.receipt, network, params.query)
+      receipt = ledger.append({ ...result.receipt, signalHash: result.signalHash }, network, params.query)
       ctx.telegraph.onReceipt?.(receipt, ctx.messageId)
     } else {
       // Served without a receipt header — still record cost from the response.
@@ -110,6 +123,7 @@ async function runPaidAsk(params: { query: string; minerId?: string; ctx: ToolCo
           chain: network.caip2,
           txHash: '',
           timestamp: Math.floor(Date.now() / 1000),
+          signalHash: result.signalHash,
         },
         network,
         params.query,
@@ -174,6 +188,8 @@ export const telegraphAskTool: ToolDef = {
   async execute(args, ctx): Promise<ToolResult> {
     const query = String(args.query ?? '').trim()
     if (!query) return { output: 'Provide a query.' }
+    const disabled = assertTelegraphEnabled(ctx)
+    if (disabled) return disabled
     return runPaidAsk({ query, ctx, title: query })
   },
 }
@@ -185,6 +201,8 @@ export const telegraphMinersTool: ToolDef = {
   kind: 'other',
   readOnly: true,
   async execute(_args, ctx): Promise<ToolResult> {
+    const disabled = assertTelegraphEnabled(ctx)
+    if (disabled) return disabled
     try {
       const miners = await listMiners(ctx.telegraph.network)
       if (!miners.length) return { output: 'No miners registered right now.' }
@@ -207,12 +225,15 @@ export const telegraphIntentsTool: ToolDef = {
   kind: 'other',
   readOnly: true,
   async execute(_args, ctx): Promise<ToolResult> {
+    const disabled = assertTelegraphEnabled(ctx)
+    if (disabled) return disabled
     try {
       const intents = await listIntents(ctx.telegraph.network)
       const coding = intents.filter((i) => (CODING_INTENTS as readonly string[]).includes(i.id))
       const rest = intents.filter((i) => !(CODING_INTENTS as readonly string[]).includes(i.id))
+      const demand = (i: { minerCount?: number }) => (i.minerCount !== undefined ? ` (${i.minerCount} miners)` : '')
       const lines = [
-        coding.length ? 'Useful for coding work:\n' + coding.map((i) => `- ${i.id}${i.label ? ` — ${i.label}` : ''}`).join('\n') : '',
+        coding.length ? 'Useful for coding work:\n' + coding.map((i) => `- ${i.id}${demand(i)}${i.label && i.label !== i.id ? ` — ${i.label}` : ''}`).join('\n') : '',
         rest.length ? `\nOther intents on the network (${rest.length}): ${rest.slice(0, 40).map((i) => i.id).join(', ')}` : '',
       ]
       return { output: lines.filter(Boolean).join('\n') || 'No intents available.', data: { intents } }
@@ -237,9 +258,52 @@ export const telegraphVerifyTool: ToolDef = {
   async execute(args, ctx): Promise<ToolResult> {
     const hash = String(args.signal_hash ?? '').trim()
     if (!hash) return { output: 'Provide a signal hash.' }
+    const disabled = assertTelegraphEnabled(ctx)
+    if (disabled) return disabled
     const res = await verifySignal(ctx.telegraph.network, hash)
     return { output: res.found ? `Signal ${hash} verified on the node:\n${res.detail.slice(0, 2000)}` : `Signal ${hash} not found: ${res.detail}` }
   },
 }
 
-export const telegraphTools = [telegraphAskTool, telegraphMinersTool, telegraphIntentsTool, telegraphVerifyTool]
+export const telegraphSignalsTool: ToolDef = {
+  name: 'telegraph_signals',
+  description:
+    'List recent Telegraph signals — the verifiable record of every paid answer this workspace bought (signal hash, miner, intent, cost, tx). Pass a signal_hash to re-check one specific answer against the node. Free.',
+  parameters: {
+    type: 'object',
+    properties: {
+      signal_hash: { type: 'string', description: 'Optional: re-check one specific signal instead of listing recent ones' },
+      limit: { type: 'number', description: 'How many recent signals to list (default 10, cap 25)' },
+    },
+  },
+  kind: 'other',
+  readOnly: true,
+  async execute(args, ctx): Promise<ToolResult> {
+    const disabled = assertTelegraphEnabled(ctx)
+    if (disabled) return disabled
+    const hash = String(args.signal_hash ?? '').trim()
+    if (hash) {
+      const res = await verifySignal(ctx.telegraph.network, hash)
+      return { output: res.found ? `Signal ${hash} verified on the node:\n${res.detail.slice(0, 2000)}` : `Signal ${hash} not found: ${res.detail}` }
+    }
+    const signals = ctx.telegraph.ledger.all().filter((r) => r.signalHash || r.receiptHash.startsWith('local_') === false)
+    if (!signals.length) {
+      return {
+        output:
+          'No signals yet. Every paid telegraph_ask records its signal hash here — buy one answer first, then re-check it with this tool.',
+      }
+    }
+    const limit = Math.min(Math.max(Number(args.limit ?? 10), 1), 25)
+    const lines = signals.slice(0, limit).map((r) => {
+      const sig = r.signalHash ? `signal ${r.signalHash.slice(0, 20)}…` : `receipt ${r.receiptHash.slice(0, 20)}…`
+      const tx = r.txHash ? ` tx ${r.txHash.slice(0, 12)}…` : ''
+      return `${new Date(r.timestamp * 1000).toISOString()} ${sig}${tx} — ${r.intent || 'unrouted'} via ${r.miner} for $${r.amountUsd.toFixed(2)}${r.query ? ` · "${r.query.slice(0, 60)}"` : ''}`
+    })
+    return {
+      output: `Recent signals (${Math.min(signals.length, limit)} of ${signals.length}):\n${lines.join('\n')}\n\nPass a signal_hash to telegraph_signals to fetch and re-check the recorded answer.`,
+      data: { signals: signals.slice(0, limit) },
+    }
+  },
+}
+
+export const telegraphTools = [telegraphAskTool, telegraphMinersTool, telegraphIntentsTool, telegraphVerifyTool, telegraphSignalsTool]

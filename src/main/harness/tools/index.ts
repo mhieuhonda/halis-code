@@ -35,6 +35,8 @@ export interface ToolContext {
   alwaysRules: AlwaysAllowRule[]
   autoApproveAll: boolean
   telegraph: {
+    /** Master switch from Settings — false hides every Telegraph tool. */
+    enabled?: boolean
     privateKey?: string
     network: TelegraphNetworkConfig
     autoApproveUpTo: number
