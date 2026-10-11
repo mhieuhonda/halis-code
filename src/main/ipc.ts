@@ -1,0 +1,173 @@
+/**
+ * IPC surface: thin, typed wrappers around the HalisApp runtime.
+ */
+import { BrowserWindow, dialog, ipcMain } from 'electron'
+import type { AppSettings, ChatMode, SwarmConfig } from '@shared/types'
+import { IPC } from '@shared/ipc'
+import { existsSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
+import type { HalisApp } from './app-runtime'
+import { SWARM_ROLES } from './swarm/roles'
+import { modelCatalog } from './models/catalog'
+import { createSandbox } from './harness/sandbox'
+import { importWallet, createBurnerWallet } from './telegraph/wallet'
+import { listMiners, listIntents, verifySignal } from './telegraph/client'
+import { getSettings } from './config/app-settings'
+
+export function registerIpc(app: HalisApp, getWindow: () => BrowserWindow | null): void {
+  const send = (channel: string, payload: unknown) => {
+    const win = getWindow()
+    if (!win || win.isDestroyed()) return
+    win.webContents.send(channel, payload)
+  }
+
+  app.setBroadcaster((event) => send(IPC.event, event))
+
+  /* ---------------- settings ---------------- */
+  ipcMain.handle(IPC.settingsGet, () => app.settings())
+  ipcMain.handle(IPC.settingsSet, (_e, patch: Partial<AppSettings>) => app.updateSettings(patch))
+  ipcMain.handle(IPC.workspacePick, async () => {
+    const win = getWindow()
+    const result = await dialog.showOpenDialog(win!, { properties: ['openDirectory', 'createDirectory'] })
+    if (result.canceled || !result.filePaths[0]) return null
+    app.updateSettings({ workspace: result.filePaths[0] })
+    return result.filePaths[0]
+  })
+  ipcMain.handle(IPC.workspaceStatus, () => {
+    try {
+      const ws = app.effectiveWorkspace()
+      const isGit = existsSync(join(ws, '.git'))
+      let fileCount = 0
+      try {
+        fileCount = readdirSync(ws).length
+      } catch {
+        fileCount = 0
+      }
+      return { workspace: ws, exists: existsSync(ws), isGit, fileCount }
+    } catch (err) {
+      return { workspace: '', exists: false, isGit: false, fileCount: 0, error: String(err) }
+    }
+  })
+
+  /* ---------------- models & keys ---------------- */
+  ipcMain.handle(IPC.modelCatalog, () => modelCatalog.get())
+  ipcMain.handle(IPC.modelKeyStatus, () => {
+    const status = app.vault.statusAll()
+    const providers = modelCatalog.get().providers
+    const out: Record<string, boolean> = {}
+    for (const p of providers) out[p.id] = !!status[p.id] || !!p.keyless
+    return out
+  })
+  ipcMain.handle(IPC.modelSaveKey, (_e, providerId: string, key: string) => {
+    app.vault.set(providerId, key)
+    return { ok: true }
+  })
+  ipcMain.handle(IPC.modelRemoveKey, (_e, providerId: string) => app.vault.remove(providerId))
+  ipcMain.handle(IPC.modelTestKey, async (_e, modelId: string) => app.dispatcher.testModel(modelId))
+  ipcMain.handle(IPC.modelValidateAgentKey, (_e, candidate: { apiKey: string; modelId: string; agentId: string; existingAgents: Array<{ id: string; name: string; modelId: string; apiKey?: string }> }) => {
+    if (!candidate.apiKey) return { conflict: false, message: 'No key entered yet.' }
+    for (const other of candidate.existingAgents ?? []) {
+      if (other.id === candidate.agentId) continue
+      if (other.apiKey && other.apiKey === candidate.apiKey && other.modelId !== candidate.modelId) {
+        return {
+          conflict: true,
+          agentName: other.name,
+          message: `This API key is already used by "${other.name}" with a different model. Sharing one key across models multiplies rate-limit risk: when the provider throttles, both agents stall at once. Keep it only if you accept that risk.`,
+        }
+      }
+    }
+    return { conflict: false, message: 'OK' }
+  })
+
+  /* ---------------- sessions ---------------- */
+  ipcMain.handle(IPC.sessionList, () => app.sessions.list())
+  ipcMain.handle(IPC.sessionNew, (_e, mode: ChatMode, title?: string, modelId?: string) => app.sessions.create(mode, title, modelId))
+  ipcMain.handle(IPC.sessionGet, (_e, id: string) => app.sessions.get(id))
+  ipcMain.handle(IPC.sessionDelete, (_e, id: string) => app.sessions.delete(id))
+  ipcMain.handle(IPC.sessionRename, (_e, id: string, title: string) => app.sessions.rename(id, title))
+
+  /* ---------------- chat ---------------- */
+  ipcMain.handle(IPC.chatSend, (_e, params: { sessionId: string; text: string; modelId?: string }) => app.send(params))
+  ipcMain.handle(IPC.chatStop, (_e, sessionId: string) => app.stop(sessionId))
+
+  /* ---------------- swarm ---------------- */
+  ipcMain.handle(IPC.swarmGetConfig, () => app.getSwarmConfig())
+  ipcMain.handle(IPC.swarmSaveConfig, (_e, config: SwarmConfig) => app.saveSwarmConfig(config))
+  ipcMain.handle(IPC.swarmValidate, (_e, config: SwarmConfig) => app.validateSwarm(config))
+  ipcMain.handle(IPC.swarmRoles, () => ({ roles: SWARM_ROLES }))
+
+  /* ---------------- approvals ---------------- */
+  ipcMain.handle(IPC.approvalRespond, (_e, requestId: string, response: 'allow' | 'always' | 'reject') => {
+    return app.approvals.respond(requestId, response)
+  })
+  ipcMain.handle(IPC.approvalList, () => app.approvals.pendingRequests())
+
+  /* ---------------- task board ---------------- */
+  ipcMain.handle(IPC.taskBoardGet, () => {
+    const { taskBoard } = app.ensureWorkspace()
+    return taskBoard.all()
+  })
+  ipcMain.handle(IPC.taskBoardCreate, (_e, title: string, description?: string) => {
+    const { taskBoard } = app.ensureWorkspace()
+    return taskBoard.create(title, description, 'user')
+  })
+  ipcMain.handle(IPC.taskBoardUpdate, (_e, taskId: string, patch: { status?: string; blockedReason?: string }) => {
+    const { taskBoard } = app.ensureWorkspace()
+    return taskBoard.update(taskId, patch as never)
+  })
+  ipcMain.handle(IPC.taskBoardClaim, (_e, taskId: string, agentId: string, agentName: string) => {
+    const { taskBoard } = app.ensureWorkspace()
+    try {
+      taskBoard.claim(taskId, agentId, agentName)
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+  /* ---------------- locks ---------------- */
+  ipcMain.handle(IPC.locksList, () => app.locks.list())
+  ipcMain.handle(IPC.locksRelease, (_e, path: string) => app.locks.releasePath(path))
+
+  /* ---------------- telegraph ---------------- */
+  ipcMain.handle(IPC.tgStatus, () => app.telegraphStatus())
+  ipcMain.handle(IPC.tgCreateWallet, () => {
+    const wallet = createBurnerWallet()
+    app.updateSettings({ telegraph: { ...getSettings().telegraph, privateKey: wallet.privateKey } })
+    return wallet
+  })
+  ipcMain.handle(IPC.tgImportWallet, (_e, privateKey: string) => {
+    const wallet = importWallet(privateKey)
+    app.updateSettings({ telegraph: { ...getSettings().telegraph, privateKey: wallet.privateKey } })
+    return { address: wallet.address }
+  })
+  ipcMain.handle(IPC.tgExportWallet, () => {
+    const key = getSettings().telegraph.privateKey
+    return key ? { privateKey: key } : null
+  })
+  ipcMain.handle(IPC.tgMiners, () => listMiners(app.telegraphNetwork()))
+  ipcMain.handle(IPC.tgIntents, async () => {
+    const intents = await listIntents(app.telegraphNetwork())
+    return intents.map((i) => ({ id: i.id, label: i.label }))
+  })
+  ipcMain.handle(IPC.tgAsk, async (_e, params: { query: string; sessionId?: string }) => {
+    try {
+      const result = await app.telegraphAsk(params.query, params.sessionId)
+      return result as object
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+  ipcMain.handle(IPC.tgReceipts, () => app.ledger.all())
+  ipcMain.handle(IPC.tgVerifySignal, (_e, signalHash: string) => verifySignal(app.telegraphNetwork(), signalHash))
+
+  /* ---------------- dev helper ---------------- */
+  ipcMain.handle('halis:sandbox-check', (_e, workspace: string, path: string) => {
+    try {
+      return { ok: true, resolved: createSandbox(workspace).safePath(path) }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
+}
