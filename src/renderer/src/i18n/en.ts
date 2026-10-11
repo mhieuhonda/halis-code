@@ -182,6 +182,11 @@ export const en = {
   /* telegraph */
   tg_title: 'Telegraph',
   tg_subtitle: 'Buy verified, ranked intelligence with on-chain receipts. Agents use the same rail.',
+  tg_disabled_banner: 'Telegraph Protocol is turned off. Every paid network feature — the tools agents use, the wallet, receipts and the spend panel — is paused until you switch it back on. Your wallet and past receipts are kept.',
+  tg_disabled_cta: 'Turn Telegraph back on in Settings → Telegraph Protocol.',
+  tg_export_receipts: 'Export receipts',
+  tg_copy_txs: 'Copy tx hashes',
+  tg_tx_count: 'settled txs',
   tg_wallet: 'Burner wallet',
   tg_no_wallet: 'No wallet yet. Create a burner wallet — never use your main wallet.',
   tg_create_wallet: 'Create wallet',
@@ -226,6 +231,8 @@ export const en = {
   settings_default_model: 'Default model',
   settings_autoapprove: 'Auto-approve everything (demo mode — not recommended)',
   settings_restart_note: 'Some changes apply to the next turn.',
+  settings_telegraph_toggle: 'Telegraph Protocol',
+  settings_telegraph_toggle_hint: 'Master switch for the paid-intelligence network: the agents\' Telegraph tools, the Telegraph tab, the burner wallet and on-chain receipts. Turning it off pauses every Telegraph feature and keeps your wallet and history safe; turning it on restores everything.',
 
   /* shell / palette */
   nav_go: 'Go to',

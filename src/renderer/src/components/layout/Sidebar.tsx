@@ -24,7 +24,9 @@ export function Sidebar({ route, setRoute }: { route: Route; setRoute: (r: Route
     { id: 'chat', icon: <Sparkles size={15} />, label: t('nav_chat') },
     { id: 'swarm-setup', icon: <Users size={15} />, label: t('nav_swarm_setup'), badge: swarmCount ? <Badge color="#45C4FF">{swarmCount}</Badge> : undefined },
     { id: 'models', icon: <Cpu size={15} />, label: t('nav_models') },
-    { id: 'telegraph', icon: <Zap size={15} />, label: t('nav_telegraph'), badge: tgStatus?.walletFunded ? <Badge color="#3ED598">●</Badge> : undefined },
+    ...(settings?.telegraphEnabled === false
+      ? []
+      : [{ id: 'telegraph' as Route, icon: <Zap size={15} />, label: t('nav_telegraph'), badge: tgStatus?.walletFunded ? <Badge color="#3ED598">●</Badge> : undefined }]),
     { id: 'tasks', icon: <ListChecks size={15} />, label: t('nav_tasks') },
     { id: 'settings', icon: <Settings size={15} />, label: t('nav_settings') },
   ]
@@ -172,7 +174,7 @@ export function Sidebar({ route, setRoute }: { route: Route; setRoute: (r: Route
 
       <div className="px-4 py-3 border-t border-line text-[10px] text-faint leading-relaxed flex items-center gap-1.5">
         <span className="w-1.5 h-1.5 rounded-full bg-good/80 inline-block shadow-[0_0_6px_rgba(62,213,152,0.6)]" />
-        local-first · telegraph-ready
+        {settings?.telegraphEnabled === false ? 'local-first' : 'local-first · telegraph-ready'}
       </div>
     </aside>
   )

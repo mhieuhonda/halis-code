@@ -1,6 +1,6 @@
 /** Telegraph view: wallet, network, spend dashboard, receipts, intents, ask tester. */
 import { useEffect, useState } from 'react'
-import { AlertTriangle, Check, Copy, ExternalLink, Import, KeyRound, Plus, RefreshCw, Search, ShieldCheck, Zap } from 'lucide-react'
+import { AlertTriangle, Check, Copy, Download, ExternalLink, Import, KeyRound, Plus, RefreshCw, Search, ShieldCheck, Zap, ZapOff } from 'lucide-react'
 import { useT } from '../../i18n'
 import { useAppStore } from '../../stores/app'
 import { useTelegraphStore } from '../../stores/telegraph'
@@ -15,6 +15,7 @@ export function TelegraphView() {
   const [importError, setImportError] = useState('')
   const [askQuery, setAskQuery] = useState('')
   const [copied, setCopied] = useState(false)
+  const [txsCopied, setTxsCopied] = useState(false)
 
   useEffect(() => {
     void tg.refreshAll()
@@ -25,6 +26,26 @@ export function TelegraphView() {
 
   const status = tg.status
   const network = settings?.telegraph.networkId === 'base-mainnet' ? 'Base' : 'Base Sepolia'
+  const disabled = settings ? settings.telegraphEnabled === false : false
+
+  const exportReceipts = () => {
+    const blob = new Blob([JSON.stringify(tg.receipts, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `halis-telegraph-receipts-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const copyTxHashes = () => {
+    const hashes = [...new Set(tg.receipts.filter((r) => r.txHash).map((r) => r.txHash!))]
+    void navigator.clipboard.writeText(hashes.join('\n'))
+    setTxsCopied(true)
+    setTimeout(() => setTxsCopied(false), 1400)
+  }
+
+  const settledTxs = new Set(tg.receipts.filter((r) => r.txHash).map((r) => r.txHash)).size
 
   const doImport = async () => {
     setImportError('')
@@ -46,8 +67,19 @@ export function TelegraphView() {
           <p className="text-[13px] text-muted -mt-2">{t('tg_subtitle')}</p>
         </div>
 
-        {/* testnet boundary banner — per the hackathon standard, always visible */}
-        {status?.isTestnet ? (
+        {/* master switch off — the whole protocol surface is paused */}
+        {disabled ? (
+          <div className="rounded-xl border border-amber/30 bg-amber/5 px-4 py-3 text-[12px] text-amber/90 flex items-start gap-2.5">
+            <ZapOff size={15} className="shrink-0 mt-0.5" />
+            <div>
+              <div>{t('tg_disabled_banner')}</div>
+              <div className="mt-1 text-[11.5px] text-faint">{t('tg_disabled_cta')}</div>
+            </div>
+          </div>
+        ) : null}
+
+        {/* testnet boundary banner — always visible, unprompted */}
+        {!disabled && status?.isTestnet ? (
           <div className="rounded-xl border border-cyan/25 bg-cyan/5 px-4 py-3 text-[12px] text-cyan/90 flex items-start gap-2.5">
             <ShieldCheck size={15} className="shrink-0 mt-0.5" />
             <span>{t('tg_testnet_banner')}</span>
@@ -55,6 +87,7 @@ export function TelegraphView() {
         ) : null}
 
         {/* wallet + network cards */}
+        {disabled ? null : (
         <div className="grid md:grid-cols-2 gap-4">
           <div className="rounded-2xl border border-line bg-panel2 p-4">
             <div className="flex items-center gap-2 mb-3">
@@ -164,8 +197,10 @@ export function TelegraphView() {
             </div>
           </div>
         </div>
+        )}
 
         {/* ask tester */}
+        {disabled ? null : (
         <div className="rounded-2xl border border-line bg-panel2 p-4">
           <div className="flex items-center gap-2 mb-1">
             <Search size={14} className="text-signal" />
@@ -208,14 +243,32 @@ export function TelegraphView() {
             </div>
           ) : null}
         </div>
+        )}
 
         {/* receipts */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-[13.5px] font-semibold">{t('tg_receipts')}</h3>
-            <Button size="sm" variant="ghost" onClick={() => void tg.refreshAll()}>
-              <RefreshCw size={12} />
-            </Button>
+            <h3 className="text-[13.5px] font-semibold">
+              {t('tg_receipts')}
+              {settledTxs > 0 ? <span className="ml-2 text-[11px] text-faint font-normal">{settledTxs} {t('tg_tx_count')}</span> : null}
+            </h3>
+            <div className="flex items-center gap-1.5">
+              {settledTxs > 0 ? (
+                <Button size="sm" variant="ghost" onClick={copyTxHashes} title={t('tg_copy_txs')}>
+                  {txsCopied ? <Check size={12} className="text-good" /> : <Copy size={12} />}
+                  <span className="ml-1.5 hidden sm:inline">{t('tg_copy_txs')}</span>
+                </Button>
+              ) : null}
+              {tg.receipts.length > 0 ? (
+                <Button size="sm" variant="ghost" onClick={exportReceipts} title={t('tg_export_receipts')}>
+                  <Download size={12} />
+                  <span className="ml-1.5 hidden sm:inline">{t('tg_export_receipts')}</span>
+                </Button>
+              ) : null}
+              <Button size="sm" variant="ghost" onClick={() => void tg.refreshAll()}>
+                <RefreshCw size={12} />
+              </Button>
+            </div>
           </div>
           {tg.receipts.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-line px-4 py-8 text-center text-[12.5px] text-faint">{t('tg_receipts_empty')}</div>
@@ -264,7 +317,7 @@ export function TelegraphView() {
         </div>
 
         {/* intents */}
-        {tg.intents.length ? (
+        {!disabled && tg.intents.length ? (
           <div>
             <h3 className="text-[13.5px] font-semibold mb-2">{t('tg_intents_list')}</h3>
             <div className="flex flex-wrap gap-1.5">
@@ -279,6 +332,7 @@ export function TelegraphView() {
         ) : null}
 
         {/* import modal */}
+        {!disabled && (
         <Modal open={importOpen} onClose={() => setImportOpen(false)} title={<span className="flex items-center gap-2"><Import size={14} /> {t('tg_import_wallet')}</span>}>
           <p className="text-[12.5px] text-muted mb-3">{t('tg_no_wallet')}</p>
           <Textarea
@@ -302,6 +356,7 @@ export function TelegraphView() {
             </Button>
           </div>
         </Modal>
+        )}
 
       </div>
     </div>

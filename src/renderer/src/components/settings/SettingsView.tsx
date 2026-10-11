@@ -1,6 +1,6 @@
-/** Settings: language, workspace, default model, approvals, MCP servers, web search, about. */
+/** Settings: language, workspace, default model, approvals, MCP servers, web search, telegraph master switch, about. */
 import { useEffect, useState } from 'react'
-import { FolderOpen, Globe, Plug, Plus, ShieldAlert, Trash2, Zap } from 'lucide-react'
+import { FolderOpen, Globe, Plug, Plus, ShieldAlert, Trash2, Zap, ZapOff } from 'lucide-react'
 import { useT } from '../../i18n'
 import { useAppStore } from '../../stores/app'
 import { bridge } from '../../lib/ipc'
@@ -106,27 +106,47 @@ export function SettingsView() {
           <p className="text-[11px] text-faint mt-2.5">{t('settings_restart_note')}</p>
         </section>
 
-        {/* telegraph network */}
-        <section className="rounded-2xl border border-line bg-panel2 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Zap size={14} className="text-cyan" />
-            <span className="text-[13.5px] font-semibold">{t('tg_network')}</span>
+        {/* telegraph master switch */}
+        <section className={`rounded-2xl border p-4 ${settings.telegraphEnabled === false ? 'border-amber/40 bg-amber/5' : 'border-line bg-panel2'}`}>
+          <div className="flex items-center gap-2 mb-2">
+            {settings.telegraphEnabled === false ? <ZapOff size={14} className="text-amber" /> : <Zap size={14} className="text-cyan" />}
+            <span className="text-[13.5px] font-semibold">{t('settings_telegraph_toggle')}</span>
+            <Badge color={settings.telegraphEnabled === false ? '#FBBF24' : '#3ED598'}>{settings.telegraphEnabled === false ? 'off' : 'on'}</Badge>
           </div>
-          <Select
-            value={settings.telegraph.networkId}
-            onChange={(e) => void app.setSettings({ telegraph: { ...settings.telegraph, networkId: e.target.value } })}
-            className="max-w-xs"
-          >
-            {Object.entries(TELEGRAPH_NETWORKS).map(([id, net]) => (
-              <option key={id} value={id}>
-                {net.label}
-              </option>
-            ))}
-          </Select>
-          <p className="text-[11px] text-faint mt-2 font-mono">
-            chain {TELEGRAPH_NETWORKS[settings.telegraph.networkId]?.chainId} · USDC {TELEGRAPH_NETWORKS[settings.telegraph.networkId]?.usdcAddress.slice(0, 10)}…
+          <p className="text-[12px] text-muted mb-3 leading-relaxed">{t('settings_telegraph_toggle_hint')}</p>
+          <Toggle
+            checked={settings.telegraphEnabled !== false}
+            onChange={(v) => void app.setSettings({ telegraphEnabled: v })}
+            label={t('settings_telegraph_toggle')}
+          />
+          <p className="text-[11px] text-faint mt-2.5 font-mono">
+            chain {TELEGRAPH_NETWORKS[settings.telegraph.networkId]?.chainId} · USDC {TELEGRAPH_NETWORKS[settings.telegraph.networkId]?.usdcAddress.slice(0, 10)}… · {TELEGRAPH_NETWORKS[settings.telegraph.networkId]?.label}
           </p>
         </section>
+
+        {/* telegraph network */}
+        {settings.telegraphEnabled !== false ? (
+          <section className="rounded-2xl border border-line bg-panel2 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Zap size={14} className="text-cyan" />
+              <span className="text-[13.5px] font-semibold">{t('tg_network')}</span>
+            </div>
+            <Select
+              value={settings.telegraph.networkId}
+              onChange={(e) => void app.setSettings({ telegraph: { ...settings.telegraph, networkId: e.target.value } })}
+              className="max-w-xs"
+            >
+              {Object.entries(TELEGRAPH_NETWORKS).map(([id, net]) => (
+                <option key={id} value={id}>
+                  {net.label}
+                </option>
+              ))}
+            </Select>
+            <p className="text-[11px] text-faint mt-2 font-mono">
+              chain {TELEGRAPH_NETWORKS[settings.telegraph.networkId]?.chainId} · USDC {TELEGRAPH_NETWORKS[settings.telegraph.networkId]?.usdcAddress.slice(0, 10)}…
+            </p>
+          </section>
+        ) : null}
 
         <div className="text-[11px] text-faint text-center pb-4">
           Halis Code v0.3.0 · local-first · TypeScript 7

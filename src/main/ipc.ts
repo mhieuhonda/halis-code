@@ -143,28 +143,42 @@ export function registerIpc(app: HalisApp, getWindow: () => BrowserWindow | null
   ipcMain.handle(IPC.locksRelease, (_e, path: string) => app.locks.releasePath(path))
 
   /* ---------------- telegraph ---------------- */
+  // Every Telegraph handler refuses when the Settings master switch is off:
+  // no wallet ops, no discovery, no paid asks — the whole protocol surface
+  // goes dark until it is turned back on.
+  const requireTelegraph = () => {
+    if (!app.telegraphEnabled()) throw new Error('Telegraph is disabled in Settings. Turn it back on to use the network.')
+  }
   ipcMain.handle(IPC.tgStatus, () => app.telegraphStatus())
   ipcMain.handle(IPC.tgCreateWallet, () => {
+    requireTelegraph()
     const wallet = createBurnerWallet()
     app.updateSettings({ telegraph: { ...getSettings().telegraph, privateKey: wallet.privateKey } })
     return wallet
   })
   ipcMain.handle(IPC.tgImportWallet, (_e, privateKey: string) => {
+    requireTelegraph()
     const wallet = importWallet(privateKey)
     app.updateSettings({ telegraph: { ...getSettings().telegraph, privateKey: wallet.privateKey } })
     return { address: wallet.address }
   })
   ipcMain.handle(IPC.tgExportWallet, () => {
+    requireTelegraph()
     const key = getSettings().telegraph.privateKey
     return key ? { privateKey: key } : null
   })
-  ipcMain.handle(IPC.tgMiners, () => listMiners(app.telegraphNetwork()))
+  ipcMain.handle(IPC.tgMiners, () => {
+    requireTelegraph()
+    return listMiners(app.telegraphNetwork())
+  })
   ipcMain.handle(IPC.tgIntents, async () => {
+    requireTelegraph()
     const intents = await listIntents(app.telegraphNetwork())
-    return intents.map((i) => ({ id: i.id, label: i.label }))
+    return intents.map((i) => ({ id: i.id, label: i.label, minerCount: i.minerCount }))
   })
   ipcMain.handle(IPC.tgAsk, async (_e, params: { query: string; sessionId?: string }) => {
     try {
+      requireTelegraph()
       const result = await app.telegraphAsk(params.query, params.sessionId)
       return result as object
     } catch (err) {
@@ -172,7 +186,10 @@ export function registerIpc(app: HalisApp, getWindow: () => BrowserWindow | null
     }
   })
   ipcMain.handle(IPC.tgReceipts, () => app.ledger.all())
-  ipcMain.handle(IPC.tgVerifySignal, (_e, signalHash: string) => verifySignal(app.telegraphNetwork(), signalHash))
+  ipcMain.handle(IPC.tgVerifySignal, (_e, signalHash: string) => {
+    requireTelegraph()
+    return verifySignal(app.telegraphNetwork(), signalHash)
+  })
 
   /* ---------------- dev helper ---------------- */
   ipcMain.handle('halis:sandbox-check', (_e, workspace: string, path: string) => {

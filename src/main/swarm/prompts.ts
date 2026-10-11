@@ -64,7 +64,7 @@ You are one agent in a team. Cross-talk is forbidden.
 3. TO HAND OFF WORK use the send_message tool with explicit recipients.
 4. CONTEXT: you see (a) messages addressed to you, (b) your own messages, (c) a digest of the wider conversation, (d) the planner's coordination messages. If you lack context, ask — do not assume.
 5. CONFLICTS: if two of you need the same file, the planner decides. File locks will stop simultaneous edits — treat a lock error as "coordinate first".
-6. THE TASK BOARD is the source of truth for shared work. Claim before you start.
+6. TASK BOARD: use it for shared/multi-step work — create a task, claim it, update it when done. A request addressed directly to you (@Name) is yours to do IMMEDIATELY: act first, record it on the board afterwards if it is worth tracking. An empty board NEVER blocks a direct request — do the work, then board it if useful.
 
 Team roster:
 ${roster || '(empty)'}`
@@ -77,7 +77,7 @@ Bạn là một agent trong đội. Nói chuyện chéo bị cấm.
 3. ĐỂ BÀN GIAO VIỆC dùng tool send_message với người nhận rõ ràng.
 4. NGỮ CẢNH: bạn thấy (a) tin nhắn gửi cho mình, (b) tin mình gửi, (c) bản tóm tắt hội thoại chung, (d) tin điều phối của planner. Thiếu ngữ cảnh thì hỏi — đừng tự đoán.
 5. XUNG ĐỘT: nếu hai agent cần cùng một file, planner quyết định. Khóa file sẽ chặn sửa đồng thời — gặp lỗi khóa nghĩa là "phải phối hợp trước".
-6. TASK BOARD là nguồn sự thật cho công việc chung. Nhận task trước khi bắt đầu.
+6. TASK BOARD: dùng cho công việc chung/nhiều bước — tạo task, nhận task, cập nhật khi xong. Yêu cầu gửi thẳng cho bạn (@Tên) là việc bạn phải làm NGAY: làm trước, ghi lên board sau nếu đáng theo dõi. Board trống KHÔNG BAO GIỜ chặn yêu cầu trực tiếp — cứ làm việc, rồi ghi board nếu cần.
 
 Danh sách đội:
 ${roster || '(trống)'}`
@@ -93,8 +93,9 @@ export function buildSystemPrompt(params: {
   language: AppLanguage
   taskBoardSummary?: string
   skillsSummary?: string
+  telegraphEnabled?: boolean
 }): string {
-  const { agent, allAgents, swarm, workspace, language, taskBoardSummary, skillsSummary } = params
+  const { agent, allAgents, swarm, workspace, language, taskBoardSummary, skillsSummary, telegraphEnabled } = params
   const role = roleById(agent.roleId)
   const base = agent.systemPrompt?.trim() || (language === 'vi' ? role.promptVi : role.prompt)
 
@@ -103,16 +104,24 @@ export function buildSystemPrompt(params: {
   sections.push(harnessRules(swarm, workspace, language))
   if (taskBoardSummary) sections.push(`# Task board\n${taskBoardSummary}`)
   if (skillsSummary) sections.push(`# Available skills\n${skillsSummary}`)
-  sections.push(
-    language === 'vi'
-      ? `# Telegraph\nBạn có thể mua trí tuệ đã xác minh từ mạng Telegraph bằng tool telegraph_ask (tốn ~$0.01 USDC/lần gọi, hiện thẻ phê duyệt). Dùng khi cần câu trả lời độc lập, xếp hạng thay vì đoán bừa.`
-      : `# Telegraph\nYou can buy verified intelligence from the Telegraph network with the telegraph_ask tool (~$0.01 USDC per call, gated by an approval card). Use it when an independent, ranked answer beats guessing.`,
-  )
+  if (telegraphEnabled !== false) {
+    sections.push(
+      language === 'vi'
+        ? `# Telegraph\nBạn có thể mua trí tuệ đã xác minh từ mạng Telegraph bằng tool telegraph_ask (tốn ~$0.01 USDC/lần gọi, hiện thẻ phê duyệt). Dùng khi cần câu trả lời độc lập, xếp hạng thay vì đoán bừa.`
+        : `# Telegraph\nYou can buy verified intelligence from the Telegraph network with the telegraph_ask tool (~$0.01 USDC per call, gated by an approval card). Use it when an independent, ranked answer beats guessing.`,
+    )
+  }
   return sections.join('\n\n---\n\n')
 }
 
 /** Prompt for the single Agent mode. */
-export function buildSingleAgentPrompt(workspace: string, language: AppLanguage, taskBoardSummary?: string, skillsSummary?: string): string {
+export function buildSingleAgentPrompt(
+  workspace: string,
+  language: AppLanguage,
+  taskBoardSummary?: string,
+  skillsSummary?: string,
+  telegraphEnabled?: boolean,
+): string {
   const en = `You are Halis, the coding agent of the Halis Code desktop app. You help the user build, understand, and fix software inside their workspace — reading and editing files, running commands, and — when it matters — buying verified intelligence from the Telegraph network instead of hallucinating.`
   const vi = `Bạn là Halis, agent lập trình của ứng dụng desktop Halis Code. Bạn giúp người dùng xây dựng, hiểu và sửa phần mềm trong workspace — đọc/sửa file, chạy lệnh, và — khi cần — mua thông tin đã xác minh từ mạng Telegraph thay vì bịa đặt.`
   const agent: AgentConfig = {
@@ -133,5 +142,5 @@ export function buildSingleAgentPrompt(workspace: string, language: AppLanguage,
     enabled: true,
     systemPrompt: language === 'vi' ? vi : en,
   }
-  return buildSystemPrompt({ agent, allAgents: [agent], swarm: false, workspace, language, taskBoardSummary, skillsSummary })
+  return buildSystemPrompt({ agent, allAgents: [agent], swarm: false, workspace, language, taskBoardSummary, skillsSummary, telegraphEnabled })
 }

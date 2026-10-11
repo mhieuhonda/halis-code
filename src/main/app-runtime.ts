@@ -49,6 +49,7 @@ import { getNetwork } from './telegraph/config'
 import { ReceiptLedger } from './telegraph/receipts'
 import { usdcBalance, walletAddress } from './telegraph/wallet'
 import { pingNode, listIntents, askTelegraph } from './telegraph/client'
+import { telegraphTools } from './harness/tools/telegraph'
 
 export class HalisApp {
   readonly vault: KeyVault
@@ -109,7 +110,25 @@ export class HalisApp {
 
   /** Called once the Electron app is ready. */
   async startup(): Promise<void> {
+    this.applyTelegraphEnabled()
     await this.resyncMcp()
+  }
+
+  /* ------------------------- Telegraph master switch ------------------------- */
+
+  /** Register or unregister every telegraph_* tool based on the Settings switch. */
+  applyTelegraphEnabled(): void {
+    const enabled = getSettings().telegraphEnabled !== false
+    const hasTelegraph = this.registry.get('telegraph_ask') !== undefined
+    if (enabled && !hasTelegraph) {
+      for (const tool of telegraphTools) this.registry.register(tool)
+    } else if (!enabled && hasTelegraph) {
+      this.registry.unregisterNamespace('telegraph_')
+    }
+  }
+
+  telegraphEnabled(): boolean {
+    return getSettings().telegraphEnabled !== false
   }
 
   /* ------------------------- MCP ------------------------- */
@@ -173,6 +192,7 @@ export class HalisApp {
   updateSettings(patch: Partial<AppSettings>): AppSettings {
     const next = setSettings(patch)
     if (patch.workspace !== undefined) this.refreshWorkspace()
+    if (patch.telegraphEnabled !== undefined) this.applyTelegraphEnabled()
     return next
   }
 
@@ -208,6 +228,7 @@ export class HalisApp {
     const settings = getSettings()
     const network = getNetwork(settings.telegraph.networkId)
     return {
+      enabled: settings.telegraphEnabled !== false,
       privateKey: settings.telegraph.privateKey,
       network,
       autoApproveUpTo: settings.telegraph.autoApproveUpTo,
@@ -481,7 +502,7 @@ export class HalisApp {
                 })
                 subContext.todos = new TodoStore(`${session.id}:sub`, input.emit)
                 delete (subContext as { askUser?: unknown }).askUser
-                const systemPrompt = `${buildSingleAgentPrompt(sandbox.workspace, getSettings().language, taskBoard?.renderForPrompt(), this.skillsSummary())}\n\nYou are a SUB-AGENT spawned for one focused task: "${task.description}". Work autonomously and end with a complete final report — your reply is returned verbatim to the parent agent.`
+                const systemPrompt = `${buildSingleAgentPrompt(sandbox.workspace, getSettings().language, taskBoard?.renderForPrompt(), this.skillsSummary(), getSettings().telegraphEnabled !== false)}\n\nYou are a SUB-AGENT spawned for one focused task: "${task.description}". Work autonomously and end with a complete final report — your reply is returned verbatim to the parent agent.`
                 const history: LlmMessage[] = [{ role: 'user', content: task.prompt }]
                 const runner = new AgentRunner(this.dispatcher, this.registry)
                 const result = await runner.runTurn(
@@ -575,7 +596,7 @@ export class HalisApp {
     this.emit({ type: 'message-start', sessionId: session.id, message: assistantMessage })
 
     const history = transcriptFromSession(session.messages, assistantMessage.id)
-    const systemPrompt = buildSingleAgentPrompt(this.effectiveWorkspace(), settings.language, taskBoard.renderForPrompt(), this.skillsSummary())
+    const systemPrompt = buildSingleAgentPrompt(this.effectiveWorkspace(), settings.language, taskBoard.renderForPrompt(), this.skillsSummary(), settings.telegraphEnabled !== false)
     const runner = new AgentRunner(this.dispatcher, this.registry)
     const toolContext = this.baseToolContext({
       session,
@@ -731,6 +752,23 @@ export class HalisApp {
   async telegraphStatus() {
     const settings = getSettings()
     const network = getNetwork(settings.telegraph.networkId)
+    const enabled = settings.telegraphEnabled !== false
+    if (!enabled) {
+      return {
+        enabled: false,
+        walletAddress: undefined,
+        walletFunded: false,
+        usdcBalance: '0',
+        networkLabel: network.label,
+        isTestnet: network.isTestnet,
+        nodeReachable: false,
+        minerCount: 0,
+        intentCount: 0,
+        receiptsTotal: this.ledger.count(),
+        spentTodayUsd: 0,
+        spentTotalUsd: 0,
+      }
+    }
     const address = settings.telegraph.privateKey ? walletAddress(settings.telegraph.privateKey) : undefined
     const [balance, ping] = await Promise.all([
       address ? usdcBalance(settings.telegraph.privateKey!, network) : Promise.resolve('0'),
@@ -745,6 +783,7 @@ export class HalisApp {
       }
     }
     return {
+      enabled: true,
       walletAddress: address,
       walletFunded: Number(balance) > 0,
       usdcBalance: balance,
@@ -760,11 +799,12 @@ export class HalisApp {
   }
 
   async telegraphAsk(query: string, sessionId?: string) {
+    if (!this.telegraphEnabled()) throw new TelegraphDisabledError()
     const settings = getSettings()
     const network = getNetwork(settings.telegraph.networkId)
     const result = await askTelegraph({ query, privateKey: settings.telegraph.privateKey ?? '', network })
     if (result.receipt) {
-      const receipt = this.ledger.append(result.receipt, network, query)
+      const receipt = this.ledger.append({ ...result.receipt, signalHash: result.signalHash }, network, query)
       this.emit({ type: 'receipt', sessionId: sessionId ?? '', receipt })
       result.receipt = receipt
     }
@@ -824,3 +864,10 @@ function safeStorageCodec(): import('./models/keyvault').SafeCodec | undefined {
 }
 
 export { SWARM_ROLES }
+
+export class TelegraphDisabledError extends Error {
+  constructor() {
+    super('Telegraph is disabled in Settings. Turn it back on to use the network.')
+    this.name = 'TelegraphDisabledError'
+  }
+}

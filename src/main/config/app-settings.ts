@@ -11,6 +11,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     autoApproveUpTo: 0,
     dailyBudgetUsd: 5,
   },
+  telegraphEnabled: true,
   autoApproveAll: false,
   mcpServers: [],
   tavilyApiKey: '',
@@ -25,6 +26,8 @@ export function getSettings(): AppSettings {
       ...DEFAULT_SETTINGS,
       ...loaded,
       telegraph: { ...DEFAULT_SETTINGS.telegraph, ...(loaded.telegraph ?? {}) },
+      // Absent key (older settings file) means the default: on.
+      telegraphEnabled: loaded.telegraphEnabled ?? true,
       mcpServers: (loaded.mcpServers ?? DEFAULT_SETTINGS.mcpServers).map((s) => ({ ...s })),
     }
   }

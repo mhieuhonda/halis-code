@@ -184,6 +184,11 @@ export const vi: Dict = {
   /* telegraph */
   tg_title: 'Telegraph',
   tg_subtitle: 'Mua thông tin đã xác minh, xếp hạng kèm biên nhận on-chain. Agent dùng đúng đường ray này.',
+  tg_disabled_banner: 'Telegraph Protocol đang tắt. Toàn bộ tính năng mạng trả phí — tool của agent, ví, biên nhận và bảng chi tiêu — đều tạm dừng cho đến khi bạn bật lại. Ví và biên nhận cũ vẫn được giữ nguyên.',
+  tg_disabled_cta: 'Bật lại Telegraph trong Cài đặt → Telegraph Protocol.',
+  tg_export_receipts: 'Xuất biên nhận',
+  tg_copy_txs: 'Copy tx hash',
+  tg_tx_count: 'giao dịch đã tất toán',
   tg_wallet: 'Ví burner',
   tg_no_wallet: 'Chưa có ví. Hãy tạo ví burner — tuyệt đối không dùng ví chính.',
   tg_create_wallet: 'Tạo ví',
@@ -228,6 +233,8 @@ export const vi: Dict = {
   settings_default_model: 'Model mặc định',
   settings_autoapprove: 'Tự duyệt mọi thứ (chế độ demo — không khuyến khích)',
   settings_restart_note: 'Một số thay đổi có hiệu lực từ lượt tiếp theo.',
+  settings_telegraph_toggle: 'Telegraph Protocol',
+  settings_telegraph_toggle_hint: 'Công tắc tổng cho mạng trí tuệ trả phí: tool Telegraph của agent, tab Telegraph, ví burner và biên nhận on-chain. Tắt đi sẽ tạm dừng mọi tính năng Telegraph nhưng giữ nguyên ví và lịch sử; bật lại sẽ khôi phục tất cả.',
 
   /* shell / palette */
   nav_go: 'Đi tới',
