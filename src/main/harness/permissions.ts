@@ -44,9 +44,34 @@ const READ_ONLY_TOOLS = new Set([
   'telegraph_signals',
   'send_message',
   'finish',
+  /* opencode / deepseek-harness ported tools */
+  'web_fetch',
+  'web_search',
+  'todo_write',
+  'job_list',
+  'job_output',
+  'schedule_list',
+  'git_status',
+  'git_diff',
+  'git_log',
+  'delegate_task',
+  'skill',
 ])
 
-const STATE_TOOLS = new Set(['write_file', 'edit_file', 'run_command', 'task_board_create', 'task_board_claim', 'task_board_update'])
+const STATE_TOOLS = new Set([
+  'write_file',
+  'edit_file',
+  'multi_edit',
+  'delete_file',
+  'apply_patch',
+  'run_command',
+  'task_board_create',
+  'task_board_claim',
+  'task_board_update',
+  'schedule_create',
+  'schedule_delete',
+  'git_commit',
+])
 
 export function isReadOnlyTool(tool: string): boolean {
   return READ_ONLY_TOOLS.has(tool)
@@ -65,9 +90,13 @@ export function evaluate(ctx: PermissionContext): PermissionDecision {
   if (kind === 'usdc-spend' && !agent.canUseTelegraph) {
     return { effect: 'deny', reason: 'This agent is not allowed to use Telegraph (paid intelligence).' }
   }
+  if (kind === 'question') {
+    return { effect: 'allow', reason: 'Asking the user is always allowed.' }
+  }
 
-  // 2. Read-only tools run automatically.
-  if (ctx.readOnly && READ_ONLY_TOOLS.has(tool)) {
+  // 2. Read-only tools run automatically. MCP tools declaring readOnlyHint
+  //    are trusted as read-only too (their mutation siblings stay on ask).
+  if (ctx.readOnly && (READ_ONLY_TOOLS.has(tool) || tool.startsWith('mcp_'))) {
     return { effect: 'allow', reason: 'Read-only tool.' }
   }
 

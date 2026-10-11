@@ -10,6 +10,7 @@ import type { LlmDispatcher } from '../models/llm/client'
 import type { LlmMessage, LlmResult, LlmStreamEvent, LlmToolCall } from '../models/llm/types'
 import { evaluate } from './permissions'
 import type { ToolContext, ToolRegistry } from './tools'
+import { truncateToolOutput } from './util/truncate'
 
 export interface TurnRequest {
   sessionId: string
@@ -127,12 +128,14 @@ export class AgentRunner {
         for (const call of result.toolCalls) {
           const run = await this.executeToolCall(call, ctx, req, emit)
           toolRuns.push(run)
+          const runData = (run as ToolRun & { _data?: { image?: { mime: string; dataUri: string } } })._data
           history.push({
             role: 'tool',
             toolCallId: call.id,
             toolName: call.name,
             content: run.state === 'completed' ? String(run.result ?? '') : `ERROR: ${run.error ?? 'not executed'}`,
             isError: run.state !== 'completed',
+            images: runData?.image ? [{ mime: runData.image.mime, dataUri: runData.image.dataUri }] : undefined,
           })
         }
       }
@@ -232,7 +235,7 @@ export class AgentRunner {
           kind === 'shell'
             ? `Run command: ${String(args.command ?? '').slice(0, 80)}`
             : kind === 'file-write'
-              ? `${call.name === 'write_file' ? 'Write' : 'Edit'} file: ${String(args.path ?? '')}`
+              ? `${{ write_file: 'Write', delete_file: 'Delete', multi_edit: 'Multi-edit', apply_patch: 'Patch' }[call.name] ?? 'Edit'} ${String(args.path ?? 'files').slice(0, 80)}`
               : `Allow ${tool.name}?`,
         detail:
           kind === 'shell'
@@ -271,7 +274,16 @@ export class AgentRunner {
     }
     try {
       const result = await tool.execute(args, ctx)
-      emitRun('completed', { result: result.output, endedAt: Date.now() })
+      // Global output budget (opencode tool-output pattern): clip long results
+      // and spill the full text to a file the model can re-read.
+      const truncated = truncateToolOutput(result.output, call.id)
+      const output = truncated.text
+      // read_image images ride into the LLM transcript + the UI message.
+      const image = (result.data as { image?: { dataUri: string; mime: string; path: string } } | undefined)?.image
+      if (image) {
+        ;(run as ToolRun & { _data?: unknown })._data = { image: { dataUri: image.dataUri, mime: image.mime } }
+      }
+      emitRun('completed', { result: output, endedAt: Date.now() })
     } catch (err) {
       emitRun('error', { error: err instanceof Error ? err.message : String(err), endedAt: Date.now() })
     }

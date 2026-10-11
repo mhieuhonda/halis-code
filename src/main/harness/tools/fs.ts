@@ -1,14 +1,20 @@
 /**
- * File tools: read, write, edit, list — all path-jailed to the workspace and
- * coordinated through the file-lock manager.
+ * File tools: read, write, edit, multi_edit, list, read_image — all
+ * path-jailed to the workspace and coordinated through the file-lock
+ * manager. The edit matching is opencode's 3-tier fuzzy scheme (exact →
+ * unicode-normalized → line-based with trailing-whitespace + CRLF
+ * tolerance).
  */
-import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync, readdirSync, rmdirSync, statSync, unlinkSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import type { ToolContext, ToolDef, ToolResult } from './index'
 import { isLogLikePath, isStateFilePath } from '../file-locking'
+import { fuzzyReplace } from '../util/edit-match'
 
 const MAX_READ_CHARS = 200_000
 const MAX_LS_ENTRIES = 500
+const IMAGE_MIMES: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp' }
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 function rel(ws: string, p: string): string {
   const r = relative(ws, p)
@@ -37,7 +43,9 @@ export const readFileTool: ToolDef = {
   readOnly: true,
   async execute(args, ctx: ToolContext): Promise<ToolResult> {
     const path = ctx.sandbox.safePath(String(args.path ?? ''))
-    if (!existsSync(path)) return { output: `File not found: ${String(args.path)}` }
+    if (!existsSync(path)) {
+      return { output: `File not found: ${String(args.path)}. Use glob to find the right path.` }
+    }
     const stat = statSync(path)
     if (stat.isDirectory()) {
       return { output: `${String(args.path)} is a directory. Use list_dir instead.` }
@@ -130,13 +138,13 @@ export const writeFileTool: ToolDef = {
 export const editFileTool: ToolDef = {
   name: 'edit_file',
   description:
-    'Edit a file by replacing an exact string. old_string must match the file content exactly (including whitespace). Use replace_all to replace every occurrence.',
+    'Edit a file by replacing an exact string. old_string must match the file content (matching is tolerant: unicode look-alikes and trailing whitespace differences are normalized). Use replace_all to replace every occurrence.',
   parameters: {
     type: 'object',
     properties: {
       path: { type: 'string', description: 'File path relative to the workspace' },
       old_string: { type: 'string', description: 'Exact text to replace' },
-      new_string: { type: 'string', description: 'Replacement text' },
+      new_string: { type: 'string', description: 'Replacement text (must differ from old_string)' },
       replace_all: { type: 'boolean', description: 'Replace every occurrence (default: first only)' },
     },
     required: ['path', 'old_string', 'new_string'],
@@ -151,28 +159,29 @@ export const editFileTool: ToolDef = {
     }
     const oldString = String(args.old_string ?? '')
     const newString = String(args.new_string ?? '')
-    if (!oldString) return { output: 'old_string is empty — refusing to edit.' }
+    if (!oldString) return { output: 'old_string is empty — use write_file to create a file instead.' }
+    if (oldString === newString) return { output: 'old_string and new_string are identical — nothing to change.' }
 
     const mode = isLogLikePath(path) ? 'advisory' : 'hard'
     const lockResult = ctx.locks.acquire(path, ctx.agentId, ctx.agentName, mode)
     try {
       const content = readFileSync(path, 'utf8')
-      const occurrences = content.split(oldString).length - 1
-      if (occurrences === 0) {
+      const match = fuzzyReplace(content, oldString, newString, !!args.replace_all)
+      if (!match.content) {
+        if (match.occurrences > 1) {
+          return { output: `old_string occurs ${match.occurrences} times in ${rel(ctx.workspace, path)}. Provide more surrounding context or set replace_all: true.` }
+        }
         return {
-          output: `old_string not found in ${rel(ctx.workspace, path)}. Read the file again and copy the exact text.`,
+          output: `Could not find old_string in ${rel(ctx.workspace, path)}. Read the file again and copy the exact text, including whitespace and indentation.`,
         }
       }
-      if (occurrences > 1 && !args.replace_all) {
-        return { output: `old_string occurs ${occurrences} times. Provide more context or set replace_all: true.` }
-      }
-      const updated = args.replace_all ? content.split(oldString).join(newString) : content.replace(oldString, newString)
       const tmp = `${path}.halis-tmp`
-      writeFileSync(tmp, updated, 'utf8')
+      writeFileSync(tmp, match.content, 'utf8')
       renameSync(tmp, path)
+      const strategyNote = match.strategy === 'exact' ? '' : ` (matched via ${match.strategy} fallback)`
       return {
-        output: `Edited ${rel(ctx.workspace, path)}: ${args.replace_all ? occurrences : 1} replacement(s).${lockResult.warning ? ` ${lockResult.warning}` : ''}`,
-        data: { path: rel(ctx.workspace, path), replacements: args.replace_all ? occurrences : 1, oldString, newString },
+        output: `Edited ${rel(ctx.workspace, path)}: ${match.occurrences} replacement(s)${strategyNote}.${lockResult.warning ? ` ${lockResult.warning}` : ''}`,
+        data: { path: rel(ctx.workspace, path), replacements: match.occurrences, strategy: match.strategy, oldString, newString },
       }
     } finally {
       if (mode === 'hard') ctx.locks.release(path, ctx.agentId)
@@ -180,4 +189,144 @@ export const editFileTool: ToolDef = {
   },
 }
 
-export const fileTools = [readFileTool, listDirTool, writeFileTool, editFileTool]
+export const multiEditTool: ToolDef = {
+  name: 'multi_edit',
+  description:
+    'Apply several exact replacements to ONE file in a single atomic call. Edits apply in order; if any old_string fails to match, nothing is written. Cheaper and safer than a sequence of edit_file calls on the same file.',
+  parameters: {
+    type: 'object',
+    properties: {
+      path: { type: 'string', description: 'File path relative to the workspace' },
+      edits: {
+        type: 'array',
+        description: 'Replacements applied in order',
+        items: {
+          type: 'object',
+          properties: {
+            old_string: { type: 'string' },
+            new_string: { type: 'string' },
+            replace_all: { type: 'boolean' },
+          },
+          required: ['old_string', 'new_string'],
+        },
+      },
+    },
+    required: ['path', 'edits'],
+  },
+  kind: 'file-write',
+  readOnly: false,
+  async execute(args, ctx): Promise<ToolResult> {
+    const path = ctx.sandbox.safePath(String(args.path ?? ''))
+    if (!existsSync(path)) return { output: `File not found: ${String(args.path)}` }
+    if (isStateFilePath(path)) throw new Error('Workspace state files under .halis/ are managed by the harness.')
+    const edits = Array.isArray(args.edits) ? args.edits : []
+    if (!edits.length) return { output: 'Provide at least one edit.' }
+
+    const mode = isLogLikePath(path) ? 'advisory' : 'hard'
+    const lockResult = ctx.locks.acquire(path, ctx.agentId, ctx.agentName, mode)
+    try {
+      let content = readFileSync(path, 'utf8')
+      const applied: Array<{ strategy: string; replacements: number }> = []
+      for (let i = 0; i < edits.length; i++) {
+        const edit = edits[i] as { old_string?: unknown; new_string?: unknown; replace_all?: unknown }
+        const oldString = String(edit?.old_string ?? '')
+        const newString = String(edit?.new_string ?? '')
+        if (!oldString) return { output: `Edit ${i + 1}: old_string is empty.` }
+        if (oldString === newString) return { output: `Edit ${i + 1}: old_string and new_string are identical.` }
+        const match = fuzzyReplace(content, oldString, newString, !!edit?.replace_all)
+        if (!match.content) {
+          return {
+            output: `Edit ${i + 1} failed: old_string not found${match.occurrences > 1 ? ` (${match.occurrences} ambiguous occurrences)` : ''} in ${rel(ctx.workspace, path)}. NOTHING was written. Fix the edit and retry.`,
+          }
+        }
+        content = match.content
+        applied.push({ strategy: match.strategy, replacements: match.occurrences })
+      }
+      const tmp = `${path}.halis-tmp`
+      writeFileSync(tmp, content, 'utf8')
+      renameSync(tmp, path)
+      const total = applied.reduce((sum, a) => sum + a.replacements, 0)
+      return {
+        output: `Applied ${edits.length} edit(s) to ${rel(ctx.workspace, path)} (${total} replacement(s)).${lockResult.warning ? ` ${lockResult.warning}` : ''}`,
+        data: { path: rel(ctx.workspace, path), edits: applied },
+      }
+    } finally {
+      if (mode === 'hard') ctx.locks.release(path, ctx.agentId)
+    }
+  },
+}
+
+export const deleteFileTool: ToolDef = {
+  name: 'delete_file',
+  description: 'Delete a file (or an empty directory) inside the workspace. The action shows an approval card first.',
+  parameters: {
+    type: 'object',
+    properties: {
+      path: { type: 'string', description: 'File path relative to the workspace' },
+    },
+    required: ['path'],
+  },
+  kind: 'file-write',
+  readOnly: false,
+  async execute(args, ctx): Promise<ToolResult> {
+    const path = ctx.sandbox.safePath(String(args.path ?? ''))
+    if (!existsSync(path)) return { output: `File not found: ${String(args.path)}` }
+    if (isStateFilePath(path)) throw new Error('Workspace state files under .halis/ are managed by the harness.')
+    if (path === ctx.sandbox.workspace) return { output: 'Refusing to delete the workspace root.' }
+    const stat = statSync(path)
+    if (stat.isDirectory() && readdirSync(path).length) {
+      return { output: 'Directory is not empty — delete its files first (or use run_command for a deliberate recursive removal).' }
+    }
+    const mode = 'hard'
+    ctx.locks.acquire(path, ctx.agentId, ctx.agentName, mode)
+    try {
+      if (stat.isDirectory()) {
+        readdirSync(path) // re-check emptiness under the lock
+        const entries = readdirSync(path)
+        if (entries.length) return { output: 'Directory became non-empty; aborted.' }
+        rmdirSafe(path)
+      } else {
+        unlinkSync(path)
+      }
+      return { output: `Deleted ${rel(ctx.workspace, path)}.`, data: { path: rel(ctx.workspace, path) } }
+    } finally {
+      ctx.locks.release(path, ctx.agentId)
+    }
+  },
+}
+
+function rmdirSafe(path: string): void {
+  rmdirSync(path)
+}
+
+export const readImageTool: ToolDef = {
+  name: 'read_image',
+  description:
+    'Read an image (PNG, JPEG, GIF, WebP) from the workspace and attach it to the conversation so vision-capable models can see it. Text files: use read_file instead.',
+  parameters: {
+    type: 'object',
+    properties: {
+      path: { type: 'string', description: 'Image path relative to the workspace' },
+    },
+    required: ['path'],
+  },
+  kind: 'other',
+  readOnly: true,
+  async execute(args, ctx): Promise<ToolResult> {
+    const path = ctx.sandbox.safePath(String(args.path ?? ''))
+    if (!existsSync(path)) return { output: `File not found: ${String(args.path)}` }
+    if (statSync(path).isDirectory()) return { output: `${String(args.path)} is a directory.` }
+    const ext = path.slice(path.lastIndexOf('.')).toLowerCase()
+    const mime = IMAGE_MIMES[ext]
+    if (!mime) return { output: `Unsupported image type "${ext || '(none)'}" — PNG, JPEG, GIF and WebP are supported.` }
+    if (statSync(path).size > MAX_IMAGE_BYTES) return { output: `Image too large (${(statSync(path).size / 1048576).toFixed(1)} MB, cap 5 MB).` }
+    const data = readFileSync(path)
+    const dataUri = `data:${mime};base64,${data.toString('base64')}`
+    return {
+      output: `Image loaded: ${rel(ctx.workspace, path)} (${(data.length / 1024).toFixed(0)} KB, ${mime}). It is attached to this conversation.`,
+      data: { image: { dataUri, mime, path: rel(ctx.workspace, path) } },
+    }
+  },
+}
+
+export const fileTools = [readFileTool, listDirTool, writeFileTool, editFileTool, multiEditTool, deleteFileTool, readImageTool]

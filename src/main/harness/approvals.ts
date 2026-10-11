@@ -7,6 +7,7 @@ import type { AlwaysAllowRule, ApprovalKind, ApprovalRequest } from '@shared/typ
 import { newId } from '../util/id'
 
 type Resolver = (response: 'allow' | 'always' | 'reject') => void
+type QuestionResolver = (answers: import('@shared/types').QuestionAnswer[] | null) => void
 
 export interface ApprovalHooks {
   onRequest: (request: ApprovalRequest) => void
@@ -16,6 +17,7 @@ export interface ApprovalHooks {
 
 export class ApprovalManager {
   private pending = new Map<string, { request: ApprovalRequest; resolve: Resolver }>()
+  private pendingQuestions = new Map<string, { request: ApprovalRequest; resolve: QuestionResolver }>()
   private rules: AlwaysAllowRule[] = []
   private hooks: ApprovalHooks | null = null
 
@@ -33,7 +35,7 @@ export class ApprovalManager {
   }
 
   pendingRequests(): ApprovalRequest[] {
-    return [...this.pending.values()].map((p) => p.request)
+    return [...this.pending.values(), ...this.pendingQuestions.values()].map((p) => p.request)
   }
 
   request(input: {
@@ -57,7 +59,15 @@ export class ApprovalManager {
     return { id, wait }
   }
 
-  respond(requestId: string, response: 'allow' | 'always' | 'reject'): boolean {
+  respond(requestId: string, response: 'allow' | 'always' | 'reject', answers?: import('@shared/types').QuestionAnswer[]): boolean {
+    // Question cards resolve through their own channel — response carries answers.
+    const question = this.pendingQuestions.get(requestId)
+    if (question) {
+      this.pendingQuestions.delete(requestId)
+      question.resolve(response === 'reject' || !answers ? null : answers)
+      this.hooks?.onResolved(requestId, response !== 'reject')
+      return true
+    }
     const entry = this.pending.get(requestId)
     if (!entry) return false
     this.pending.delete(requestId)
@@ -77,6 +87,36 @@ export class ApprovalManager {
     return true
   }
 
+  /** ask_user: park a structured question card and wait for the answers. */
+  requestQuestions(input: {
+    sessionId: string
+    agentId: string
+    agentName: string
+    agentColor?: string
+    questions: import('@shared/types').QuestionPrompt[]
+  }): { id: string; wait: Promise<import('@shared/types').QuestionAnswer[] | null> } {
+    const id = newId('apr')
+    const request: ApprovalRequest = {
+      id,
+      createdAt: Date.now(),
+      sessionId: input.sessionId,
+      agentId: input.agentId,
+      agentName: input.agentName,
+      agentColor: input.agentColor,
+      kind: 'question',
+      title: input.questions.length > 1 ? `${input.questions.length} questions for you` : 'A question for you',
+      detail: input.questions.map((q) => q.question).join(' · '),
+      risk: 'low',
+      tool: 'ask_user',
+      questions: input.questions,
+    }
+    const wait = new Promise<import('@shared/types').QuestionAnswer[] | null>((resolve) => {
+      this.pendingQuestions.set(id, { request, resolve })
+    })
+    this.hooks?.onRequest(request)
+    return { id, wait }
+  }
+
   /** Reject everything still parked — used when a turn is aborted. */
   rejectAll(): void {
     for (const [, entry] of this.pending) {
@@ -84,6 +124,11 @@ export class ApprovalManager {
       this.hooks?.onResolved(entry.request.id, false)
     }
     this.pending.clear()
+    for (const [, question] of this.pendingQuestions) {
+      question.resolve(null)
+      this.hooks?.onResolved(question.request.id, false)
+    }
+    this.pendingQuestions.clear()
   }
 
   rulesFor(agentId: string): AlwaysAllowRule[] {
