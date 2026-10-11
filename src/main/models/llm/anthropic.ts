@@ -8,6 +8,14 @@ type ContentBlock =
   | { type: 'text'; text: string }
   | { type: 'thinking'; thinking: string }
   | { type: 'tool_use'; id: string; name: string; input: unknown }
+  | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+  | { type: 'tool_result'; tool_use_id: string; content: string | ContentBlock[]; is_error?: boolean }
+
+function imageBlock(dataUri: string): ContentBlock | null {
+  const match = /^data:(image\/[a-z+]+);base64,(.+)$/i.exec(dataUri)
+  if (!match) return null
+  return { type: 'image', source: { type: 'base64', media_type: match[1]!.toLowerCase(), data: match[2]! } }
+}
 
 export class AnthropicProvider implements LlmProvider {
   constructor(
@@ -31,7 +39,16 @@ export class AnthropicProvider implements LlmProvider {
       if (m.role === 'system') {
         system += (system ? '\n\n' : '') + m.content
       } else if (m.role === 'user') {
-        messages.push({ role: 'user', content: m.content })
+        if (m.images?.length) {
+          const content: ContentBlock[] = [{ type: 'text', text: m.content }]
+          for (const image of m.images) {
+            const block = imageBlock(image.dataUri)
+            if (block) content.push(block)
+          }
+          messages.push({ role: 'user', content })
+        } else {
+          messages.push({ role: 'user', content: m.content })
+        }
       } else if (m.role === 'assistant') {
         const content: ContentBlock[] = []
         if (m.content) content.push({ type: 'text', text: m.content })
@@ -46,9 +63,14 @@ export class AnthropicProvider implements LlmProvider {
         }
         messages.push({ role: 'assistant', content })
       } else {
+        const content: ContentBlock[] = [{ type: 'text', text: m.content }]
+        for (const image of m.images ?? []) {
+          const block = imageBlock(image.dataUri)
+          if (block) content.push(block)
+        }
         messages.push({
           role: 'user',
-          content: [{ type: 'tool_result', tool_use_id: m.toolCallId, content: m.content, is_error: !!m.isError }],
+          content: [{ type: 'tool_result', tool_use_id: m.toolCallId, content: content.length > 1 ? content : m.content, is_error: !!m.isError }],
         })
       }
     }
@@ -74,7 +96,7 @@ export class AnthropicProvider implements LlmProvider {
     } catch {
       /* ignore */
     }
-    throw new LlmError(`${this.providerName} request failed (${res.status}): ${detail.slice(0, 500) || res.statusText}`, res.status, this.providerName)
+    throw new LlmError(`${this.providerName} request failed (${res.status}): ${detail.slice(0, 500) || res.statusText}`, res.status, this.providerName, res.headers.get('retry-after'))
   }
 
   async stream(request: LlmRequest, options: LlmStreamOptions): Promise<LlmResult> {

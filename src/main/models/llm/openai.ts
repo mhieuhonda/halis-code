@@ -55,7 +55,13 @@ export function toOpenAiMessages(messages: LlmMessage[]): Array<Record<string, u
     if (m.role === 'system') {
       out.push({ role: 'system', content: m.content })
     } else if (m.role === 'user') {
-      out.push({ role: 'user', content: m.content })
+      if (m.images?.length) {
+        const parts: Array<Record<string, unknown>> = [{ type: 'text', text: m.content }]
+        for (const image of m.images) parts.push({ type: 'image_url', image_url: { url: image.dataUri } })
+        out.push({ role: 'user', content: parts })
+      } else {
+        out.push({ role: 'user', content: m.content })
+      }
     } else if (m.role === 'assistant') {
       const msg: Record<string, unknown> = { role: 'assistant', content: m.content || null }
       if (m.toolCalls?.length) {
@@ -67,6 +73,8 @@ export function toOpenAiMessages(messages: LlmMessage[]): Array<Record<string, u
       }
       out.push(msg)
     } else {
+      // OpenAI-compatible tool messages are string-only; images ride along in
+      // a synthetic user turn added by the caller when the tool returned one.
       out.push({ role: 'tool', tool_call_id: m.toolCallId, content: m.content })
     }
   }
@@ -122,6 +130,7 @@ export class OpenAiCompatProvider implements LlmProvider {
       `${this.providerName} request failed (${res.status}): ${detail.slice(0, 500) || res.statusText}`,
       res.status,
       this.providerName,
+      res.headers.get('retry-after'),
     )
   }
 

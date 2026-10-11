@@ -18,9 +18,9 @@ export interface LlmToolCall {
 
 export type LlmMessage =
   | { role: 'system'; content: string }
-  | { role: 'user'; content: string }
+  | { role: 'user'; content: string; images?: Array<{ mime: string; dataUri: string }> }
   | { role: 'assistant'; content: string; toolCalls?: LlmToolCall[] }
-  | { role: 'tool'; toolCallId: string; toolName: string; content: string; isError?: boolean }
+  | { role: 'tool'; toolCallId: string; toolName: string; content: string; isError?: boolean; images?: Array<{ mime: string; dataUri: string }> }
 
 export interface LlmRequest {
   /** Provider model id string (what the API expects in `model`). */
@@ -68,6 +68,7 @@ export class LlmError extends Error {
     message: string,
     public readonly status?: number,
     public readonly provider?: string,
+    public readonly retryAfter?: string | null,
   ) {
     super(message)
     this.name = 'LlmError'

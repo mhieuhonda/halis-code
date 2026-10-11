@@ -7,6 +7,12 @@ import { LlmError } from './types'
 import type { LlmProvider, LlmRequest, LlmResult, LlmStreamOptions } from './types'
 import { OpenAiCompatProvider } from './openai'
 import { AnthropicProvider } from './anthropic'
+import { withRetry } from './retry'
+
+/** On retries, previous partial deltas already reached the UI — suppress echo. */
+function quietEvents(options: LlmStreamOptions): LlmStreamOptions {
+  return { signal: options.signal, onEvent: () => {} }
+}
 
 export interface ProviderResolution {
   provider: LlmProvider
@@ -52,19 +58,26 @@ export class LlmDispatcher {
 
   async stream(modelId: string, request: LlmRequest, options: LlmStreamOptions, keyOverride?: string): Promise<LlmResult> {
     const { provider, model } = this.resolve(modelId, keyOverride)
-    return provider.stream(
-      {
-        ...request,
-        model: model.apiId,
-        maxTokens: request.maxTokens ?? (model.maxOutput ? Math.min(model.maxOutput, 32768) : undefined),
-      },
-      options,
+    return withRetry(
+      (attempt) =>
+        provider.stream(
+          {
+            ...request,
+            model: model.apiId,
+            maxTokens: request.maxTokens ?? (model.maxOutput ? Math.min(model.maxOutput, 32768) : undefined),
+          },
+          attempt === 0 ? options : { ...options, onEvent: attempt === 0 ? options.onEvent : quietEvents(options).onEvent },
+        ),
+      options.signal ?? request.signal,
     )
   }
 
   async complete(modelId: string, request: LlmRequest, keyOverride?: string): Promise<LlmResult> {
     const { provider, model } = this.resolve(modelId, keyOverride)
-    return provider.complete({ ...request, model: model.apiId, maxTokens: request.maxTokens ?? (model.maxOutput ? Math.min(model.maxOutput, 8192) : undefined) })
+    return withRetry(() =>
+      provider.complete({ ...request, model: model.apiId, maxTokens: request.maxTokens ?? (model.maxOutput ? Math.min(model.maxOutput, 8192) : undefined) }),
+    request.signal,
+    )
   }
 
   /** Cheap liveness/key check: one-token completion. */
