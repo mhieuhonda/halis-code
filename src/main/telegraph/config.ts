@@ -1,9 +1,9 @@
 /**
  * Telegraph network configuration.
  *
- * Per the hackathon's hard lines: chain ID, token address, node URL and
- * price source are configuration values, not code. Flipping to mainnet is a
- * settings change (`networkId: 'base-mainnet'`), nothing else.
+ * Design hard line: chain ID, token address, node URL and price source are
+ * configuration values, not code. Flipping to mainnet is a settings change
+ * (`networkId: 'base-mainnet'`), nothing else.
  *
  * The network table itself lives in @shared/types so the renderer can show
  * it without reaching into the main process.
@@ -27,12 +27,10 @@ export function enginePaths(nodeUrl: string) {
     signal: (hash: string) => `${base}/engine/v1/signal/${hash}`,
     intents: `${base}/engine/v1/intents`,
     miners: `${base}/api/miners`,
-    daemonCategories: `${base}/daemon/v1/categories`,
-    daemonQuestions: `${base}/daemon/v1/questions`,
   }
 }
 
-/** Intents a coding agent cares about (mirrors the Season II catalogue). */
+/** Intents a coding agent cares about (a mirror of the live catalogue). */
 export const CODING_INTENTS = [
   'CODE_REVIEW',
   'SECURITY_REVIEW',

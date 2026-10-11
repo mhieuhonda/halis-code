@@ -1,7 +1,7 @@
 /**
  * Telegraph Engine client — how Halis Code buys intelligence.
  *
- * Rules honored here (Telegraph Hackathon Season II, Apps & Agents):
+ * Rules honored here (the network's app rules):
  *  - the app never calls a miner's API directly; paid requests route through
  *    the Telegraph Engine and consume the verified, ranked answer;
  *  - every served request carries a receipt (miner, intent, amount, tx hash,
@@ -101,19 +101,24 @@ export async function listMiners(network: TelegraphNetworkConfig, signal?: Abort
   }))
 }
 
-export async function listIntents(network: TelegraphNetworkConfig, signal?: AbortSignal): Promise<Array<{ id: string; label?: string }>> {
+export async function listIntents(network: TelegraphNetworkConfig, signal?: AbortSignal): Promise<Array<{ id: string; label?: string; minerCount?: number }>> {
   const raw = await getJson<unknown>(enginePaths(network.nodeUrl).intents, signal)
+  const mapIntent = (i: unknown): { id: string; label?: string; minerCount?: number } => {
+    if (typeof i === 'string') return { id: i }
+    const obj = i as Record<string, unknown>
+    // Live node shape: { intent_id, intent_name, miner_count, description, ... }
+    const id = String(obj.intent_id ?? obj.id ?? obj.intent ?? obj.name ?? '')
+    const label = obj.intent_name ? String(obj.intent_name) : obj.name ? String(obj.name) : obj.description ? String(obj.description) : undefined
+    const minerCount = obj.miner_count !== undefined ? Number(obj.miner_count) : undefined
+    return { id, label, minerCount: Number.isFinite(minerCount) ? minerCount : undefined }
+  }
   if (Array.isArray(raw)) {
-    return raw.map((i) => {
-      if (typeof i === 'string') return { id: i }
-      const obj = i as Record<string, unknown>
-      return { id: String(obj.id ?? obj.intent ?? obj.name ?? ''), label: obj.name ? String(obj.name) : obj.description ? String(obj.description) : undefined }
-    })
+    return raw.map(mapIntent).filter((i) => i.id)
   }
   if (raw && typeof raw === 'object') {
     const obj = raw as Record<string, unknown>
     // Some builds return { intents: [...] } or a map.
-    if (Array.isArray(obj.intents)) return (obj.intents as Array<Record<string, unknown>>).map((i) => ({ id: String(i.id ?? i.name ?? '') }))
+    if (Array.isArray(obj.intents)) return (obj.intents as Array<unknown>).map(mapIntent).filter((i) => i.id)
     return Object.keys(obj).map((k) => ({ id: k, label: String((obj[k] as Record<string, unknown>)?.name ?? k) }))
   }
   return []
@@ -212,6 +217,19 @@ export async function askTelegraph(opts: AskOptions): Promise<TelegraphAskResult
           explorerUrl: receipt.txHash ? `${opts.network.explorerTxUrl}${receipt.txHash}` : undefined,
         }
       : undefined,
+  }
+}
+
+/** Fetch one signal's full record by hash (verify flow). Alias of verifySignal with the raw JSON surfaced. */
+export async function getSignal(
+  network: TelegraphNetworkConfig,
+  signalHash: string,
+  signal?: AbortSignal,
+): Promise<Record<string, unknown> | undefined> {
+  try {
+    return await getJson<Record<string, unknown>>(enginePaths(network.nodeUrl).signal(signalHash), signal)
+  } catch {
+    return undefined
   }
 }
 
