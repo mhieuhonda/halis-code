@@ -19,7 +19,10 @@ import { FileLockManager } from '@main/harness/file-locking'
 import { TaskBoard } from '@main/harness/task-board'
 import { createSandbox } from '@main/harness/sandbox'
 import { createToolRegistry } from '@main/harness/tools/registry'
-import type { ToolContext } from '@main/harness/tools'
+import { TodoStore, type ToolContext } from '@main/harness/tools'
+import { JobRegistry } from '@main/harness/jobs'
+import { ScheduleStore } from '@main/harness/schedules'
+import { McpManager } from '@main/harness/mcp'
 import { buildSingleAgentPrompt } from '@main/swarm/prompts'
 import { ReceiptLedger } from '@main/telegraph/receipts'
 import { listIntents, listMiners, quoteAsk } from '@main/telegraph/client'
@@ -83,6 +86,11 @@ describe('live: free model agent turn', () => {
             ledger,
           },
           emit: (e) => events.push(e),
+          jobs: new JobRegistry(),
+          schedules: new ScheduleStore(ws),
+          mcp: new McpManager(),
+          todos: new TodoStore('e2e', () => {}),
+          settings: {},
         }
 
         const result = await runner.runTurn(
