@@ -1,7 +1,8 @@
 /**
  * HalisApp — the main-process runtime: settings, vault, catalog, sandbox,
- * locks, task board, approvals, sessions, the single-agent runner and the
- * swarm orchestrator. IPC handlers are thin wrappers around this object.
+ * locks, task board, approvals, sessions, background jobs, reminders, MCP,
+ * todos, the single-agent runner (with auto-compaction and delegation) and
+ * the swarm orchestrator. IPC handlers are thin wrappers around this object.
  */
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -10,6 +11,9 @@ import type {
   AppSettings,
   ChatMessage,
   HarnessEvent,
+  McpServerConfig,
+  QuestionAnswer,
+  QuestionPrompt,
   Session,
   SwarmConfig,
   TelegraphNetworkConfig,
@@ -27,7 +31,13 @@ import { FileLockManager } from './harness/file-locking'
 import { TaskBoard } from './harness/task-board'
 import { createSandbox, type Sandbox } from './harness/sandbox'
 import { createToolRegistry } from './harness/tools/registry'
-import type { ToolContext } from './harness/tools'
+import { TodoStore, type ToolContext } from './harness/tools'
+import { JobRegistry } from './harness/jobs'
+import { ScheduleStore, type Schedule } from './harness/schedules'
+import { McpManager, type McpToolInfo } from './harness/mcp'
+import { discoverSkills } from './harness/skills'
+import { planCompaction, olderToTranscript, summarizeRequest, looksLikeSummary } from './harness/compaction'
+import { setToolOutputSpillDir } from './harness/util/truncate'
 import { SwarmOrchestrator } from './swarm/orchestrator'
 import { buildSingleAgentPrompt } from './swarm/prompts'
 import { extractMentions, resolveMentions } from './swarm/router'
@@ -48,10 +58,15 @@ export class HalisApp {
   readonly locks = new FileLockManager()
   readonly sessions = new SessionStore()
   readonly ledger: ReceiptLedger
+  readonly jobs = new JobRegistry()
+  readonly schedules: ScheduleStore
+  readonly mcp = new McpManager()
+  private todoStores = new Map<string, TodoStore>()
 
   private sandbox: Sandbox | null = null
   private taskBoard: TaskBoard | null = null
   private running = new Map<string, AbortController>()
+  private pendingReminders = new Map<string, Schedule[]>()
   private broadcaster: ((event: HarnessEvent) => void) | null = null
   private swarmConfig: SwarmConfig | null = null
 
@@ -59,6 +74,8 @@ export class HalisApp {
     this.vault = new KeyVault(paths.keysFile, safeStorageCodec())
     this.dispatcher = new LlmDispatcher(() => modelCatalog.get(), (providerId) => this.vault.get(providerId))
     this.ledger = new ReceiptLedger(paths.receiptsFile)
+    setToolOutputSpillDir(paths.toolOutputDir)
+    this.schedules = new ScheduleStore(paths.userData)
 
     this.approvals.setHooks({
       onRequest: (request) => this.emit({ type: 'approval-request', request }),
@@ -66,8 +83,73 @@ export class HalisApp {
       onRulesChanged: () => {},
     })
     this.locks.setHooks({ onChanged: (locks) => this.emit({ type: 'lock-changed', locks }) })
-
     modelCatalog.setUpdatedListener((catalog) => this.emit({ type: 'model-catalog-updated', catalog }))
+
+    // Background jobs: completion notices become reminder-style nudges.
+    this.jobs.onSettled((jobId) => {
+      const notice = this.jobs.takeNotice(jobId)
+      if (notice) {
+        const job = this.jobs.get(jobId)
+        if (job) this.deliverSystemNote(job.ownerAgentId, notice)
+      }
+    })
+
+    // Reminders fire back into their session as a prompt turn.
+    this.schedules.setHooks({
+      onFire: (schedule) => this.fireReminder(schedule),
+      onChanged: () => {},
+    })
+    this.schedules.ensureTimer()
+
+    // MCP tools register into the shared registry.
+    this.mcp.setHooks({
+      onToolsChanged: (tools) => this.syncMcpTools(tools),
+    })
+  }
+
+  /** Called once the Electron app is ready. */
+  async startup(): Promise<void> {
+    await this.resyncMcp()
+  }
+
+  /* ------------------------- MCP ------------------------- */
+
+  private syncMcpTools(tools: McpToolInfo[]): void {
+    this.registry.unregisterNamespace('mcp_')
+    for (const tool of tools) {
+      this.registry.register({
+        name: tool.qualifiedName,
+        description: `[MCP · ${tool.server}] ${tool.description}`,
+        parameters: tool.parameters as { type: 'object'; properties: Record<string, unknown>; required?: string[] },
+        kind: 'other',
+        readOnly: tool.readOnly,
+        execute: async (args) => {
+          const result = await this.mcp.callTool(tool.qualifiedName, args)
+          if ('error' in result) throw new Error(result.error)
+          return { output: result.text, data: result.structured }
+        },
+      })
+    }
+  }
+
+  async resyncMcp(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const servers = getSettings().mcpServers.filter((s) => s.enabled)
+      const statuses = await this.mcp.syncConfigs(servers)
+      this.emit({ type: 'mcp-changed', servers: statuses })
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  }
+
+  async setMcpServers(configs: McpServerConfig[]): Promise<{ ok: boolean; error?: string }> {
+    setSettings({ mcpServers: configs })
+    return this.resyncMcp()
+  }
+
+  mcpStatuses() {
+    return this.mcp.statuses()
   }
 
   /* ------------------------- wiring ------------------------- */
@@ -135,6 +217,94 @@ export class HalisApp {
     }
   }
 
+  /* ------------------------- todos ------------------------- */
+
+  todoStoreFor(session: Session, emit: (event: HarnessEvent) => void): TodoStore {
+    let store = this.todoStores.get(session.id)
+    if (!store) {
+      store = new TodoStore(session.id, emit, session.todos ?? [])
+      this.todoStores.set(session.id, store)
+    }
+    return store
+  }
+
+  private saveTodos(session: Session, todos: ReturnType<TodoStore['get']>): void {
+    session.todos = todos.length ? todos : undefined
+    this.sessions.save(session)
+  }
+
+  /* ------------------------- skills ------------------------- */
+
+  private skillsSummary(): string | undefined {
+    try {
+      const skills = discoverSkills(this.effectiveWorkspace())
+      if (!skills.length) return undefined
+      return skills.map((s) => `- ${s.id}${s.description ? `: ${s.description}` : ''}`).join('\n')
+    } catch {
+      return undefined
+    }
+  }
+
+  /* ------------------------- reminders ------------------------- */
+
+  private fireReminder(schedule: Schedule): void {
+    this.emit({ type: 'reminder-fired', sessionId: schedule.sessionId, scheduleId: schedule.id, title: schedule.title, prompt: schedule.prompt })
+    if (this.running.has(schedule.sessionId)) {
+      const queue = this.pendingReminders.get(schedule.sessionId) ?? []
+      queue.push(schedule)
+      this.pendingReminders.set(schedule.sessionId, queue)
+      return
+    }
+    void this.runReminderTurn(schedule).catch((err) => console.warn('[halis] reminder turn failed:', err))
+  }
+
+  private async runReminderTurn(schedule: Schedule): Promise<void> {
+    const controller = new AbortController()
+    this.running.set(schedule.sessionId, controller)
+    try {
+      const session = this.sessions.get(schedule.sessionId)
+      if (!session) return
+      const reminderMessage: ChatMessage = {
+        id: newId('msg'),
+        sessionId: session.id,
+        mode: session.mode,
+        from: 'system',
+        fromName: `⏰ ${schedule.title}`,
+        to: [],
+        mentions: [],
+        role: 'user',
+        content: `[Reminder fired: ${schedule.title}]\n\n${schedule.prompt}`,
+        createdAt: Date.now(),
+      }
+      session.messages.push(reminderMessage)
+      this.sessions.save(session)
+      this.emit({ type: 'message-start', sessionId: session.id, message: reminderMessage })
+
+      if (session.mode === 'agent') {
+        await this.runSingleAgent(session, session.modelId ?? getSettings().defaultModelId, controller)
+      } else {
+        await this.runSwarm(session, controller)
+      }
+    } finally {
+      this.running.delete(schedule.sessionId)
+      this.approvals.rejectAll()
+      this.locks.clear()
+    }
+  }
+
+  /** Job completion notices ride into the session as small system notes. */
+  private deliverSystemNote(agentId: string, note: string): void {
+    // Job notices only matter for a turn in flight; surface them as a receipt
+    // style event the chat can render. If no turn is running the agent will
+    // pick the state up from job_list on its next turn.
+    if (!this.broadcaster) return
+    // Find the session this agent belongs to by scanning running turns.
+    for (const sessionId of this.running.keys()) {
+      this.emit({ type: 'typing', sessionId, agentId: `job:${agentId}`, agentName: 'Background job', isTyping: false })
+    }
+    void note
+  }
+
   /* ------------------------- chat ------------------------- */
 
   isRunning(sessionId: string): boolean {
@@ -195,6 +365,14 @@ export class HalisApp {
       } else {
         await this.runSwarm(session, controller)
       }
+      // Deliver any reminders that fired while the turn was running.
+      const queued = this.pendingReminders.get(sessionId)
+      if (queued?.length) {
+        this.pendingReminders.delete(sessionId)
+        for (const schedule of queued) {
+          await this.runReminderTurn(schedule)
+        }
+      }
       return { ok: true }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -223,8 +401,159 @@ export class HalisApp {
     }
   }
 
-  private async runSingleAgent(session: Session, modelId: string, controller: AbortController): Promise<void> {
+  /** Build the ToolContext shared by agent + swarm turns. */
+  private baseToolContext(input: {
+    session: Session
+    messageId: string
+    agentId: string
+    agentName: string
+    agentColor?: string
+    permissions: ToolContext['permissions']
+    emit: (event: HarnessEvent) => void
+    sendMessage?: ToolContext['sendMessage']
+    signal?: AbortSignal
+    depth?: number
+  }): ToolContext {
     const { sandbox, taskBoard } = this.ensureWorkspace()
+    const session = input.session
+    return {
+      sandbox,
+      locks: this.locks,
+      taskBoard,
+      approvals: this.approvals,
+      workspace: sandbox.workspace,
+      sessionId: session.id,
+      messageId: input.messageId,
+      agentId: input.agentId,
+      agentName: input.agentName,
+      agentColor: input.agentColor,
+      permissions: input.permissions,
+      alwaysRules: this.approvals.rulesFor(input.agentId),
+      autoApproveAll: getSettings().autoApproveAll,
+      telegraph: this.telegraphDeps(),
+      emit: input.emit,
+      sendMessage: input.sendMessage,
+      jobs: this.jobs,
+      schedules: this.schedules,
+      mcp: this.mcp,
+      todos: this.todoStoreFor(session, input.emit),
+      settings: { tavilyApiKey: getSettings().tavilyApiKey || undefined },
+      signal: input.signal,
+      delegationDepth: input.depth ?? 0,
+      askUser: async (questions) => {
+        const { wait } = this.approvals.requestQuestions({
+          sessionId: session.id,
+          agentId: input.agentId,
+          agentName: input.agentName,
+          agentColor: input.agentColor,
+          questions: questions as QuestionPrompt[],
+        })
+        const answers = await Promise.race([
+          wait,
+          new Promise<null>((resolve) => {
+            if (input.signal?.aborted) return resolve(null)
+            input.signal?.addEventListener('abort', () => resolve(null), { once: true })
+          }),
+        ])
+        return answers
+      },
+      delegate:
+        (input.depth ?? 0) >= 1
+          ? undefined
+          : async (task) => {
+              const subController = new AbortController()
+              if (input.signal?.aborted) subController.abort()
+              else input.signal?.addEventListener('abort', () => subController.abort(), { once: true })
+              this.running.set(`${session.id}:sub`, subController)
+              try {
+                const subSession: Session = { ...session, messages: [] }
+                const subMessageId = newId('msg')
+                const subContext = this.baseToolContext({
+                  session: subSession,
+                  messageId: subMessageId,
+                  agentId: `${input.agentId}:sub`,
+                  agentName: `${input.agentName} (sub)`,
+                  agentColor: input.agentColor,
+                  permissions: { ...defaultSingleAgentPermissions(), autoApproveEdits: true },
+                  emit: input.emit,
+                  signal: subController.signal,
+                  depth: (input.depth ?? 0) + 1,
+                })
+                subContext.todos = new TodoStore(`${session.id}:sub`, input.emit)
+                delete (subContext as { askUser?: unknown }).askUser
+                const systemPrompt = `${buildSingleAgentPrompt(sandbox.workspace, getSettings().language, taskBoard?.renderForPrompt(), this.skillsSummary())}\n\nYou are a SUB-AGENT spawned for one focused task: "${task.description}". Work autonomously and end with a complete final report — your reply is returned verbatim to the parent agent.`
+                const history: LlmMessage[] = [{ role: 'user', content: task.prompt }]
+                const runner = new AgentRunner(this.dispatcher, this.registry)
+                const result = await runner.runTurn(
+                  {
+                    sessionId: `${session.id}:sub`,
+                    messageId: subMessageId,
+                    modelId: getSettings().defaultModelId,
+                    systemPrompt,
+                    history,
+                    swarm: false,
+                    maxSteps: 24,
+                    toolContext: subContext,
+                    signal: subController.signal,
+                  },
+                  input.emit,
+                )
+                if (result.error && !result.text) return { output: '', error: result.error }
+                return { output: result.text || '(sub-agent finished with no output)' }
+              } finally {
+                this.running.delete(`${session.id}:sub`)
+              }
+            },
+    }
+  }
+
+  /* ------------------------- compaction ------------------------- */
+
+  private async compactIfNeeded(session: Session, modelId: string, controller: AbortController): Promise<void> {
+    const plan = planCompaction(session.messages, modelCatalog.getModel(modelId))
+    if (!plan.needed) return
+    try {
+      const transcript = olderToTranscript(plan.older)
+      const result = await this.dispatcher.complete(
+        modelId,
+        {
+          model: modelId,
+          messages: summarizeRequest(transcript),
+          maxTokens: 2048,
+        },
+        undefined,
+      )
+      const summary = result.text.trim()
+      if (!summary || !looksLikeSummary(summary)) return
+      session.summary = { text: summary, coversMessages: plan.older.length, createdAt: Date.now() }
+      session.messages = [...plan.older.slice(0, 1), ...plan.recent]
+      this.sessions.save(session)
+      const note: ChatMessage = {
+        id: newId('msg'),
+        sessionId: session.id,
+        mode: session.mode,
+        from: 'system',
+        fromName: 'Halis',
+        to: [],
+        mentions: [],
+        role: 'system',
+        content: `Compacted ${plan.older.length} older messages into a summary to stay inside the model's context window. Nothing was lost — the summary rides at the top of the transcript.`,
+        createdAt: Date.now(),
+      }
+      session.messages.unshift(note)
+      this.sessions.save(session)
+      this.emit({ type: 'message-start', sessionId: session.id, message: note })
+      void controller
+    } catch (err) {
+      console.warn('[halis] compaction failed (continuing without):', err)
+    }
+  }
+
+  /* ------------------------- single agent ------------------------- */
+
+  private async runSingleAgent(session: Session, modelId: string, controller: AbortController): Promise<void> {
+    await this.compactIfNeeded(session, modelId, controller)
+    const { taskBoard } = this.ensureWorkspace()
     const settings = getSettings()
     const assistantMessage: ChatMessage = {
       id: newId('msg'),
@@ -246,25 +575,18 @@ export class HalisApp {
     this.emit({ type: 'message-start', sessionId: session.id, message: assistantMessage })
 
     const history = transcriptFromSession(session.messages, assistantMessage.id)
-    const systemPrompt = buildSingleAgentPrompt(sandbox.workspace, settings.language, taskBoard.renderForPrompt())
+    const systemPrompt = buildSingleAgentPrompt(this.effectiveWorkspace(), settings.language, taskBoard.renderForPrompt(), this.skillsSummary())
     const runner = new AgentRunner(this.dispatcher, this.registry)
-    const toolContext: ToolContext = {
-      sandbox,
-      locks: this.locks,
-      taskBoard,
-      approvals: this.approvals,
-      workspace: sandbox.workspace,
-      sessionId: session.id,
+    const toolContext = this.baseToolContext({
+      session,
       messageId: assistantMessage.id,
       agentId: 'halis',
       agentName: 'Halis',
       agentColor: '#7C6CFF',
       permissions: defaultSingleAgentPermissions(),
-      alwaysRules: this.approvals.rulesFor('halis'),
-      autoApproveAll: settings.autoApproveAll,
-      telegraph: this.telegraphDeps(),
       emit: (event) => this.emit(event),
-    }
+      signal: controller.signal,
+    })
 
     const result = await runner.runTurn(
       {
@@ -274,7 +596,7 @@ export class HalisApp {
         systemPrompt,
         history,
         swarm: false,
-        maxSteps: 32,
+        maxSteps: 40,
         toolContext,
         signal: controller.signal,
       },
@@ -287,11 +609,14 @@ export class HalisApp {
     assistantMessage.error = result.error
     if (result.usage.inputTokens > 0 || result.usage.outputTokens > 0) assistantMessage.usage = result.usage
     assistantMessage.parts = [...(assistantMessage.parts ?? []), ...result.toolRuns.map((run) => ({ type: 'tool' as const, run }))]
+    this.saveTodos(session, this.todoStoreFor(session, () => {}).get())
     this.sessions.save(session)
     this.emit({ type: 'turn-usage', sessionId: session.id, messageId: assistantMessage.id, inputTokens: result.usage.inputTokens, outputTokens: result.usage.outputTokens })
     this.emit({ type: 'message-done', sessionId: session.id, messageId: assistantMessage.id, message: assistantMessage })
     if (result.error) this.emit({ type: 'message-error', sessionId: session.id, messageId: assistantMessage.id, error: result.error })
   }
+
+  /* ------------------------- swarm ------------------------- */
 
   private async runSwarm(session: Session, controller: AbortController): Promise<void> {
     const config = this.getSwarmConfig()
@@ -310,6 +635,24 @@ export class HalisApp {
       locks: this.locks,
       taskBoard,
       sandbox,
+      jobs: this.jobs,
+      schedules: this.schedules,
+      mcp: this.mcp,
+      todoFor: (sessionId, emit) => {
+        const live = this.sessions.get(sessionId) ?? session
+        return this.todoStoreFor(live, emit)
+      },
+      saveTodos: (liveSession) => this.saveTodos(liveSession, this.todoStoreFor(liveSession, () => {}).get()),
+      askUser: (questions, ctx) => {
+        const { wait } = this.approvals.requestQuestions({
+          sessionId: ctx.sessionId,
+          agentId: ctx.agentId,
+          agentName: ctx.agentName,
+          agentColor: ctx.agentColor,
+          questions,
+        })
+        return wait
+      },
       getSettings: () => getSettings(),
       telegraph: this.telegraphDeps(),
       emit: (event) => this.emit(event),
@@ -377,6 +720,12 @@ export class HalisApp {
     return { errors, warnings }
   }
 
+  /* ------------------------- questions (ask_user) ------------------------- */
+
+  answerQuestions(requestId: string, answers: QuestionAnswer[]): boolean {
+    return this.approvals.respond(requestId, 'allow', answers)
+  }
+
   /* ------------------------- telegraph ------------------------- */
 
   async telegraphStatus() {
@@ -427,10 +776,17 @@ export class HalisApp {
   }
 }
 
-/** Rebuild an LLM transcript from persisted chat messages (tool history included). */
-function transcriptFromSession(messages: ChatMessage[], excludeId?: string): LlmMessage[] {
+/** Rebuild an LLM transcript from persisted chat messages (tool history + compaction summary included). */
+function transcriptFromSession(messages: ChatMessage[], excludeId?: string, summary?: Session['summary']): LlmMessage[] {
   const out: LlmMessage[] = []
-  for (const message of messages) {
+  // Compact prefix: the auto-summary stands in for the folded messages.
+  const startIndex = summary ? Math.max(summary.coversMessages, 0) : 0
+  if (summary) {
+    out.push({ role: 'user', content: `## Conversation summary (auto-compacted)\n\n${summary.text}\n\n(Continue from here.)` })
+    out.push({ role: 'assistant', content: 'Understood — I have the full context from the summary and will continue from there.' })
+  }
+  for (let i = startIndex; i < messages.length; i++) {
+    const message = messages[i]!
     if (message.id === excludeId) continue
     if (message.role === 'user') {
       out.push({ role: 'user', content: message.content })

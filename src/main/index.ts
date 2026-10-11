@@ -58,6 +58,7 @@ app.whenReady().then(() => {
   registerIpc(halis, () => mainWindow)
   halis.ensureWorkspace()
   modelCatalog.startBackgroundRefresh()
+  void halis.startup()
   createWindow()
 
   app.on('activate', () => {
@@ -72,6 +73,8 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   halis.stopAll()
+  halis.schedules.stop()
+  void halis.mcp.closeAll()
 })
 
 // Single-instance lock: keep settings/vault writes race-free.

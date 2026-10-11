@@ -30,4 +30,8 @@ export const paths = {
   taskBoardFile(workspace: string): string {
     return join(this.halisDir(workspace), 'task-board.json')
   },
+  /** Full tool outputs spilled to disk (opencode tool-output pattern). */
+  get toolOutputDir(): string {
+    return join(this.userData, 'tool-outputs')
+  },
 }

@@ -110,6 +110,7 @@ export type MessagePart =
   | { type: 'text'; text: string }
   | { type: 'tool'; run: ToolRun }
   | { type: 'receipt'; receipt: ReceiptRef }
+  | { type: 'image'; dataUri: string; mime: string; path: string }
 
 /* ------------------------------------------------------------------ */
 /* Sessions                                                            */
@@ -128,6 +129,10 @@ export interface SessionMeta {
   modelId?: string
   /** Swarm mode: agent names involved. */
   agentNames?: string[]
+  /** Live todo checklist for this session (survives restarts). */
+  todos?: TodoItem[]
+  /** Auto-compaction summary + the message count it covers. */
+  summary?: { text: string; coversMessages: number; createdAt: number }
 }
 
 export interface Session extends SessionMeta {
@@ -192,7 +197,7 @@ export type AgentRole = {
 /* Approvals                                                           */
 /* ------------------------------------------------------------------ */
 
-export type ApprovalKind = 'file-write' | 'shell' | 'usdc-spend' | 'other'
+export type ApprovalKind = 'file-write' | 'shell' | 'usdc-spend' | 'other' | 'question'
 
 export interface ApprovalRequest {
   id: string
@@ -208,6 +213,8 @@ export interface ApprovalRequest {
   amountUsd?: number
   tool: string
   createdAt: number
+  /** ask_user tool: the structured questions waiting for answers. */
+  questions?: QuestionPrompt[]
 }
 
 export interface AlwaysAllowRule {
@@ -216,6 +223,113 @@ export interface AlwaysAllowRule {
   tool?: string
   maxAmountUsd?: number
   createdAt: number
+}
+
+/* ------------------------------------------------------------------ */
+/* Todos (agent-side checklist, deepseek-harness style)                */
+/* ------------------------------------------------------------------ */
+
+export type TodoStatus = 'pending' | 'in_progress' | 'completed'
+
+export interface TodoItem {
+  content: string
+  status: TodoStatus
+}
+
+export interface TodoState {
+  todos: TodoItem[]
+  updatedAt: number
+}
+
+/* ------------------------------------------------------------------ */
+/* Questions (ask_user tool — structured clarification cards)          */
+/* ------------------------------------------------------------------ */
+
+export interface QuestionOption {
+  label: string
+  description?: string
+}
+
+export interface QuestionPrompt {
+  /** Stable id within the call. */
+  id: string
+  question: string
+  /** Short chip label, ≤30 chars. */
+  header?: string
+  options?: QuestionOption[]
+  multiSelect?: boolean
+}
+
+export interface QuestionAnswer {
+  id: string
+  selected: string[]
+  custom?: string
+}
+
+/* ------------------------------------------------------------------ */
+/* MCP                                                                 */
+/* ------------------------------------------------------------------ */
+
+export interface McpServerConfig {
+  name: string
+  command?: string
+  args?: string[]
+  cwd?: string
+  env?: Record<string, string>
+  url?: string
+  headers?: Record<string, string>
+  timeoutMs?: number
+  enabled: boolean
+}
+
+export interface McpServerStatus {
+  name: string
+  enabled: boolean
+  connected: boolean
+  error?: string
+  toolCount: number
+}
+
+/* ------------------------------------------------------------------ */
+/* Reminders (schedule subsystem)                                      */
+/* ------------------------------------------------------------------ */
+
+export type ScheduleSelectorView =
+  | { kind: 'after_seconds'; seconds: number }
+  | { kind: 'at'; iso: string }
+  | { kind: 'every_seconds'; seconds: number }
+  | { kind: 'daily'; time: string }
+  | { kind: 'weekly'; time: string; weekdays: number[] }
+  | { kind: 'cron'; expression: string }
+
+export interface ScheduleView {
+  id: string
+  sessionId: string
+  title: string
+  prompt: string
+  selector: ScheduleSelectorView
+  createdBy: string
+  createdAt: number
+  nextFireAt: number
+  lastFiredAt?: number
+  fireCount: number
+}
+
+/* ------------------------------------------------------------------ */
+/* Background jobs                                                     */
+/* ------------------------------------------------------------------ */
+
+export interface JobView {
+  id: string
+  kind: string
+  label: string
+  ownerAgentId: string
+  status: 'running' | 'completed' | 'killed' | 'failed'
+  exitCode: number | null
+  startedAt: number
+  finishedAt?: number
+  outputBytes: number
+  truncated: boolean
 }
 
 /* ------------------------------------------------------------------ */
@@ -366,6 +480,10 @@ export interface AppSettings {
   telegraph: TelegraphSettings
   /** Master switch: auto-approve everything (demo mode). Off by default. */
   autoApproveAll: boolean
+  /** MCP servers the harness connects to (opencode/deepseek-style). */
+  mcpServers: McpServerConfig[]
+  /** Optional Tavily key; without it web_search uses the keyless DuckDuckGo backend. */
+  tavilyApiKey?: string
 }
 
 /* ------------------------------------------------------------------ */
@@ -399,6 +517,9 @@ export type HarnessEvent =
   | { type: 'typing'; sessionId: string; agentId: string; agentName: string; isTyping: boolean }
   | { type: 'swarm-round'; sessionId: string; round: number; maxRounds: number }
   | { type: 'model-catalog-updated'; catalog: CatalogSnapshot }
+  | { type: 'todo-changed'; sessionId: string; todos: TodoItem[] }
+  | { type: 'reminder-fired'; sessionId: string; scheduleId: string; title: string; prompt: string }
+  | { type: 'mcp-changed'; servers: McpServerStatus[] }
 
 export interface LockInfo {
   path: string

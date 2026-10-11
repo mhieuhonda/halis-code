@@ -58,6 +58,18 @@ export const IPC = {
   approvalRespond: 'approval:respond',
   approvalList: 'approval:list',
 
+  /* mcp */
+  mcpStatuses: 'mcp:statuses',
+  mcpSetServers: 'mcp:set-servers',
+  mcpTest: 'mcp:test',
+
+  /* reminders */
+  scheduleList: 'schedule:list',
+  scheduleDelete: 'schedule:delete',
+
+  /* background jobs */
+  jobList: 'jobs:list',
+
   /* task board */
   taskBoardGet: 'taskboard:get',
   taskBoardCreate: 'taskboard:create',

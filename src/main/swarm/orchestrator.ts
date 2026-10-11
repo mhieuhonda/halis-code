@@ -11,18 +11,21 @@
  *  - the planner, when addressed, runs first and alone so it can coordinate;
  *  - context filtering means each agent only sees what concerns it.
  */
-import type { AgentConfig, ChatMessage, HarnessEvent, Session, SwarmConfig } from '@shared/types'
+import type { AgentConfig, ChatMessage, HarnessEvent, QuestionAnswer, QuestionPrompt, Session, SwarmConfig } from '@shared/types'
 import { newId } from '../util/id'
 import type { LlmDispatcher } from '../models/llm/client'
 import type { LlmMessage } from '../models/llm/types'
 import { AgentRunner } from '../harness/loop'
 import { buildAgentContext } from '../harness/context-filter'
-import type { ToolContext } from '../harness/tools'
+import { TodoStore, type ToolContext } from '../harness/tools'
 import type { ToolRegistry } from '../harness/tools'
 import type { ApprovalManager } from '../harness/approvals'
 import type { FileLockManager } from '../harness/file-locking'
 import type { TaskBoard } from '../harness/task-board'
 import type { Sandbox } from '../harness/sandbox'
+import type { JobRegistry } from '../harness/jobs'
+import type { ScheduleStore } from '../harness/schedules'
+import type { McpManager } from '../harness/mcp'
 import { buildSystemPrompt } from './prompts'
 import { parseAgentReply, routeNext } from './router'
 
@@ -33,7 +36,13 @@ export interface SwarmDeps {
   locks: FileLockManager
   taskBoard: TaskBoard
   sandbox: Sandbox
-  getSettings: () => { workspace: string; language: import('@shared/types').AppLanguage; autoApproveAll: boolean; telegraph: import('@shared/types').TelegraphSettings }
+  jobs: JobRegistry
+  schedules: ScheduleStore
+  mcp: McpManager
+  todoFor: (sessionId: string, emit: (event: HarnessEvent) => void) => TodoStore
+  saveTodos: (session: Session) => void
+  askUser: (questions: QuestionPrompt[], ctx: { sessionId: string; agentId: string; agentName: string; agentColor?: string }) => Promise<QuestionAnswer[] | null>
+  getSettings: () => { workspace: string; language: import('@shared/types').AppLanguage; autoApproveAll: boolean; telegraph: import('@shared/types').TelegraphSettings; tavilyApiKey?: string }
   telegraph: ToolContext['telegraph']
   emit: (event: HarnessEvent) => void
   persistSession: (session: Session) => void
@@ -80,7 +89,7 @@ export class SwarmOrchestrator {
       locks: this.deps.locks,
       taskBoard: this.deps.taskBoard,
       approvals: this.deps.approvals,
-      workspace: settings.workspace,
+      workspace: this.deps.sandbox.workspace,
       sessionId: session.id,
       messageId,
       agentId: agent.id,
@@ -102,6 +111,19 @@ export class SwarmOrchestrator {
         }
         outbox.push(message)
       },
+      jobs: this.deps.jobs,
+      schedules: this.deps.schedules,
+      mcp: this.deps.mcp,
+      todos: this.deps.todoFor(session.id, this.deps.emit),
+      settings: { tavilyApiKey: settings.tavilyApiKey },
+      askUser: (questions) =>
+        this.deps.askUser(questions as QuestionPrompt[], {
+          sessionId: session.id,
+          agentId: agent.id,
+          agentName: agent.name,
+          agentColor: agent.color,
+        }),
+      delegationDepth: 1,
     }
   }
 
@@ -283,6 +305,7 @@ export class SwarmOrchestrator {
       ...result.toolRuns.map((run) => ({ type: 'tool' as const, run })),
     ]
     this.deps.emit({ type: 'message-done', sessionId: session.id, messageId: message.id, message })
+    this.deps.saveTodos(session)
     this.deps.persistSession(session)
     return message
   }

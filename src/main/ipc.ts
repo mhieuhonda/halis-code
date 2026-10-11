@@ -2,7 +2,7 @@
  * IPC surface: thin, typed wrappers around the HalisApp runtime.
  */
 import { BrowserWindow, dialog, ipcMain } from 'electron'
-import type { AppSettings, ChatMode, SwarmConfig } from '@shared/types'
+import type { AppSettings, ChatMode, McpServerConfig, QuestionAnswer, SwarmConfig } from '@shared/types'
 import { IPC } from '@shared/ipc'
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -10,6 +10,7 @@ import type { HalisApp } from './app-runtime'
 import { SWARM_ROLES } from './swarm/roles'
 import { modelCatalog } from './models/catalog'
 import { createSandbox } from './harness/sandbox'
+import { testMcpConfig } from './harness/mcp'
 import { importWallet, createBurnerWallet } from './telegraph/wallet'
 import { listMiners, listIntents, verifySignal } from './telegraph/client'
 import { getSettings } from './config/app-settings'
@@ -97,10 +98,22 @@ export function registerIpc(app: HalisApp, getWindow: () => BrowserWindow | null
   ipcMain.handle(IPC.swarmRoles, () => ({ roles: SWARM_ROLES }))
 
   /* ---------------- approvals ---------------- */
-  ipcMain.handle(IPC.approvalRespond, (_e, requestId: string, response: 'allow' | 'always' | 'reject') => {
-    return app.approvals.respond(requestId, response)
+  ipcMain.handle(IPC.approvalRespond, (_e, requestId: string, response: 'allow' | 'always' | 'reject', answers?: QuestionAnswer[]) => {
+    return app.approvals.respond(requestId, response, answers)
   })
   ipcMain.handle(IPC.approvalList, () => app.approvals.pendingRequests())
+
+  /* ---------------- mcp ---------------- */
+  ipcMain.handle(IPC.mcpStatuses, () => app.mcpStatuses())
+  ipcMain.handle(IPC.mcpSetServers, (_e, configs: McpServerConfig[]) => app.setMcpServers(configs))
+  ipcMain.handle(IPC.mcpTest, (_e, config: McpServerConfig) => testMcpConfig(config))
+
+  /* ---------------- reminders ---------------- */
+  ipcMain.handle(IPC.scheduleList, (_e, sessionId: string) => app.schedules.forSession(sessionId))
+  ipcMain.handle(IPC.scheduleDelete, (_e, id: string) => app.schedules.remove(id))
+
+  /* ---------------- jobs ---------------- */
+  ipcMain.handle(IPC.jobList, () => app.jobs.list())
 
   /* ---------------- task board ---------------- */
   ipcMain.handle(IPC.taskBoardGet, () => {

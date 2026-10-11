@@ -10,6 +10,11 @@ import type {
   BoardTask,
   CatalogSnapshot,
   ChatMode,
+  JobView,
+  McpServerConfig,
+  McpServerStatus,
+  QuestionAnswer,
+  ScheduleView,
   Session,
   SessionMeta,
   SwarmConfig,
@@ -52,8 +57,20 @@ export interface HalisBridge {
   swarmRoles(): Promise<{ roles: AgentRole[] }>
 
   /* approvals */
-  approvalRespond(requestId: string, response: 'allow' | 'always' | 'reject'): Promise<boolean>
+  approvalRespond(requestId: string, response: 'allow' | 'always' | 'reject', answers?: QuestionAnswer[]): Promise<boolean>
   approvalList(): Promise<ApprovalRequest[]>
+
+  /* MCP servers */
+  mcpStatuses(): Promise<McpServerStatus[]>
+  mcpSetServers(configs: McpServerConfig[]): Promise<{ ok: boolean; error?: string }>
+  mcpTest(config: McpServerConfig): Promise<{ ok: boolean; detail: string; toolCount: number }>
+
+  /* reminders */
+  scheduleList(sessionId: string): Promise<ScheduleView[]>
+  scheduleDelete(id: string): Promise<{ ok: boolean; message: string }>
+
+  /* background jobs */
+  jobList(): Promise<JobView[]>
 
   /* task board */
   taskBoardGet(): Promise<BoardTask[]>

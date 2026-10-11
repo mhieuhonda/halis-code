@@ -40,8 +40,20 @@ const api: HalisBridge = {
   swarmRoles: () => ipcRenderer.invoke(IPC.swarmRoles),
 
   /* approvals */
-  approvalRespond: (requestId, response) => ipcRenderer.invoke(IPC.approvalRespond, requestId, response),
+  approvalRespond: (requestId, response, answers) => ipcRenderer.invoke(IPC.approvalRespond, requestId, response, answers),
   approvalList: () => ipcRenderer.invoke(IPC.approvalList),
+
+  /* mcp */
+  mcpStatuses: () => ipcRenderer.invoke(IPC.mcpStatuses),
+  mcpSetServers: (configs) => ipcRenderer.invoke(IPC.mcpSetServers, configs),
+  mcpTest: (config) => ipcRenderer.invoke(IPC.mcpTest, config),
+
+  /* reminders */
+  scheduleList: (sessionId) => ipcRenderer.invoke(IPC.scheduleList, sessionId),
+  scheduleDelete: (id) => ipcRenderer.invoke(IPC.scheduleDelete, id),
+
+  /* jobs */
+  jobList: () => ipcRenderer.invoke(IPC.jobList),
 
   /* task board */
   taskBoardGet: () => ipcRenderer.invoke(IPC.taskBoardGet),

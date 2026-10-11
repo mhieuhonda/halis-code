@@ -12,6 +12,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
     dailyBudgetUsd: 5,
   },
   autoApproveAll: false,
+  mcpServers: [],
+  tavilyApiKey: '',
 }
 
 let current: AppSettings | null = null
@@ -23,6 +25,7 @@ export function getSettings(): AppSettings {
       ...DEFAULT_SETTINGS,
       ...loaded,
       telegraph: { ...DEFAULT_SETTINGS.telegraph, ...(loaded.telegraph ?? {}) },
+      mcpServers: (loaded.mcpServers ?? DEFAULT_SETTINGS.mcpServers).map((s) => ({ ...s })),
     }
   }
   return current
@@ -34,6 +37,7 @@ export function setSettings(patch: Partial<AppSettings>): AppSettings {
     ...prev,
     ...patch,
     telegraph: { ...prev.telegraph, ...(patch.telegraph ?? {}) },
+    mcpServers: patch.mcpServers ? patch.mcpServers.map((s) => ({ ...s })) : prev.mcpServers,
   }
   writeJson(paths.settingsFile, current)
   return current

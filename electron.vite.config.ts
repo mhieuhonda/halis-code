@@ -6,12 +6,13 @@ import { resolve } from 'node:path'
 /**
  * Halis Code — build configuration.
  *
- * The main process is emitted as CommonJS. viem / @x402 are ESM-only, so they
- * are bundled into the main output instead of being externalized.
+ * The main process is emitted as CommonJS. viem / @x402 / MCP SDK are
+ * ESM-only, so they are bundled into the main output instead of being
+ * externalized.
  */
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: ['viem', '@x402/evm', '@x402/fetch', '@x402/core'] })],
+    plugins: [externalizeDepsPlugin({ exclude: ['viem', '@x402/evm', '@x402/fetch', '@x402/core', '@modelcontextprotocol/sdk'] })],
     build: {
       outDir: 'out/main',
       rollupOptions: {
