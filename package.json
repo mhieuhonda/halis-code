@@ -1,7 +1,7 @@
 {
   "name": "halis-code",
   "productName": "Halis Code",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Desktop coding agent with a coordinated 20-agent swarm, wired into the Telegraph intelligence network.",
   "author": "mhieuhonda",
   "license": "MIT",
