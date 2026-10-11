@@ -217,6 +217,10 @@ export class AgentRunner {
     // challenge) — the tool raises the approval card with the real number.
     const needsLoopApproval = decision.effect === 'ask' && kind !== 'usdc-spend'
     if (needsLoopApproval) {
+      if (req.signal?.aborted) {
+        emitRun('rejected', { error: 'Turn aborted', endedAt: Date.now() })
+        return run
+      }
       emitRun('awaiting-approval', {})
       const { wait } = ctx.approvals.request({
         sessionId: req.sessionId,
@@ -243,6 +247,8 @@ export class AgentRunner {
         wait,
         req.signal
           ? new Promise<null>((resolve) => {
+              // An already-aborted signal never fires 'abort' — resolve now.
+              if (req.signal!.aborted) return resolve(null)
               req.signal!.addEventListener('abort', () => resolve(null), { once: true })
             })
           : new Promise<null>(() => {}),
@@ -259,6 +265,10 @@ export class AgentRunner {
     }
 
     // --- Execute ---
+    if (req.signal?.aborted) {
+      emitRun('rejected', { error: 'Turn aborted', endedAt: Date.now() })
+      return run
+    }
     try {
       const result = await tool.execute(args, ctx)
       emitRun('completed', { result: result.output, endedAt: Date.now() })

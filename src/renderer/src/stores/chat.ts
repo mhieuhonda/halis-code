@@ -140,8 +140,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
         window.dispatchEvent(new CustomEvent('halis:receipt', { detail: event.receipt }))
       }
     })
-    set({ unsubscribe: unsub })
-    return unsub
+    // The cleanup must clear the field too, or the remount would reuse an
+    // already-unsubscribed listener and drop every live event.
+    const teardown = () => {
+      unsub()
+      set({ unsubscribe: null })
+    }
+    set({ unsubscribe: teardown })
+    return teardown
   },
 
   loadSessions: async () => {
@@ -178,27 +184,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (!sessionId || !text.trim()) return
     set({ running: true, swarmRound: null })
     try {
-      const result = (await bridge.chatSend({ sessionId, text, modelId })) as { ok: boolean; error?: string }
-      if (!result.ok && result.error) {
-        // Surface as a system-style error on the current session.
-        set({
-          messages: [
-            ...get().messages,
-            {
-              id: `err_${Date.now()}`,
-              sessionId,
-              mode: get().activeMode,
-              from: 'system',
-              fromName: 'Halis',
-              to: [],
-              mentions: [],
-              role: 'system',
-              content: result.error,
-              createdAt: Date.now(),
-            },
-          ],
-        })
-      }
+      // Main persists and broadcasts turn-level errors as system messages.
+      await bridge.chatSend({ sessionId, text, modelId })
     } finally {
       set({ running: false, typing: {} })
       await get().loadSessions()

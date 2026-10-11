@@ -83,9 +83,11 @@ function lineDiff(oldText: string, newText: string): DiffLine[] {
 export function DiffView({ diff }: { diff: string }) {
   const lines = useMemo(() => {
     const trimmed = diff.replace(/^\n+/, '')
-    if (/^@@|^-{3}|\n@@/m.test(trimmed) && trimmed.split('\n').some((l) => l.startsWith('+') || l.startsWith('-'))) {
-      return parseUnifiedDiff(trimmed)
-    }
+    // Content-based detection: synthetic diffs (from lineDiff / write bodies)
+    // carry bare +/- lines without @@ headers.
+    const rows = trimmed.split('\n')
+    const looksLikeDiff = rows.some((l) => /^[+-]/.test(l))
+    if (looksLikeDiff) return parseUnifiedDiff(trimmed)
     return [{ kind: 'add' as const, text: trimmed }]
   }, [diff])
 
