@@ -36,6 +36,31 @@ export interface TurnResult {
   finishReason: LlmResult['finishReason']
 }
 
+/**
+ * Recover common model-side argument glitches: polluted keys (channel
+ * markers), missing `path` for path-based tools, stringified booleans.
+ */
+function normalizeArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...args }
+  if (typeof out.path !== 'string' || !out.path) {
+    for (const [k, v] of Object.entries(out)) {
+      if (k !== 'path' && /(^|[^a-z])path([^a-z]|$)/i.test(k) && typeof v === 'string' && v) {
+        out.path = v
+        break
+      }
+    }
+    if ((!out.path || typeof out.path !== 'string') && typeof out._raw === 'string') {
+      const m = (out._raw as string).match(/"path"\s*:\s*"([^"]+)"/)
+      if (m) out.path = m[1]
+    }
+  }
+  if (out.path && typeof out.path === 'string') {
+    // Strip channel markers or stray prefixes that leak from gpt-oss-style models.
+    out.path = out.path.replace(/\[channel\]\s*>\s*\w+\s*/gi, '').trim()
+  }
+  return out
+}
+
 export class AgentRunner {
   constructor(
     private readonly dispatcher: LlmDispatcher,
@@ -123,13 +148,34 @@ export class AgentRunner {
     try {
       args = JSON.parse(call.arguments || '{}') as Record<string, unknown>
     } catch {
-      args = { _raw: call.arguments }
+      // Models occasionally wrap JSON in prose or channel markers — try to
+      // recover the outermost object before giving up.
+      const match = call.arguments.match(/\{[\s\S]*\}/)
+      if (match) {
+        try {
+          args = JSON.parse(match[0]) as Record<string, unknown>
+        } catch {
+          args = { _raw: call.arguments }
+        }
+      } else {
+        args = { _raw: call.arguments }
+      }
     }
+    args = normalizeArgs(args)
 
-    const tool = this.registry.get(call.name)
+    let tool = this.registry.get(call.name)
+    if (!tool) {
+      // Harmony-mangled names ("assistant<|channel|>commentary read_file"):
+      // recover the tool whose name survives inside the junk.
+      const cleaned = call.name
+        .replace(/<\|[^|>]{0,40}\|>/g, ' ')
+        .replace(/\[channel\]\s*>\s*\w+/gi, ' ')
+        .trim()
+      tool = this.registry.listFor(req.swarm).find((t) => cleaned === t.name || cleaned.includes(t.name))
+    }
     const run: ToolRun = {
       toolCallId: call.id,
-      tool: call.name,
+      tool: tool?.name ?? call.name,
       args,
       state: 'running',
       startedAt: Date.now(),

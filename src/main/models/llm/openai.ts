@@ -15,6 +15,20 @@ interface OpenAiToolCallDelta {
   function?: { name?: string; arguments?: string }
 }
 
+/**
+ * Some gateways serving gpt-oss-style models leak harmony channel markers
+ * ("[channel]>commentary", "<|channel|>commentary", "<|start|>assistant", …)
+ * into tool-call names and arguments. Strip them so the harness receives
+ * clean JSON.
+ */
+function stripChannelMarkers(value: string): string {
+  return value
+    .replace(/<\|[^|>]{0,40}\|>/g, '')
+    .replace(/\[channel\]\s*>\s*(commentary|final|analysis|system)\s*/gi, '')
+    .replace(/^(assistant|commentary|final|analysis)\b[:\s]*/i, '')
+    .trim()
+}
+
 async function* sseLines(res: Response): AsyncGenerator<string> {
   if (!res.body) return
   const reader = res.body.getReader()
@@ -171,8 +185,8 @@ export class OpenAiCompatProvider implements LlmProvider {
     for (const [idx, acc] of [...toolAcc.entries()].sort((a, b) => a[0] - b[0])) {
       const call: LlmToolCall = {
         id: acc.id || `call_${idx}_${Date.now()}`,
-        name: acc.name,
-        arguments: acc.args || '{}',
+        name: stripChannelMarkers(acc.name),
+        arguments: stripChannelMarkers(acc.args) || '{}',
       }
       result.toolCalls.push(call)
       options.onEvent({ type: 'toolCall', call })

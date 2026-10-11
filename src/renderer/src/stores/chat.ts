@@ -22,6 +22,7 @@ interface ChatState {
   tasks: BoardTask[]
   locks: LockInfo[]
   swarmRound: { round: number; maxRounds: number } | null
+  sessionsLoaded: boolean
   unsubscribe: (() => void) | null
 
   init: () => void
@@ -126,6 +127,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   tasks: [],
   locks: [],
   swarmRound: null,
+  sessionsLoaded: false,
   unsubscribe: null,
 
   init: () => {
@@ -141,7 +143,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   loadSessions: async () => {
     const sessions = (await bridge.sessionList()) as SessionMeta[]
-    set({ sessions })
+    set({ sessions, sessionsLoaded: true })
   },
 
   openSession: async (id) => {

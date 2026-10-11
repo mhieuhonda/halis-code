@@ -27,16 +27,19 @@ export default function App() {
     void app.loadWorkspace()
     void swarm.load()
     void tg.loadStatus()
+    void chat.loadSessions()
   }, [])
 
-  // Boot: ensure a session exists so the composer works immediately.
+  // Boot: once the session list is loaded, open the newest or create one —
+  // never duplicate empty sessions across launches.
   useEffect(() => {
-    if (!chat.activeSessionId && chat.sessions.length === 0) {
+    if (!chat.sessionsLoaded) return
+    if (chat.sessions.length === 0 && !chat.activeSessionId) {
       void chat.newSession('agent')
     } else if (!chat.activeSessionId) {
       void chat.openSession(chat.sessions[0].id)
     }
-  }, [chat.sessions, chat.activeSessionId])
+  }, [chat.sessionsLoaded, chat.sessions, chat.activeSessionId])
 
   return (
     <div className="flex h-full w-full overflow-hidden">

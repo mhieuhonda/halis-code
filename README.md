@@ -14,6 +14,22 @@ Halis Code is a cross-platform desktop app (Electron + TypeScript 7) that works 
 
 Its differentiator is deep **Telegraph Protocol** integration: every agent can buy verified, ranked intelligence on-chain (code review, security analysis, web research, LLM inference…) instead of hallucinating it — with per-call USDC approval cards and receipts you can click through to the explorer.
 
+## Screenshots
+
+*Real turns on the free keyless model — no API key, no setup.*
+
+| Agent chat — live tool run | Approval card before a file write |
+|---|---|
+| ![Agent chat](docs/screenshots/01-agent-chat-live.png) | ![Approval card](docs/screenshots/02-approval-card.png) |
+
+| Swarm setup | Telegraph — wallet, spend panel, receipts |
+|---|---|
+| ![Swarm setup](docs/screenshots/03-swarm-setup.png) | ![Telegraph](docs/screenshots/05-telegraph.png) |
+
+| Models & keys | Settings (Tiếng Việt) |
+|---|---|
+| ![Models](docs/screenshots/04-models.png) | ![Settings VI](docs/screenshots/07-settings-vi.png) |
+
 ---
 
 ## Why
