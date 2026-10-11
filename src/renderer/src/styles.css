@@ -1,0 +1,235 @@
+/* Halis Code — design system (Tailwind 4) */
+@import 'tailwindcss';
+
+@theme {
+  --color-bg: #0b0e14;
+  --color-panel: #11151f;
+  --color-panel2: #161b28;
+  --color-panel3: #1b2130;
+  --color-line: #232c3f;
+  --color-line2: #2d3852;
+  --color-ink: #e7ebf4;
+  --color-muted: #8b95ab;
+  --color-faint: #5c6778;
+  --color-accent: #7c6cff;
+  --color-accent-soft: #2a2650;
+  --color-good: #4ade80;
+  --color-cyan: #22d3ee;
+  --color-amber: #fbbf24;
+  --color-red: #f87171;
+  --color-pink: #f472b6;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Code', Consolas, monospace;
+
+  --radius-card: 14px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Allow selecting message + code content */
+.selectable,
+.selectable * {
+  user-select: text;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a3348;
+  border-radius: 6px;
+  border: 2px solid var(--color-bg);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a4664;
+}
+
+input,
+textarea {
+  user-select: text;
+}
+
+@keyframes halis-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.fade-up {
+  animation: halis-fade-up 0.18s ease-out;
+}
+
+@keyframes halis-pulse-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.typing-dot {
+  animation: halis-pulse-dot 1.2s infinite ease-in-out;
+}
+
+/* Markdown */
+.md-body {
+  line-height: 1.65;
+  word-break: break-word;
+}
+.md-body p {
+  margin: 0.5em 0;
+}
+.md-body h1,
+.md-body h2,
+.md-body h3,
+.md-body h4 {
+  font-weight: 650;
+  margin: 1em 0 0.4em;
+  line-height: 1.3;
+}
+.md-body h1 {
+  font-size: 1.35em;
+}
+.md-body h2 {
+  font-size: 1.2em;
+}
+.md-body h3 {
+  font-size: 1.08em;
+}
+.md-body ul,
+.md-body ol {
+  padding-left: 1.4em;
+  margin: 0.5em 0;
+}
+.md-body ul {
+  list-style: disc;
+}
+.md-body ol {
+  list-style: decimal;
+}
+.md-body li {
+  margin: 0.22em 0;
+}
+.md-body code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: #1c2333;
+  border: 1px solid #262f45;
+  padding: 0.1em 0.36em;
+  border-radius: 5px;
+  color: #c8d3f5;
+}
+.md-body pre {
+  margin: 0.65em 0;
+  background: #0d1119;
+  border: 1px solid #232c3f;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.md-body pre code {
+  display: block;
+  padding: 12px 14px;
+  background: transparent;
+  border: none;
+  font-size: 0.84em;
+  line-height: 1.55;
+  overflow-x: auto;
+}
+.md-body blockquote {
+  border-left: 3px solid #3b4666;
+  padding-left: 0.9em;
+  color: #aab4ca;
+  margin: 0.6em 0;
+}
+.md-body table {
+  border-collapse: collapse;
+  margin: 0.6em 0;
+  font-size: 0.92em;
+}
+.md-body th,
+.md-body td {
+  border: 1px solid #2a3348;
+  padding: 5px 10px;
+  text-align: left;
+}
+.md-body th {
+  background: #171d2b;
+}
+.md-body a {
+  color: var(--color-cyan);
+  text-decoration: none;
+}
+.md-body a:hover {
+  text-decoration: underline;
+}
+.md-body hr {
+  border: none;
+  border-top: 1px solid #232c3f;
+  margin: 0.9em 0;
+}
+
+/* highlight.js — inline theme */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section {
+  color: #c792ea;
+}
+.hljs-string,
+.hljs-attr,
+.hljs-template-string {
+  color: #a5e075;
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-name {
+  color: #82aaff;
+}
+.hljs-number,
+.hljs-symbol {
+  color: #f78c6c;
+}
+.hljs-comment,
+.hljs-quote {
+  color: #5d6b8a;
+  font-style: italic;
+}
+.hljs-type,
+.hljs-class .hljs-title,
+.hljs-built_in {
+  color: #ffcb6b;
+}
+.hljs-variable,
+.hljs-template-variable {
+  color: #f07178;
+}
+.hljs-meta {
+  color: #7f8ea8;
+}
