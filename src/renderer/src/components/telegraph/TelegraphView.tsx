@@ -179,7 +179,7 @@ export function TelegraphView() {
             </Button>
           </div>
           {tg.lastAsk ? (
-            <div className="mt-3 rounded-xl border border-line bg-[#0d1119] p-3.5 fade-up">
+            <div className="mt-3 rounded-xl border border-line bg-[#0d1119] p-3.5 rise">
               {tg.lastAsk.error ? (
                 <div className="text-[12.5px] text-red">{tg.lastAsk.error}</div>
               ) : (
