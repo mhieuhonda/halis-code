@@ -66,11 +66,15 @@ The orchestration core, inspired by the harness designs of [opencode](https://gi
 
 | Subsystem | What it does |
 |---|---|
-| **Agent loop** | Step-based loop (LLM call → tool calls → results → next step) with streaming, abort, and a wrap-up step at the cap |
+| **Agent loop** | Step-based loop (LLM call → tool calls → results → next step) with streaming, abort, transient-error retry (exponential backoff + `Retry-After`, opencode's schedule), and a wrap-up step at the cap |
 | **Permissions** | Read-only tools run automatically; writes, shell and USDC spends raise **approval cards** (Approve / Always allow / Reject). "Always" choices are remembered per agent and per kind |
 | **File locking** | Hard locks stop two agents editing the same file; state files (`.halis/*`) are always hard-locked; log files use advisory locks with warnings |
 | **Shared task board** | Kanban in `.halis/task-board.json`. Agents claim a task before starting; claims are atomic under the hard lock |
 | **Sandbox** | Agents are jailed to the workspace: path traversal and symlink escapes are rejected, shell commands run with `cwd = workspace` behind a danger screenlist with time and output caps |
+| **Background jobs** | Long commands run as background jobs (`run_in_background`), managed with `job_list` / `job_output` / `job_kill`; completion notices are injected into the agent's next turn — no polling (deepseek-harness pattern) |
+| **Auto-compaction** | Long sessions fold older messages into a structured summary (Objective / Requirements / Decisions / Work State / Next Move / Relevant Files) while recent turns stay verbatim — opencode's template and ceiling |
+| **Global output budget** | Every tool result is capped (2,000 lines / 50 KiB); the full text spills to a file the agent can re-read with `read_file` |
+| **MCP** | Model Context Protocol client (stdio + streamable HTTP): configured servers expose their tools to every agent as `mcp_<server>_<tool>` |
 
 ## Telegraph integration
 
@@ -82,6 +86,25 @@ The orchestration core, inspired by the harness designs of [opencode](https://gi
 - **Budgets** — a daily USDC ceiling hard-stops spend, on top of per-agent auto-approve limits.
 
 > **Testnet boundary:** on Base Sepolia the routing, competing miners, verification proofs and settlement are real — only the denomination stands in until mainnet. Chain ID, USDC address, node URL and price source are all configuration values (`TELEGRAPH_NETWORKS` in `src/shared/types.ts`); flipping to mainnet is a settings change, not a code change.
+
+## The toolset
+
+Ported and adapted from opencode and deepseek-harness (TypeScript 7, sandbox-jailed, approval-gated):
+
+| Area | Tools |
+|---|---|
+| Files | `read_file` (numbered, offset/limit) · `write_file` (atomic tmp+rename) · `edit_file` (3-tier fuzzy: exact → unicode-normalized → line/CRLF) · `multi_edit` (atomic batch) · `delete_file` · `list_dir` · `read_image` (vision attach) |
+| Patching | `apply_patch` — opencode's V4A format: Add / Update / Move to / Delete with 4-tier fuzzy context matching and `*** End of File` anchor |
+| Search | `glob` · `grep` (native walkers, jailed) |
+| Shell | `run_command` — cross-platform (PowerShell 7 → 5.1 + UTF-8 preamble → cmd on Windows; bash → sh on POSIX), background jobs, credential-scrubbed env |
+| Jobs | `job_list` · `job_output` (wait mode) · `job_kill` |
+| Web | `web_fetch` (bounded 5 MB, HTML → Markdown, text/markdown/html) · `web_search` (1–4 parallel queries; keyless DuckDuckGo or Tavily) |
+| Git | `git_status` · `git_diff` · `git_log` · `git_commit` |
+| Coordination | `task_board_*` (shared Kanban) · `send_message` (@-addressed, swarm-only) · `delegate_task` (fresh sub-agent, depth-limited) · `todo_write` (live checklist in the chat) |
+| Interaction | `ask_user` — structured question cards with options, multi-select and custom answers |
+| Time | `schedule_create` / `schedule_list` / `schedule_delete` — once / interval / daily / weekly / 5-field Vixie cron reminders that re-enter the session |
+| Knowledge | `skill` — SKILL.md packs from `.halis/skills/`, `.agents/skills/`, `.claude/skills/` · MCP tools via configured servers |
+| Telegraph | `telegraph_ask` · `telegraph_miners` · `telegraph_intents` · `telegraph_verify` · `telegraph_signals` |
 
 ## Models
 
@@ -139,24 +162,29 @@ src/
 ├── shared/          types + IPC contract (main ⟷ renderer)
 ├── main/            Electron main process
 │   ├── harness/     agent loop, tools, permissions, approvals,
-│   │                file locking, task board, sandbox, context filter
+│   │                file locking, task board, sandbox, context filter,
+│   │                jobs (background), schedules (reminders), MCP client,
+│   │                skills, compaction, util (patch/cron/html-markdown/
+│   │                edit-match/truncate)
 │   ├── swarm/       roles, prompts, @mention router, orchestrator
 │   ├── models/      catalog (bundled + models.dev refresh), key vault,
-│   │                OpenAI-compatible + Anthropic streaming clients
+│   │                OpenAI-compatible + Anthropic streaming clients,
+│   │                retry policy (opencode schedule)
 │   ├── telegraph/   engine client, x402 payments, wallet, receipts
 │   ├── sessions/    local session store
 │   └── ipc.ts       thin typed handlers
 ├── preload/         contextBridge (no Node in the renderer)
 └── renderer/        React 19 + Tailwind 4 UI (Agent chat, Swarm chat,
-                     Swarm Setup, Models & Keys, Telegraph, Task Board,
-                     Settings)
+                     Swarm Setup, Models & Keys, Telegraph, Task Board +
+                     reminders, Settings + MCP servers, live todo panel,
+                     question cards)
 ```
 
-The LLM layer speaks the OpenAI-compatible dialect natively (streaming SSE, function calling) and the Anthropic Messages API — one client covers every catalog provider plus the keyless gateways.
+The LLM layer speaks the OpenAI-compatible dialect natively (streaming SSE, function calling, vision image parts) and the Anthropic Messages API — one client covers every catalog provider plus the keyless gateways.
 
 ## Credits
 
-- Harness concepts studied from [opencode](https://github.com/anomalyco/opencode) (step loop, permission rules, models.dev catalog) and [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) (guarded tool pipeline, session event log)
+- Harness concepts studied from [opencode](https://github.com/anomalyco/opencode) (step loop, permission rules, models.dev catalog, patch format + fuzzy matching, html→markdown, tool-output spill, compaction template, retry schedule, snapshot concepts) and [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) (guarded tool pipeline, job registry, schedule/cron domain, read-before-write discipline, pwsh handling, session event log)
 - Model catalog from [models.dev](https://models.dev)
 - Payments over the [x402](https://x402.org) standard using the same client approach as the official [Telegraph MCP server](https://github.com/telegraphprotocol/Telegraph-MCP)
 

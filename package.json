@@ -1,7 +1,7 @@
 {
   "name": "halis-code",
   "productName": "Halis Code",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Desktop coding agent with a coordinated 20-agent swarm, wired into the Telegraph intelligence network.",
   "author": "mhieuhonda",
   "license": "MIT",
@@ -20,6 +20,7 @@
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@x402/evm": "^2.28.0",
     "@x402/fetch": "^2.28.0",
     "lucide-react": "^1.55.0",
