@@ -16,8 +16,10 @@ export interface RoutingDecision {
 
 export function extractMentions(text: string): string[] {
   // @Name counts only at the start or after a non-word character, so emails
-  // (a@b.com) and Slack-style channel refs do not fire.
-  const matches = text.match(/(?:^|[^A-Za-z0-9@])@([A-Za-z0-9][A-Za-z0-9_.-]{0,31})/g) ?? []
+  // (a@b.com) and Slack-style channel refs do not fire. Interior dots are
+  // allowed (names like "Dev.Lead") but a mention never ENDS with a dot —
+  // "@Vega, ship it." must capture "Vega", not "Vega," / "Vega.".
+  const matches = text.match(/(?:^|[^A-Za-z0-9@])@([A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)*)/g) ?? []
   return [...new Set(matches.map((m) => m.trim().slice(1)))]
 }
 

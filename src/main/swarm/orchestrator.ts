@@ -42,7 +42,7 @@ export interface SwarmDeps {
   todoFor: (sessionId: string, emit: (event: HarnessEvent) => void) => TodoStore
   saveTodos: (session: Session) => void
   askUser: (questions: QuestionPrompt[], ctx: { sessionId: string; agentId: string; agentName: string; agentColor?: string }) => Promise<QuestionAnswer[] | null>
-  getSettings: () => { workspace: string; language: import('@shared/types').AppLanguage; autoApproveAll: boolean; telegraph: import('@shared/types').TelegraphSettings; tavilyApiKey?: string }
+  getSettings: () => { workspace: string; language: import('@shared/types').AppLanguage; autoApproveAll: boolean; telegraph: import('@shared/types').TelegraphSettings; telegraphEnabled?: boolean; tavilyApiKey?: string }
   telegraph: ToolContext['telegraph']
   emit: (event: HarnessEvent) => void
   persistSession: (session: Session) => void
@@ -129,7 +129,9 @@ export class SwarmOrchestrator {
 
   private resolveNames(names: string[], agents: AgentConfig[]): string[] {
     const ids: string[] = []
-    for (const name of names) {
+    for (const raw of names) {
+      // Models pass "@Name" as often as "Name" — strip the sigil and trim.
+      const name = raw.trim().replace(/^@+/, '')
       const agent = agents.find((a) => a.name.toLowerCase() === name.toLowerCase())
       if (agent) ids.push(agent.id)
       else ids.push(`name:${name}`)
@@ -273,6 +275,7 @@ export class SwarmOrchestrator {
       workspace: settings.workspace,
       language: settings.language,
       taskBoardSummary: this.deps.taskBoard.renderForPrompt(),
+      telegraphEnabled: settings.telegraphEnabled !== false,
     })
 
     const toolContext = this.toolContextFor(agent, session, allAgents, message.id, outbox)
