@@ -34,6 +34,8 @@ export interface TurnResult {
   aborted: boolean
   error?: string
   finishReason: LlmResult['finishReason']
+  /** Accumulated token usage across all steps in the turn. */
+  usage: { inputTokens: number; outputTokens: number }
 }
 
 /**
@@ -76,6 +78,7 @@ export class AgentRunner {
     let reasoning = ''
     let aborted = false
     let lastFinish: LlmResult['finishReason'] = 'stop'
+    const usage = { inputTokens: 0, outputTokens: 0 }
 
     try {
       while (steps < req.maxSteps) {
@@ -113,6 +116,8 @@ export class AgentRunner {
         lastFinish = result.finishReason
         text = result.text
         reasoning = result.reasoning
+        usage.inputTokens += result.usage?.inputTokens ?? 0
+        usage.outputTokens += result.usage?.outputTokens ?? 0
 
         if (!result.toolCalls.length) break
 
@@ -136,11 +141,11 @@ export class AgentRunner {
         aborted = true
       } else {
         const message = err instanceof Error ? err.message : String(err)
-        return { text, reasoning, steps, toolRuns, aborted, error: message, finishReason: 'error' }
+        return { text, reasoning, steps, toolRuns, aborted, error: message, finishReason: 'error', usage }
       }
     }
 
-    return { text, reasoning, steps, toolRuns, aborted, finishReason: lastFinish }
+    return { text, reasoning, steps, toolRuns, aborted, finishReason: lastFinish, usage }
   }
 
   private async executeToolCall(call: LlmToolCall, ctx: ToolContext, req: TurnRequest, emit: (event: HarnessEvent) => void): Promise<ToolRun> {

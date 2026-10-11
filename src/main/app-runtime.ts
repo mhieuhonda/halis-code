@@ -145,6 +145,12 @@ export class HalisApp {
     this.running.get(sessionId)?.abort()
   }
 
+  /** Abort every running turn — used on app quit. */
+  stopAll(): void {
+    for (const controller of this.running.values()) controller.abort()
+    this.running.clear()
+  }
+
   async send(params: { sessionId: string; text: string; modelId?: string }): Promise<{ ok: boolean; error?: string }> {
     const { sessionId, text } = params
     if (this.running.has(sessionId)) return { ok: false, error: 'A turn is already running in this session. Stop it first.' }
@@ -192,7 +198,23 @@ export class HalisApp {
       return { ok: true }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      this.emit({ type: 'message-error', sessionId, messageId: '', error: message })
+      // Surface turn-level failures as a persisted system message — an event
+      // with no messageId would never render anywhere.
+      const errorMessage: ChatMessage = {
+        id: newId('msg'),
+        sessionId,
+        mode: session.mode,
+        from: 'system',
+        fromName: 'Halis',
+        to: [],
+        mentions: [],
+        role: 'system',
+        content: message,
+        createdAt: Date.now(),
+      }
+      session.messages.push(errorMessage)
+      this.sessions.save(session)
+      this.emit({ type: 'message-start', sessionId, message: errorMessage })
       return { ok: false, error: message }
     } finally {
       this.running.delete(sessionId)
@@ -263,8 +285,10 @@ export class HalisApp {
     assistantMessage.reasoning = result.reasoning || undefined
     assistantMessage.streaming = false
     assistantMessage.error = result.error
+    if (result.usage.inputTokens > 0 || result.usage.outputTokens > 0) assistantMessage.usage = result.usage
     assistantMessage.parts = [...(assistantMessage.parts ?? []), ...result.toolRuns.map((run) => ({ type: 'tool' as const, run }))]
     this.sessions.save(session)
+    this.emit({ type: 'turn-usage', sessionId: session.id, messageId: assistantMessage.id, inputTokens: result.usage.inputTokens, outputTokens: result.usage.outputTokens })
     this.emit({ type: 'message-done', sessionId: session.id, messageId: assistantMessage.id, message: assistantMessage })
     if (result.error) this.emit({ type: 'message-error', sessionId: session.id, messageId: assistantMessage.id, error: result.error })
   }

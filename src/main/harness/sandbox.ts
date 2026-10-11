@@ -4,7 +4,7 @@
  * are screened against an obvious-danger blocklist.
  */
 import { isAbsolute, join, normalize, resolve, sep } from 'node:path'
-import { existsSync, realpathSync, statSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 
 export class SandboxError extends Error {
   constructor(message: string) {
@@ -68,7 +68,7 @@ export function createSandbox(workspace: string): Sandbox {
     if (existsSync(normalized)) {
       let real: string
       try {
-        real = statSync(normalized).isDirectory() ? realpathSync(normalized) : realpathSync(normalized)
+        real = realpathSync(normalized)
       } catch {
         throw new SandboxError(`Could not resolve "${input}".`)
       }

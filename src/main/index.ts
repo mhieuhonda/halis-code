@@ -15,6 +15,11 @@ process.on('unhandledRejection', (reason) => {
 let mainWindow: BrowserWindow | null = null
 const halis = new HalisApp()
 
+/** Packaged builds carry the icon via extraResources; dev reads build/icon.png. */
+function windowIcon(): string {
+  return app.isPackaged ? join(process.resourcesPath, 'icon.png') : join(app.getAppPath(), 'build', 'icon.png')
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -22,8 +27,9 @@ function createWindow(): void {
     minWidth: 980,
     minHeight: 640,
     show: false,
-    backgroundColor: '#0B0E14',
+    backgroundColor: '#07080B',
     title: 'Halis Code',
+    icon: windowIcon(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,
@@ -65,7 +71,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
-  halis.stop('__all__')
+  halis.stopAll()
 })
 
 // Single-instance lock: keep settings/vault writes race-free.

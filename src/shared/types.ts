@@ -102,6 +102,8 @@ export interface ChatMessage {
   createdAt: number
   streaming?: boolean
   error?: string
+  /** Token usage for this turn's final step (honest numbers or nothing). */
+  usage?: { inputTokens: number; outputTokens: number }
 }
 
 export type MessagePart =
@@ -376,6 +378,7 @@ export type HarnessEvent =
   | { type: 'message-reasoning'; sessionId: string; messageId: string; delta: string }
   | { type: 'message-done'; sessionId: string; messageId: string; message: ChatMessage }
   | { type: 'message-error'; sessionId: string; messageId: string; error: string }
+  | { type: 'turn-usage'; sessionId: string; messageId: string; inputTokens: number; outputTokens: number }
   | {
       type: 'tool-start'
       sessionId: string

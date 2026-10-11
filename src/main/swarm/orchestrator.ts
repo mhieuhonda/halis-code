@@ -277,6 +277,7 @@ export class SwarmOrchestrator {
     message.to = addressed.to.length ? addressed.to : ['user']
     message.streaming = false
     message.error = result.error
+    if (result.usage.inputTokens > 0 || result.usage.outputTokens > 0) message.usage = result.usage
     message.parts = [
       ...(message.parts ?? []),
       ...result.toolRuns.map((run) => ({ type: 'tool' as const, run })),
