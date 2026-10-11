@@ -141,6 +141,30 @@ export const en = {
   risk_high: 'high risk',
   pending_approvals: 'Pending approvals',
 
+  /* questions (ask_user) */
+  question_title: 'The agent has a question',
+  question_custom: 'Or type your own answer…',
+  question_send: 'Send answer',
+  question_skip: 'Skip',
+
+  /* todos */
+  todo_title: 'Agent checklist',
+  reminders_title: 'Reminders (this session)',
+
+  /* mcp */
+  mcp_title: 'MCP servers',
+  mcp_hint: 'Model Context Protocol servers add external tools to every agent. stdio servers run a local command; HTTP servers connect to a remote endpoint.',
+  mcp_empty: 'No MCP servers configured. Add one — e.g. "npx -y @modelcontextprotocol/server-filesystem <folder>".',
+  mcp_add: 'Add server',
+  mcp_enabled: 'enabled',
+  mcp_test: 'Test',
+  mcp_save_note: 'Apply reconnects enabled servers and registers their tools (mcp_<server>_<tool>).',
+  mcp_apply: 'Apply & reconnect',
+
+  /* web search */
+  settings_websearch: 'Web search backend',
+  settings_websearch_hint: 'web_search runs keyless via DuckDuckGo by default. Paste a Tavily API key for a higher-quality backend.',
+
   /* task board */
   tasks_title: 'Task Board',
   tasks_subtitle: 'Shared work queue for the swarm. Agents claim tasks before starting them.',

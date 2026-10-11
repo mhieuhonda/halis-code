@@ -143,6 +143,30 @@ export const vi: Dict = {
   risk_high: 'rủi ro cao',
   pending_approvals: 'Chờ phê duyệt',
 
+  /* questions (ask_user) */
+  question_title: 'Agent có câu hỏi cho bạn',
+  question_custom: 'Hoặc tự nhập câu trả lời…',
+  question_send: 'Gửi câu trả lời',
+  question_skip: 'Bỏ qua',
+
+  /* todos */
+  todo_title: 'Danh sách việc của agent',
+  reminders_title: 'Nhắc việc (phiên này)',
+
+  /* mcp */
+  mcp_title: 'Máy chủ MCP',
+  mcp_hint: 'Máy chủ Model Context Protocol bổ sung tool ngoài cho mọi agent. Server stdio chạy lệnh local; server HTTP kết nối endpoint từ xa.',
+  mcp_empty: 'Chưa có máy chủ MCP nào. Thêm một cái — vd "npx -y @modelcontextprotocol/server-filesystem <thư mục>".',
+  mcp_add: 'Thêm server',
+  mcp_enabled: 'bật',
+  mcp_test: 'Kiểm tra',
+  mcp_save_note: 'Apply sẽ kết nối lại các server đang bật và đăng ký tool của họ (mcp_<server>_<tool>).',
+  mcp_apply: 'Apply & kết nối lại',
+
+  /* web search */
+  settings_websearch: 'Nguồn tìm kiếm web',
+  settings_websearch_hint: 'web_search chạy không cần key qua DuckDuckGo theo mặc định. Dán Tavily API key để dùng backend chất lượng hơn.',
+
   /* task board */
   tasks_title: 'Bảng task',
   tasks_subtitle: 'Hàng đợi việc chung của swarm. Agent nhận task trước khi bắt đầu.',

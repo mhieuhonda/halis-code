@@ -7,6 +7,7 @@ import { useChatStore } from '../../stores/chat'
 import { useSwarmStore } from '../../stores/swarm'
 import { MessageBubble } from '../chat/MessageBubble'
 import { ApprovalCard } from '../chat/ApprovalCard'
+import { TodoPanel } from '../chat/TodoPanel'
 import { Composer } from '../chat/Composer'
 import { Badge, Button } from '../ui'
 import logoUrl from '../../assets/logo-64.png'
@@ -175,11 +176,19 @@ export function ChatView({ mode }: { mode: 'agent' | 'swarm' }) {
         ) : null}
       </div>
 
+      {/* live agent checklist (todo_write) */}
+      {chat.todos.length ? <TodoPanel todos={chat.todos} /> : null}
+
       {/* pinned approvals — they take over the flow above the composer */}
       {chat.approvals.length ? (
         <div className="px-5 pt-2 space-y-2 max-h-[300px] overflow-y-auto">
           {chat.approvals.map((a) => (
-            <ApprovalCard key={a.id} request={a} onRespond={(r) => void chat.respondApproval(a.id, r)} />
+            <ApprovalCard
+              key={a.id}
+              request={a}
+              onRespond={(r) => void chat.respondApproval(a.id, r)}
+              onAnswer={(answers) => void chat.answerQuestions(a.id, answers)}
+            />
           ))}
         </div>
       ) : null}

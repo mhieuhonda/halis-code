@@ -1,10 +1,11 @@
-/** Task board view: kanban columns, claim buttons, agent assignments. */
+/** Task board view: kanban columns, claim buttons, agent assignments, reminders. */
 import { useEffect, useState } from 'react'
-import { ListChecks, Lock, Plus } from 'lucide-react'
-import type { BoardTask, TaskStatus } from '@shared/types'
+import { AlarmClock, ListChecks, Lock, Plus, Trash2 } from 'lucide-react'
+import type { BoardTask, ScheduleView, TaskStatus } from '@shared/types'
 import { useT } from '../../i18n'
 import { useChatStore } from '../../stores/chat'
 import { useSwarmStore } from '../../stores/swarm'
+import { bridge } from '../../lib/ipc'
 import { Badge, Button, Input, Modal, SectionTitle, Textarea } from '../ui'
 
 const COLUMNS: Array<{ status: TaskStatus; labelKey: 'status_todo' | 'status_in_progress' | 'status_blocked' | 'status_done' }> = [
@@ -56,10 +57,20 @@ export function TaskBoardView() {
   const [createOpen, setCreateOpen] = useState(false)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [schedules, setSchedules] = useState<ScheduleView[]>([])
 
   useEffect(() => {
     void chat.loadTasks()
   }, [])
+
+  useEffect(() => {
+    const load = () => {
+      void bridge.scheduleList(chat.activeSessionId ?? '').then(setSchedules)
+    }
+    load()
+    const timer = setInterval(load, 30_000)
+    return () => clearInterval(timer)
+  }, [chat.activeSessionId])
 
   const create = async () => {
     if (!title.trim()) return
@@ -79,6 +90,9 @@ export function TaskBoardView() {
           </Button>
         </div>
         <p className="text-[13px] text-muted -mt-2 mb-5">{t('tasks_subtitle')}</p>
+
+        {/* reminders scheduled by agents */}
+        <RemindersSection schedules={schedules} onDelete={(id) => void bridge.scheduleDelete(id).then(() => setSchedules((prev) => prev.filter((s) => s.id !== id)))} />
 
         {/* file locks */}
         {locks.length ? (
@@ -131,6 +145,32 @@ export function TaskBoardView() {
             </div>
           </div>
         </Modal>
+      </div>
+    </div>
+  )
+}
+
+function RemindersSection({ schedules, onDelete }: { schedules: ScheduleView[]; onDelete: (id: string) => void }) {
+  const t = useT()
+  if (!schedules.length) return null
+  return (
+    <div className="rounded-2xl border border-line bg-panel/50 p-3 mb-5">
+      <div className="flex items-center gap-2 mb-2">
+        <AlarmClock size={13} className="text-signal" />
+        <span className="text-[12.5px] font-semibold text-muted">{t('reminders_title')}</span>
+      </div>
+      <div className="space-y-1.5">
+        {schedules.map((s) => (
+          <div key={s.id} className="flex items-center gap-2 text-[12px]">
+            <span className="text-ink">{s.title}</span>
+            <span className="text-faint truncate max-w-[360px]">{s.prompt}</span>
+            <Badge color="#45C4FF">{new Date(s.nextFireAt).toLocaleString()}</Badge>
+            <span className="text-[10.5px] text-faint">{s.fireCount}×</span>
+            <button className="ml-auto text-faint hover:text-red cursor-pointer" onClick={() => onDelete(s.id)} title={t('reject')}>
+              <Trash2 size={12} />
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   )

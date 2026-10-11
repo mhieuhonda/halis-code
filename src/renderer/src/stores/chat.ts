@@ -1,4 +1,4 @@
-/** Chat store: sessions, live message stream, approvals, typing, task board. */
+/** Chat store: sessions, live message stream, approvals, typing, task board, todos. */
 import { create } from 'zustand'
 import type {
   ApprovalRequest,
@@ -6,8 +6,10 @@ import type {
   ChatMessage,
   HarnessEvent,
   LockInfo,
+  QuestionAnswer,
   Session,
   SessionMeta,
+  TodoItem,
 } from '@shared/types'
 import { bridge } from '../lib/ipc'
 
@@ -21,6 +23,7 @@ interface ChatState {
   approvals: ApprovalRequest[]
   tasks: BoardTask[]
   locks: LockInfo[]
+  todos: TodoItem[]
   swarmRound: { round: number; maxRounds: number } | null
   sessionsLoaded: boolean
   unsubscribe: (() => void) | null
@@ -34,6 +37,7 @@ interface ChatState {
   send: (text: string, modelId?: string) => Promise<void>
   stop: () => Promise<void>
   respondApproval: (requestId: string, response: 'allow' | 'always' | 'reject') => Promise<void>
+  answerQuestions: (requestId: string, answers: QuestionAnswer[]) => Promise<void>
   loadTasks: () => Promise<void>
   createTask: (title: string, description?: string) => Promise<void>
   updateTask: (taskId: string, patch: { status?: import('@shared/types').TaskStatus; blockedReason?: string }) => Promise<void>
@@ -108,6 +112,17 @@ function applyEvent(state: ChatState, event: HarnessEvent): Partial<ChatState> |
     }
     case 'swarm-round':
       return { swarmRound: { round: event.round, maxRounds: event.maxRounds } }
+    case 'todo-changed': {
+      if (event.sessionId !== state.activeSessionId) return null
+      return { todos: event.todos }
+    }
+    case 'reminder-fired': {
+      if (event.sessionId !== state.activeSessionId) return null
+      return null
+    }
+    case 'mcp-changed':
+      window.dispatchEvent(new CustomEvent('halis:mcp', { detail: event.servers }))
+      return null
     case 'receipt':
       // Receipts surface inside tool runs; the Telegraph view reloads its ledger.
       return null
@@ -126,6 +141,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   approvals: [],
   tasks: [],
   locks: [],
+  todos: [],
   swarmRound: null,
   sessionsLoaded: false,
   unsubscribe: null,
@@ -158,7 +174,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   openSession: async (id) => {
     const session = (await bridge.sessionGet(id)) as Session | null
     if (!session) return
-    set({ activeSessionId: id, messages: session.messages, activeMode: session.mode, typing: {}, swarmRound: null, approvals: [] })
+    set({ activeSessionId: id, messages: session.messages, activeMode: session.mode, typing: {}, swarmRound: null, approvals: [], todos: session.todos ?? [] })
   },
 
   newSession: async (mode, modelId) => {
@@ -201,6 +217,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   respondApproval: async (requestId, response) => {
     await bridge.approvalRespond(requestId, response)
+    set({ approvals: get().approvals.filter((a) => a.id !== requestId) })
+  },
+
+  answerQuestions: async (requestId, answers) => {
+    await bridge.approvalRespond(requestId, 'allow', answers)
     set({ approvals: get().approvals.filter((a) => a.id !== requestId) })
   },
 
