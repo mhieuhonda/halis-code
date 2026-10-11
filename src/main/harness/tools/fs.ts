@@ -26,6 +26,32 @@ function truncate(s: string, max = MAX_READ_CHARS): string {
   return `${s.slice(0, max)}\n… (truncated, ${s.length - max} more characters — read with offset/limit)`
 }
 
+/**
+ * Make sure the parent directory of a target file exists and is a real
+ * directory. Concurrent writes to sibling paths race here (parallel tool
+ * calls), so mkdir is always re-run — it is idempotent. When a path
+ * component exists as a FILE (a model writing "src" then "src/index.js" is
+ * the classic case), fail with a message the agent can act on.
+ */
+function ensureWritableParent(file: string, ws: string): void {
+  const dir = dirname(file)
+  if (existsSync(dir)) {
+    if (!statSync(dir).isDirectory()) {
+      throw new Error(`Cannot write ${rel(ws, file)}: "${rel(ws, dir)}" already exists as a FILE but a directory is needed at that path. Remove or rename that file first (delete_file), then retry.`)
+    }
+    return
+  }
+  try {
+    mkdirSync(dir, { recursive: true })
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code === 'ENOTDIR' || code === 'EEXIST' || code === 'EISDIR') {
+      throw new Error(`Cannot write ${rel(ws, file)}: a parent path component is a file where a directory is needed ("${rel(ws, dir)}"). Remove or rename that file first, then retry.`)
+    }
+    throw err
+  }
+}
+
 export const readFileTool: ToolDef = {
   name: 'read_file',
   description:
@@ -118,11 +144,23 @@ export const writeFileTool: ToolDef = {
     const lockResult = ctx.locks.acquire(path, ctx.agentId, ctx.agentName, mode)
     try {
       const existed = existsSync(path)
+      if (existed && statSync(path).isDirectory()) {
+        // target path is an existing DIRECTORY — impossible to overwrite
+        return { output: `${String(args.path)} is a directory — write to a file path inside it instead.` }
+      }
       const before = existed ? readFileSync(path, 'utf8') : ''
-      const dir = dirname(path)
-      if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+      ensureWritableParent(path, ctx.workspace)
       const tmp = `${path}.halis-tmp`
-      writeFileSync(tmp, content, 'utf8')
+      try {
+        writeFileSync(tmp, content, 'utf8')
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === 'ENOTDIR') {
+          // Re-check with a friendly message — a sibling parallel write may
+          // have created a file where this write needs a directory.
+          ensureWritableParent(path, ctx.workspace)
+        }
+        throw err
+      }
       renameSync(tmp, path)
       const lines = content.split('\n').length
       return {

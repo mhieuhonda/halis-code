@@ -4,7 +4,7 @@
  * 4-tier fuzzy context matching. OpenAI models in particular are trained
  * on this format.
  */
-import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync, unlinkSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync, unlinkSync, statSync } from 'node:fs'
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 import type { ToolContext, ToolDef, ToolResult } from './index'
 import { applyPatch, parsePatch } from '../util/patch'
@@ -97,7 +97,10 @@ export const applyPatchTool: ToolDef = {
             return
           }
           const dir = dirname(full)
-          if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+          if (existsSync(dir) && !statSync(dir).isDirectory()) {
+            throw new Error(`Cannot write ${rel}: "${relative(ctx.workspace, dir)}" already exists as a FILE but a directory is needed at that path. Remove or rename that file first, then retry.`)
+          }
+          mkdirSync(dir, { recursive: true })
           const tmp = `${full}.halis-tmp`
           writeFileSync(tmp, content, 'utf8')
           renameSync(tmp, full)
