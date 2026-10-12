@@ -20,6 +20,9 @@ export const paths = {
   get receiptsFile(): string {
     return join(this.userData, 'telegraph-receipts.json')
   },
+  get approvalRulesFile(): string {
+    return join(this.userData, 'approval-rules.json')
+  },
   sessionFile(sessionId: string): string {
     // Session ids come from the renderer over IPC; reject anything that is
     // not a plain generated id ("../../settings" must never reach the path).

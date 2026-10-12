@@ -24,6 +24,8 @@ export interface PermissionContext {
   agentId: string
   /** Global demo switch from settings. */
   autoApproveAll: boolean
+  /** Global Telegraph setting: auto-approve paid asks at or below this USD amount. */
+  telegraphAutoApproveUpTo?: number
 }
 
 export interface PermissionDecision {
@@ -80,8 +82,14 @@ export function isReadOnlyTool(tool: string): boolean {
 export function evaluate(ctx: PermissionContext): PermissionDecision {
   const { agent, kind, tool, amountUsd, alwaysRules, agentId, autoApproveAll } = ctx
 
-  // 1. Denies first — agent configuration wins over convenience.
-  if (agent.readOnly && (STATE_TOOLS.has(tool) || kind === 'shell' || kind === 'file-write')) {
+  // 1. Denies first — agent configuration wins over convenience. MCP tools
+  //    without a readOnlyHint are presumed mutating: a read-only agent must
+  //    not reach them through an approval card — the deny contract is "this
+  //    agent cannot modify state", and an unknown tool may do exactly that.
+  if (
+    agent.readOnly &&
+    (STATE_TOOLS.has(tool) || kind === 'shell' || kind === 'file-write' || (kind === 'other' && !ctx.readOnly))
+  ) {
     return { effect: 'deny', reason: 'This agent is configured read-only and cannot modify state.' }
   }
   if (kind === 'shell' && !agent.canRunShell) {
@@ -128,6 +136,17 @@ export function evaluate(ctx: PermissionContext): PermissionDecision {
   }
   if (kind === 'usdc-spend' && (amountUsd ?? 0) > 0 && amountUsd! <= agent.usdcAutoApproveUpTo && agent.usdcAutoApproveUpTo > 0) {
     return { effect: 'allow', reason: `Below this agent's auto-approve limit ($${agent.usdcAutoApproveUpTo.toFixed(2)}).` }
+  }
+  // Global Telegraph setting ("auto-approve up to $X" in Settings) — the
+  // single-agent default has usdcAutoApproveUpTo 0, so without this check the
+  // user-facing control would never fire and every $0.01 ask would card.
+  if (
+    kind === 'usdc-spend' &&
+    (amountUsd ?? 0) > 0 &&
+    (ctx.telegraphAutoApproveUpTo ?? 0) > 0 &&
+    amountUsd! <= (ctx.telegraphAutoApproveUpTo ?? 0)
+  ) {
+    return { effect: `allow` as const, reason: `At or below the auto-approve limit set in Settings ($${(ctx.telegraphAutoApproveUpTo ?? 0).toFixed(2)}).` }
   }
 
   // 6. Default: ask.

@@ -81,17 +81,33 @@ export const askUserTool: ToolDef = {
       type: 'tool-update',
       sessionId: ctx.sessionId,
       messageId: ctx.messageId,
-      run: { toolCallId: `ask_${Date.now()}`, tool: 'ask_user', args, state: 'awaiting-approval', startedAt: Date.now() },
+      // Key to the loop's real call id when available: the renderer already
+      // holds a part for it (tool-start); a synthetic id would add a second,
+      // permanently-pending chip that nothing ever completes.
+      run: { toolCallId: ctx.toolCallId ?? `ask_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, tool: 'ask_user', args, state: 'awaiting-approval', startedAt: Date.now() },
     })
 
-    const answers = await Promise.race([
-      ctx.askUser(questions),
-      new Promise<null>((resolve) => {
-        const timer = setTimeout(() => resolve(null), TIMEOUT_MS)
-        if (typeof timer.unref === 'function') timer.unref()
-        ctx.signal?.addEventListener('abort', () => resolve(null), { once: true })
-      }),
-    ])
+    // Both the abort listener AND the 10-minute timer must die with the wait:
+    // each ask_user call pinning a `once` listener on the shared turn signal
+    // accumulates until Node's EventTarget leak warning (>10) fires, and the
+    // unref'd timeout keeps its closures alive for the full 10 minutes on the
+    // normal (answered-in-20s) path.
+    const onAbort = () => timeoutSettle?.(null)
+    let timeoutSettle: ((value: null) => void) | null = null
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeoutPromise = new Promise<null>((resolve) => {
+      timeoutSettle = resolve
+      timer = setTimeout(() => resolve(null), TIMEOUT_MS)
+      if (typeof timer.unref === 'function') timer.unref()
+    })
+    ctx.signal?.addEventListener('abort', onAbort, { once: true })
+    let answers: QuestionAnswer[] | null
+    try {
+      answers = await Promise.race([ctx.askUser(questions), timeoutPromise])
+    } finally {
+      ctx.signal?.removeEventListener('abort', onAbort)
+      if (timer) clearTimeout(timer)
+    }
 
     if (!answers || !answers.length) {
       return {

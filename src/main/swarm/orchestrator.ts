@@ -258,7 +258,7 @@ export class SwarmOrchestrator {
       // When the planner ran alone this round, the agents the user (or the
       // routing) originally asked for must not be silently dropped — carry
       // them forward unless they already spoke this turn.
-      if (batch.length === 1 && batch[0] === planner?.id) {
+      if (planner && batch.length === 1 && batch[0] === planner.id) {
         for (const id of decision.toRun) {
           if (id !== planner.id && (speakBudget.get(id) ?? 0) > 0) nextTargets.add(id)
         }

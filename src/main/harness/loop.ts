@@ -46,6 +46,12 @@ export interface TurnResult {
  */
 function normalizeArgs(args: Record<string, unknown>): Record<string, unknown> {
   const out = { ...args }
+  // Stringified booleans: "replace_all": "false" is truthy under !! and would
+  // silently flip tools into replace-everything / background / stat modes.
+  for (const [k, v] of Object.entries(out)) {
+    if (v === 'true') out[k] = true
+    else if (v === 'false') out[k] = false
+  }
   if (typeof out.path !== 'string' || !out.path) {
     for (const [k, v] of Object.entries(out)) {
       if (k !== 'path' && /(^|[^a-z])path([^a-z]|$)/i.test(k) && typeof v === 'string' && v) {
@@ -122,7 +128,12 @@ export class AgentRunner {
           req.apiKey,
         )
         lastFinish = result.finishReason
-        text = result.text || streamText
+        // Multi-step turns stream every step's narration under the same
+        // messageId — the final message must keep ALL of it, not just the
+        // last step's text (the renderer already accumulated the deltas;
+        // message-done would otherwise erase what the user just read).
+        const stepText = result.text || streamText
+        if (stepText) text = text ? `${text}\n\n${stepText}` : stepText
         streamText = ''
         reasoning = result.reasoning
         usage.inputTokens += result.usage?.inputTokens ?? 0
@@ -154,11 +165,14 @@ export class AgentRunner {
       if (req.signal?.aborted || (err as Error)?.name === 'AbortError') {
         aborted = true
         // Keep whatever reached the UI before the abort — an empty overwrite
-        // would erase the partial answer the user already read.
-        if (streamText) text = text || streamText
+        // would erase the partial answer the user already read. Append the
+        // in-flight partial text to the earlier steps' text, matching what
+        // the renderer's delta stream showed until this moment.
+        if (streamText) text = text ? `${text}\n\n${streamText}` : streamText
       } else {
         const message = err instanceof Error ? err.message : String(err)
-        return { text: text || streamText, reasoning, steps, toolRuns, aborted, error: message, finishReason: 'error', usage }
+        const partial = streamText ? (text ? `${text}\n\n${streamText}` : streamText) : text
+        return { text: partial, reasoning, steps, toolRuns, aborted, error: message, finishReason: 'error', usage }
       }
     }
 
@@ -214,6 +228,9 @@ export class AgentRunner {
     }
 
     // --- Permission engine ---
+    // "Always allow" rules must be read LIVE, not from the snapshot captured
+    // at turn start — the user clicking "Always" on the first command must
+    // cover the remaining commands of the same turn.
     const kind = tool.kind
     const readOnly = tool.readOnly
     const decision = evaluate({
@@ -221,7 +238,7 @@ export class AgentRunner {
       kind,
       readOnly,
       agent: ctx.permissions,
-      alwaysRules: ctx.alwaysRules,
+      alwaysRules: ctx.approvals.rulesFor(ctx.agentId),
       agentId: ctx.agentId,
       autoApproveAll: ctx.autoApproveAll,
     })
@@ -277,6 +294,11 @@ export class AgentRunner {
       emitRun('rejected', { error: 'Turn aborted', endedAt: Date.now() })
       return run
     }
+    // Tools that raise their own cards (ask_user, telegraph_ask) emit
+    // tool-updates under the real call id — the renderer keys parts by it and
+    // a synthetic id would leave a permanently-pending duplicate chip.
+    const prevToolCallId = ctx.toolCallId
+    ctx.toolCallId = call.id
     try {
       const result = await tool.execute(args, ctx)
       // Global output budget (opencode tool-output pattern): clip long results
@@ -291,6 +313,8 @@ export class AgentRunner {
       emitRun('completed', { result: output, endedAt: Date.now() })
     } catch (err) {
       emitRun('error', { error: err instanceof Error ? err.message : String(err), endedAt: Date.now() })
+    } finally {
+      ctx.toolCallId = prevToolCallId
     }
     return run
   }

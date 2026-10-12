@@ -62,6 +62,12 @@ export interface ToolContext {
   settings: { tavilyApiKey?: string }
   /** Turn abort signal — tools check it for long waits. */
   signal?: AbortSignal
+  /**
+   * The id of the tool call currently executing (set by the agent loop).
+   * Tools that raise their own cards (ask_user, telegraph_ask) emit
+   * tool-updates under this id so the renderer keys them to the real part.
+   */
+  toolCallId?: string
   /** Sub-agent depth for delegate_task (0 = top level, no nested delegation beyond 1). */
   delegationDepth?: number
   /** Run a nested agent turn for delegate_task; undefined in nested turns. */

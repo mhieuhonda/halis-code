@@ -8,6 +8,7 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { app, safeStorage } from 'electron'
 import type {
+  AlwaysAllowRule,
   AppSettings,
   ChatMessage,
   HarnessEvent,
@@ -90,10 +91,13 @@ export class HalisApp {
     this.schedules = new ScheduleStore(paths.userData)
     this.migrateTelegraphKey()
 
+    this.approvals.setRules(readJson<AlwaysAllowRule[]>(paths.approvalRulesFile, []))
     this.approvals.setHooks({
       onRequest: (request) => this.emit({ type: 'approval-request', request }),
       onResolved: (requestId, approved) => this.emit({ type: 'approval-resolved', requestId, approved }),
-      onRulesChanged: () => {},
+      // "Always allow" rules survive restarts — they are part of the user's
+      // trust decisions, not transient turn state.
+      onRulesChanged: (rules) => writeJson(paths.approvalRulesFile, rules),
     })
     this.locks.setHooks({ onChanged: (locks) => this.emit({ type: 'lock-changed', locks }) })
     modelCatalog.setUpdatedListener((catalog) => this.emit({ type: 'model-catalog-updated', catalog }))
@@ -113,6 +117,11 @@ export class HalisApp {
       onChanged: () => {},
     })
     this.schedules.ensureTimer()
+
+    // Settled background jobs (16 KB output rings + kill closures) must not
+    // accumulate for the whole process lifetime — sweep old ones hourly.
+    const jobSweeper = setInterval(() => this.jobs.sweep(), 60 * 60 * 1000)
+    if (typeof jobSweeper.unref === 'function') jobSweeper.unref()
 
     // MCP tools register into the shared registry.
     this.mcp.setHooks({
@@ -497,14 +506,6 @@ export class HalisApp {
       } else {
         await this.runSwarm(session, controller)
       }
-      // Deliver any reminders that fired while the turn was running.
-      const queued = this.pendingReminders.get(sessionId)
-      if (queued?.length) {
-        this.pendingReminders.delete(sessionId)
-        for (const schedule of queued) {
-          await this.runReminderTurn(schedule)
-        }
-      }
       return { ok: true }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -533,6 +534,16 @@ export class HalisApp {
       // running concurrently with its own approval cards and file locks.
       this.approvals.rejectAllForSession(sessionId)
       if (![...this.running.keys()].some((id) => id.split(':')[0] !== sessionId)) this.locks.clear()
+      // Deliver reminders that fired while the turn was running — in the
+      // finally, so a failed turn (e.g. swarm validation throw) does not
+      // strand queued reminders until some later successful turn.
+      const queued = this.pendingReminders.get(sessionId)
+      if (queued?.length) {
+        this.pendingReminders.delete(sessionId)
+        for (const schedule of queued) {
+          await this.runReminderTurn(schedule).catch((err) => console.warn('[halis] reminder turn failed:', err))
+        }
+      }
     }
   }
 
@@ -583,14 +594,10 @@ export class HalisApp {
           agentColor: input.agentColor,
           questions: questions as QuestionPrompt[],
         })
-        const answers = await Promise.race([
-          wait,
-          new Promise<null>((resolve) => {
-            if (input.signal?.aborted) return resolve(null)
-            input.signal?.addEventListener('abort', () => resolve(null), { once: true })
-          }),
-        ])
-        return answers
+        // raceWithAbort removes its abort listener when the wait settles;
+        // a hand-rolled Promise.race leaked one listener per ask_user call on
+        // the shared turn signal (>10 triggers Node's leak warning).
+        return raceWithAbort(wait, input.signal)
       },
       delegate:
         (input.depth ?? 0) >= 1
@@ -664,6 +671,10 @@ export class HalisApp {
           model: modelId,
           messages: summarizeRequest(transcript),
           maxTokens: 2048,
+          // Stop must cancel the compaction call too — an unabortable request
+          // keeps the session "running" (and blocks app quit) for as long as
+          // the provider feels like taking.
+          signal: controller.signal,
         },
         undefined,
       )
@@ -691,7 +702,6 @@ export class HalisApp {
       session.messages.unshift(note)
       this.sessions.save(session)
       this.emit({ type: 'message-start', sessionId: session.id, message: note })
-      void controller
     } catch (err) {
       console.warn('[halis] compaction failed (continuing without):', err)
     }

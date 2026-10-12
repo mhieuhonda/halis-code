@@ -69,6 +69,10 @@ async function runPaidAsk(params: { query: string; minerId?: string; ctx: ToolCo
       minerId: params.minerId,
       privateKey: ctx.telegraph.privateKey,
       network,
+      // Stop must abort the paid flow too: without the signal the 402 →
+      // sign → settle sequence runs to completion in the background after
+      // the user pressed Stop — USDC leaves the wallet for a discarded answer.
+      signal: ctx.signal,
       onQuote: async (quote) => {
         // Daily budget hard stop.
         const spentToday = ledger.spentTodayUsd()
@@ -86,9 +90,12 @@ async function runPaidAsk(params: { query: string; minerId?: string; ctx: ToolCo
           readOnly: false,
           amountUsd: quote.amountUsd,
           agent: ctx.permissions,
-          alwaysRules: ctx.alwaysRules,
+          // Live rules — a mid-turn "Always allow" must cover the very next
+          // ask instead of waiting for the next turn.
+          alwaysRules: ctx.approvals.rulesFor(ctx.agentId),
           agentId: ctx.agentId,
           autoApproveAll: ctx.autoApproveAll,
+          telegraphAutoApproveUpTo: ctx.telegraph.autoApproveUpTo,
         })
         if (decision.effect === 'deny') {
           throw new DeniedError(`Telegraph spending is not allowed for this agent: ${decision.reason}`)
@@ -160,7 +167,9 @@ async function requestSpendApproval(ctx: ToolContext, amountUsd: number, query: 
     sessionId: ctx.sessionId,
     messageId: ctx.messageId,
     run: {
-      toolCallId: `approval_${id}`,
+      // The loop's real call id: the renderer already holds the part from
+      // tool-start, and the loop completes it when execute returns.
+      toolCallId: ctx.toolCallId ?? `approval_${id}`,
       tool: 'telegraph_ask',
       args: { query },
       state: 'awaiting-approval',
