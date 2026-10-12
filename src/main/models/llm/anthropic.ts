@@ -128,21 +128,26 @@ export class AnthropicProvider implements LlmProvider {
     // SSE framing: "event: x\ndata: {...}"
     const toolAcc = new Map<number, { id: string; name: string; args: string }>()
     let currentToolIdx = -1
+    // message_stop / stop_reason are the terminal markers — without one, a
+    // dropped connection saves a truncated answer as a successful turn.
+    let sawTerminal = false
 
-    const reader = res.body!.getReader()
+    if (!res.body) throw new LlmError('Anthropic stream returned no body', undefined, this.providerName)
+    const reader = res.body.getReader()
     const decoder = new TextDecoder()
     let raw = ''
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      raw += decoder.decode(value, { stream: true })
-      let nl: number
-      while ((nl = raw.indexOf('\n')) >= 0) {
-        const line = raw.slice(0, nl).replace(/\r$/, '')
-        raw = raw.slice(nl + 1)
-        if (!line.startsWith('data:')) continue
-        const data = line.slice(5).trim()
-        if (!data || data === '[DONE]') continue
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        raw += decoder.decode(value, { stream: true })
+        let nl: number
+        while ((nl = raw.indexOf('\n')) >= 0) {
+          const line = raw.slice(0, nl).replace(/\r$/, '')
+          raw = raw.slice(nl + 1)
+          if (!line.startsWith('data:')) continue
+          const data = line.slice(5).trim()
+          if (!data || data === '[DONE]') continue
         let evt: {
           type: string
           content_block?: ContentBlock
@@ -187,7 +192,11 @@ export class AnthropicProvider implements LlmProvider {
             if (evt.delta?.stop_reason === 'tool_use') result.finishReason = 'tool_calls'
             else if (evt.delta?.stop_reason === 'max_tokens') result.finishReason = 'length'
             else if (evt.delta?.stop_reason === 'end_turn') result.finishReason = 'stop'
+            if (evt.delta?.stop_reason) sawTerminal = true
             if (evt.usage?.output_tokens) result.usage.outputTokens = evt.usage.output_tokens
+            break
+          case 'message_stop':
+            sawTerminal = true
             break
           case 'error':
             // Anthropic sends `event: error` mid-stream (e.g. overloaded).
@@ -198,6 +207,16 @@ export class AnthropicProvider implements LlmProvider {
         }
       }
     }
+    } finally {
+      // A mid-stream throw must not leave the body reader locked and the
+      // socket pinned until the provider times it out — retries would strand
+      // one stream per attempt.
+      try {
+        await reader.cancel()
+      } catch {
+        /* already closed */
+      }
+    }
 
     for (const [, acc] of [...toolAcc.entries()].sort((a, b) => a[0] - b[0])) {
       const call: LlmToolCall = { id: acc.id, name: acc.name, arguments: acc.args || '{}' }
@@ -205,6 +224,12 @@ export class AnthropicProvider implements LlmProvider {
       options.onEvent({ type: 'toolCall', call })
     }
     if (result.toolCalls.length) result.finishReason = 'tool_calls'
+    // Partial content with NO terminal marker = the connection died
+    // mid-generation. Throw (status undefined → retryable) so withRetry can
+    // re-request instead of persisting a silently truncated answer.
+    if (!sawTerminal && (result.text || result.toolCalls.length)) {
+      throw new LlmError(`${this.providerName} stream ended without a completion marker — the answer may be truncated`, undefined, this.providerName)
+    }
     return result
   }
 

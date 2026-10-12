@@ -73,8 +73,21 @@ export class McpManager {
     return [...this.entries.values()].flatMap((e) => e.tools)
   }
 
-  /** Apply a new config set: connect new servers, drop removed ones. */
-  async syncConfigs(configs: McpServerConfig[]): Promise<McpServerStatus[]> {
+  /** Apply a new config set: connect new servers, drop removed ones.
+   * Serialized: rapid Settings saves interleave at the awaits below — two
+   * overlapping syncs both see the same stale entry, both closeEntry, then
+   * both set their own; the loser's connect() finishes into an entry that is
+   * no longer in the map, and its stdio child is never closed by closeAll.
+   * Every caller gets the result of ITS OWN run (chained onto the tail). */
+  private syncTail: Promise<McpServerStatus[]> = Promise.resolve([])
+
+  syncConfigs(configs: McpServerConfig[]): Promise<McpServerStatus[]> {
+    const run = this.syncTail.catch(() => {}).then(() => this.doSyncConfigs(configs))
+    this.syncTail = run
+    return run
+  }
+
+  private async doSyncConfigs(configs: McpServerConfig[]): Promise<McpServerStatus[]> {
     const wanted = new Map(configs.map((c) => [c.name, c]))
     for (const [name, entry] of this.entries) {
       if (!wanted.has(name)) {
@@ -84,7 +97,10 @@ export class McpManager {
     }
     for (const config of configs) {
       const existing = this.entries.get(config.name)
-      if (existing && JSON.stringify(existing.config) === JSON.stringify(config)) continue
+      // Field-wise compare: JSON.stringify is key-order-sensitive — saving a
+      // semantically identical config with reordered keys would close and
+      // respawn every server (brief tool outage + orphaned children).
+      if (existing && sameConfig(existing.config, config)) continue
       if (existing) {
         await this.closeEntry(existing)
       }
@@ -233,6 +249,21 @@ function minimalEnv(): Record<string, string> {
     if (value !== undefined) out[key] = value
   }
   return out
+}
+
+/** Order-insensitive config equality (JSON.stringify is key-order-sensitive). */
+function sameConfig(a: McpServerConfig, b: McpServerConfig): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)])
+  const ra = a as unknown as Record<string, unknown>
+  const rb = b as unknown as Record<string, unknown>
+  for (const key of keys) {
+    const av = ra[key]
+    const bv = rb[key]
+    const an = av === undefined || av === '' ? null : av
+    const bn = bv === undefined || bv === '' ? null : bv
+    if (JSON.stringify(an) !== JSON.stringify(bn)) return false
+  }
+  return true
 }
 
 /** Quick reachability test used by Settings. */

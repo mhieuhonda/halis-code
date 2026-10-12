@@ -9,11 +9,6 @@ import { OpenAiCompatProvider } from './openai'
 import { AnthropicProvider } from './anthropic'
 import { withRetry } from './retry'
 
-/** On retries, previous partial deltas already reached the UI — suppress echo. */
-function quietEvents(options: LlmStreamOptions): LlmStreamOptions {
-  return { signal: options.signal, onEvent: () => {} }
-}
-
 export interface ProviderResolution {
   provider: LlmProvider
   model: ModelInfo
@@ -68,7 +63,9 @@ export class LlmDispatcher {
             model: model.apiId,
             maxTokens: request.maxTokens ?? (model.maxOutput ? Math.min(model.maxOutput, 32768) : undefined),
           },
-          attempt === 0 ? options : { ...options, onEvent: attempt === 0 ? options.onEvent : quietEvents(options).onEvent },
+          // Retries suppress events: attempt 0's partial deltas already
+          // reached the UI — echoing them again would duplicate the text.
+          attempt === 0 ? options : { ...options, onEvent: () => {} },
         ),
       options.signal ?? request.signal,
     )

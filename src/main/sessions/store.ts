@@ -19,10 +19,16 @@ export class SessionStore {
     const metas: SessionMeta[] = []
     for (const file of readdirSync(paths.sessionsDir)) {
       if (!file.endsWith('.json')) continue
-      const session = readJson<Session | null>(paths.sessionFile(file.replace(/\.json$/, '')), null)
-      if (!session?.id) continue
-      if (this.deleted.has(session.id)) continue
-      metas.push(this.toMeta(session))
+      // One malformed session file (valid JSON, missing `messages`) must not
+      // take the whole sidebar down — skip it and keep listing the rest.
+      try {
+        const session = readJson<Session | null>(paths.sessionFile(file.replace(/\.json$/, '')), null)
+        if (!session?.id) continue
+        if (this.deleted.has(session.id)) continue
+        metas.push(this.toMeta(session))
+      } catch {
+        continue
+      }
     }
     return metas.sort((a, b) => b.updatedAt - a.updatedAt)
   }
@@ -34,7 +40,7 @@ export class SessionStore {
       mode: session.mode,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
-      messageCount: session.messages.length,
+      messageCount: session.messages?.length ?? 0,
       modelId: session.modelId,
       agentNames: session.agentNames,
     }
@@ -68,7 +74,7 @@ export class SessionStore {
   save(session: Session): void {
     if (this.deleted.has(session.id)) return
     session.updatedAt = Date.now()
-    session.messageCount = session.messages.length
+    session.messageCount = session.messages?.length ?? 0
     writeJson(paths.sessionFile(session.id), session)
   }
 

@@ -157,11 +157,21 @@ export class ModelCatalog {
       const fresh = dev[bundled.id]
       if (!fresh) {
         providers.push(bundled)
-        models.push(...BUNDLED_MODELS.filter((m) => m.providerId === bundled.id))
+        models.push(...BUNDLED_MODELS.filter((m) => m.providerId === bundled.id).map((m) => ({ ...m, id: cleanModelToken(m.id), apiId: cleanModelToken(m.apiId) })))
         continue
       }
       providers.push(bundled)
       const seen = new Set<string>()
+      // Keep the bundled models as the BASE: models.dev renames/retires
+      // entries, and the user's selected model (including the default
+      // `pollinations/openai-fast`) must not vanish on a background refresh —
+      // `Unknown model:` would break the session until the user re-picks.
+      for (const model of BUNDLED_MODELS.filter((m) => m.providerId === bundled.id)) {
+        const id = cleanModelToken(model.id)
+        if (seen.has(id)) continue
+        seen.add(id)
+        models.push({ ...model, id, apiId: cleanModelToken(model.apiId) })
+      }
       for (const [modelKey, m] of Object.entries(fresh.models ?? {})) {
         if (m.status === 'deprecated') continue
         if (m.modalities?.output && !m.modalities.output.includes('text')) continue

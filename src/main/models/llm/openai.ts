@@ -32,21 +32,32 @@ function stripChannelMarkers(value: string): string {
 async function* sseLines(res: Response): AsyncGenerator<string> {
   if (!res.body) return
   const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    let nl: number
-    while ((nl = buffer.indexOf('\n')) >= 0) {
-      const line = buffer.slice(0, nl).replace(/\r$/, '')
-      buffer = buffer.slice(nl + 1)
-      if (line.startsWith('data:')) yield line.slice(5).trim()
+  try {
+    const decoder = new TextDecoder()
+    let buffer = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      let nl: number
+      while ((nl = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, nl).replace(/\r$/, '')
+        buffer = buffer.slice(nl + 1)
+        if (line.startsWith('data:')) yield line.slice(5).trim()
+      }
+    }
+    const rest = buffer.trim()
+    if (rest.startsWith('data:')) yield rest.slice(5).trim()
+  } finally {
+    // A mid-stream throw (chunk.error) or an early consumer break must not
+    // leave the body reader locked and the socket pinned until the server
+    // times it out — retries would strand one stream per attempt.
+    try {
+      await reader.cancel()
+    } catch {
+      /* already closed */
     }
   }
-  const rest = buffer.trim()
-  if (rest.startsWith('data:')) yield rest.slice(5).trim()
 }
 
 export function toOpenAiMessages(messages: LlmMessage[]): Array<Record<string, unknown>> {
@@ -73,9 +84,19 @@ export function toOpenAiMessages(messages: LlmMessage[]): Array<Record<string, u
       }
       out.push(msg)
     } else {
-      // OpenAI-compatible tool messages are string-only; images ride along in
-      // a synthetic user turn added by the caller when the tool returned one.
+      // OpenAI-compatible tool messages are string-only. Images ride along
+      // in a synthetic user turn right after the tool result — otherwise
+      // read_image answers on every OpenAI-compat provider (DeepSeek, Groq,
+      // OpenRouter, Gemini-compat, Ollama…) reach the model blind while the
+      // tool output claims "It is attached to this conversation".
       out.push({ role: 'tool', tool_call_id: m.toolCallId, content: m.content })
+      if (m.images?.length) {
+        const parts: Array<Record<string, unknown>> = [
+          { type: 'text', text: `[Tool result for ${m.toolName ?? 'tool'} included an image — attached below.]` },
+        ]
+        for (const image of m.images) parts.push({ type: 'image_url', image_url: { url: image.dataUri } })
+        out.push({ role: 'user', content: parts })
+      }
     }
   }
   return out
@@ -146,9 +167,16 @@ export class OpenAiCompatProvider implements LlmProvider {
     const result: LlmResult = { text: '', reasoning: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0 }, finishReason: 'other' }
     // Tool call fragments arrive in arbitrary index order; accumulate.
     const toolAcc = new Map<number, { id: string; name: string; args: string }>()
+    // A dropped TCP connection ends the SSE loop like a normal completion —
+    // without checking the terminal marker ([DONE] / finish_reason), a
+    // truncated answer is saved as a successful turn.
+    let sawTerminal = false
 
     for await (const data of sseLines(res)) {
-      if (!data || data === '[DONE]') continue
+      if (!data || data === '[DONE]') {
+        if (data === '[DONE]') sawTerminal = true
+        continue
+      }
       let chunk: {
         choices?: Array<{
           delta?: { content?: string | null; reasoning?: string | null; reasoning_content?: string | null; tool_calls?: OpenAiToolCallDelta[] }
@@ -194,6 +222,7 @@ export class OpenAiCompatProvider implements LlmProvider {
         toolAcc.set(idx, acc)
       }
       if (choice.finish_reason) {
+        sawTerminal = true
         result.finishReason =
           choice.finish_reason === 'tool_calls' ? 'tool_calls' : choice.finish_reason === 'length' ? 'length' : choice.finish_reason === 'stop' ? 'stop' : 'other'
       }
@@ -209,6 +238,12 @@ export class OpenAiCompatProvider implements LlmProvider {
       options.onEvent({ type: 'toolCall', call })
     }
     if (result.toolCalls.length) result.finishReason = 'tool_calls'
+    // Partial content with NO terminal marker = the connection died
+    // mid-generation. Throw (status undefined → retryable) so withRetry can
+    // re-request instead of persisting a silently truncated answer.
+    if (!sawTerminal && (result.text || result.toolCalls.length)) {
+      throw new LlmError(`${this.providerName} stream ended without a completion marker — the answer may be truncated`, undefined, this.providerName)
+    }
     return result
   }
 
