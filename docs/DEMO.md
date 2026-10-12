@@ -13,6 +13,10 @@ npm run dist       # electron-builder output for your platform
 
 No API key is needed for the first run: the default model is the keyless Pollinations gateway (`openai-fast`). Telegraph discovery (miners, intents, signals) is free and works before any wallet exists.
 
+The app boots in the **Light** theme. Prefer dark? Settings → **Appearance** → Dark applies instantly and is remembered.
+
+![Settings → Appearance, dark applied](screenshots/08-dark-mode-settings.png)
+
 ## 2. Wire the wallet (60 seconds)
 
 1. Telegraph tab → **Create wallet** (or **Import key** for an existing burner).

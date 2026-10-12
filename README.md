@@ -33,13 +33,17 @@ Its differentiator is deep **Telegraph Protocol** integration: every agent can b
 |---|---|
 | ![Agent chat](docs/screenshots/01-agent-chat-live.png) | ![Approval card](docs/screenshots/02-approval-card.png) |
 
-| Swarm setup | Telegraph — wallet, spend panel, receipts |
+| Swarm setup | Models & keys |
 |---|---|
-| ![Swarm setup](docs/screenshots/03-swarm-setup.png) | ![Telegraph](docs/screenshots/05-telegraph.png) |
+| ![Swarm setup](docs/screenshots/03-swarm-setup.png) | ![Models](docs/screenshots/04-models.png) |
 
-| Models & keys | Settings (Tiếng Việt) |
+| Telegraph — live discovery | Task board |
 |---|---|
-| ![Models](docs/screenshots/04-models.png) | ![Settings VI](docs/screenshots/07-settings-vi.png) |
+| ![Telegraph](docs/screenshots/05-telegraph.png) | ![Task board](docs/screenshots/06-task-board.png) |
+
+| Settings (Tiếng Việt) — Light is the default | Dark mode — one click in Settings → Appearance |
+|---|---|
+| ![Settings VI](docs/screenshots/07-settings-vi.png) | ![Dark mode](docs/screenshots/09-dark-mode-chat.png) |
 
 ---
 
@@ -141,9 +145,11 @@ Key rules (as configured in Swarm Setup):
 - Every USDC spend is quoted, approved (or auto-approved within a hard limit you set), receipted and logged
 - Use a burner wallet — the app says so in bold
 
-## Languages
+## Languages & appearance
 
 English by default, Tiếng Việt in Settings → Language. The entire UI, including agent role prompts, is bilingual.
+
+The renderer boots in the **Light** theme; **Dark** is one click away in Settings → Appearance (⚙ Giao diện) and is remembered across restarts.
 
 ## Install & run
 
