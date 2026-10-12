@@ -156,6 +156,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
         window.dispatchEvent(new CustomEvent('halis:receipt', { detail: event.receipt }))
       }
     })
+    // Recover approvals parked before this window subscribed (reload /
+    // restart mid-approval would otherwise orphan the card and hang the
+    // turn — there is no other path to approvalRespond). Deduped by id.
+    void bridge
+      .approvalList()
+      .then((pending) => {
+        const known = new Set(get().approvals.map((a) => a.id))
+        const fresh = (pending as ApprovalRequest[]).filter((a) => !known.has(a.id))
+        if (fresh.length) set({ approvals: [...get().approvals, ...fresh] })
+      })
+      .catch(() => {})
     // The cleanup must clear the field too, or the remount would reuse an
     // already-unsubscribed listener and drop every live event.
     const teardown = () => {
@@ -174,7 +185,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   openSession: async (id) => {
     const session = (await bridge.sessionGet(id)) as Session | null
     if (!session) return
-    set({ activeSessionId: id, messages: session.messages, activeMode: session.mode, typing: {}, swarmRound: null, approvals: [], todos: session.todos ?? [] })
+    // approvals are NOT wiped here: a turn may still be waiting on one in
+    // the main process (they are global pending cards, deduped by id), and
+    // clearing the array would make the card — the only path to
+    // approvalRespond — unrecoverable.
+    set({ activeSessionId: id, messages: session.messages, activeMode: session.mode, typing: {}, swarmRound: null, todos: session.todos ?? [] })
   },
 
   newSession: async (mode, modelId) => {
@@ -185,6 +200,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   deleteSession: async (id) => {
+    // Stop the turn first: main keeps running it after the file is gone and
+    // sessions.save() on completion would resurrect the deleted session.
+    await bridge.chatStop(id)
     await bridge.sessionDelete(id)
     if (get().activeSessionId === id) set({ activeSessionId: null, messages: [] })
     await get().loadSessions()
@@ -205,8 +223,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } finally {
       set({ running: false, typing: {} })
       await get().loadSessions()
-      // Refresh the open session to catch anything missed by events.
-      await get().openSession(sessionId)
+      // Refresh the open session to catch anything missed by events — but
+      // only if the user is still looking at it. Switching sessions while a
+      // turn runs must not yank the view back to the originating session.
+      if (get().activeSessionId === sessionId) await get().openSession(sessionId)
     }
   },
 

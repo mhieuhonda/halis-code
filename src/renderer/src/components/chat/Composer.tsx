@@ -26,6 +26,11 @@ export function ModelPicker({ value, onChange }: { value: string; onChange: (id:
   else if (group === 'local') models = models.filter((m) => m.providerId === 'ollama')
 
   const current = catalog.models.find((m) => m.id === value)
+  // A filtered group (or the 300-option cap) can exclude the selected model —
+  // a controlled <select> with no matching option renders blank while the
+  // hidden model is still what sends use. Keep it visible as a pinned entry.
+  const listed = models.slice(0, 300)
+  if (current && !listed.some((m) => m.id === current.id)) listed.unshift(current)
 
   return (
     <div className="flex items-center gap-1.5 min-w-0">
@@ -37,7 +42,7 @@ export function ModelPicker({ value, onChange }: { value: string; onChange: (id:
         ))}
       </Select>
       <Select value={value} onChange={(e) => onChange(e.target.value)} className="!w-auto !py-1 !text-[11px] !px-2 max-w-[240px] !rounded-lg" title={value}>
-        {models.slice(0, 300).map((m) => (
+        {listed.map((m) => (
           <option key={m.id} value={m.id}>
             {m.providerId !== 'pollinations' ? `${catalog.providers.find((p) => p.id === m.providerId)?.name ?? m.providerId} · ` : ''}
             {m.name}
