@@ -130,7 +130,8 @@ export function buildSelector(args: Record<string, unknown>): { selector: Schedu
     return { selector: { kind: 'every_seconds', seconds } }
   }
   if (key === 'daily') {
-    const time = String((args[key] as { time?: string })?.time ?? '')
+    // Models send either {time:"HH:MM"} or a bare "HH:MM" string — take both.
+    const time = String(typeof args[key] === 'string' ? args[key] : (args[key] as { time?: string })?.time ?? '')
     const check = parseLocalTime(time)
     if ('error' in check) return check
     return { selector: { kind: 'daily', time } }
@@ -144,7 +145,10 @@ export function buildSelector(args: Record<string, unknown>): { selector: Schedu
     if (!weekdays.length || weekdays.some((d) => d < 1 || d > 7)) return { error: 'weekdays must be numbers 1=Mon..7=Sun.' }
     return { selector: { kind: 'weekly', time, weekdays } }
   }
-  const expression = String((args[key] as { expression?: string })?.expression ?? '')
+  // The schema declares cron as a plain string ("*/5 * * * *"), but some
+  // models wrap it as {expression: "..."} — accept both shapes.
+  const rawCron = args[key]
+  const expression = String(typeof rawCron === 'string' ? rawCron : (rawCron as { expression?: string })?.expression ?? '')
   return { selector: { kind: 'cron', expression } }
 }
 

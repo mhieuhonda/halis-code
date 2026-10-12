@@ -62,6 +62,21 @@ export class TaskBoard {
     return this.all().find((t) => t.id === taskId)
   }
 
+  /**
+   * Shared task lookup for tool calls: full id, id suffix (task_board_list
+   * renders ids as the last 6 chars, e.g. "#4f2a1b") or exact title
+   * (case-insensitive). Suffix must be non-empty — ''.endsWith('') is true
+   * and would match the first task randomly.
+   */
+  private findTask(taskId: string): BoardTask | undefined {
+    const needle = taskId.trim()
+    if (!needle) return undefined
+    const lower = needle.toLowerCase()
+    return this.tasks.find(
+      (t) => t.id === needle || (needle.length < t.id.length && t.id.endsWith(needle)) || t.title.toLowerCase() === lower,
+    )
+  }
+
   create(title: string, description?: string, createdBy = 'user', agentId = '', agentName = ''): BoardTask {
     return this.transaction(agentId, agentName, () => {
       const task: BoardTask = {
@@ -80,7 +95,7 @@ export class TaskBoard {
 
   update(taskId: string, patch: Partial<BoardTask>, agentId = '', agentName = ''): BoardTask {
     return this.transaction(agentId, agentName, () => {
-      const task = this.tasks.find((t) => t.id === taskId || t.title === taskId)
+      const task = this.findTask(taskId)
       if (!task) throw new Error(`Task not found: ${taskId}`)
       if (patch.status) task.status = patch.status
       if (patch.title !== undefined) task.title = patch.title
@@ -102,7 +117,7 @@ export class TaskBoard {
   /** Claim semantics: atomic take, fails if another agent already holds it. */
   claim(taskId: string, agentId: string, agentName: string): BoardTask {
     return this.transaction(agentId, agentName, () => {
-      const task = this.tasks.find((t) => t.id === taskId || t.title.toLowerCase() === taskId.toLowerCase())
+      const task = this.findTask(taskId)
       if (!task) throw new Error(`Task not found: ${taskId}`)
       if (task.status === 'done') throw new Error(`Task ${task.title} is already done.`)
       if (task.assignee && task.assignee !== agentId) {

@@ -6,7 +6,7 @@
  * output. AGENT=HALIS is exported so tools can detect an automated caller,
  * and credential-shaped env vars never reach children.
  */
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { SHELL_OUTPUT_CAP, SHELL_TIMEOUT_MS } from '../sandbox'
 import type { ToolContext, ToolDef, ToolResult } from './index'
@@ -61,7 +61,31 @@ interface RunHandle {
   kill: () => void
 }
 
-function runShellProcess(command: string, ctx: ToolContext, env: Record<string, string>, timeoutMs: number, onOutput: (chunk: string) => void): RunHandle {
+/**
+ * Kill the whole process tree, not just the shell. SIGKILL to /bin/bash
+ * reparents grandchildren (sleep, npm, dev servers) to init — they would
+ * keep holding ports and files invisibly. POSIX: the shell is spawned
+ * detached, so it leads its own process group and -pid kills everyone.
+ * Windows: taskkill /T walks the tree.
+ */
+function killTree(child: ChildProcess): void {
+  if (!child.pid) return
+  if (process.platform === 'win32') {
+    try {
+      spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true })
+    } catch {
+      child.kill('SIGKILL')
+    }
+  } else {
+    try {
+      process.kill(-child.pid, 'SIGKILL')
+    } catch {
+      child.kill('SIGKILL')
+    }
+  }
+}
+
+function runShellProcess(command: string, ctx: ToolContext, env: Record<string, string>, timeoutMs: number | null, onOutput: (chunk: string) => void): RunHandle {
   const isWin = process.platform === 'win32'
   let shell: string
   let shellArgs: string[]
@@ -74,7 +98,9 @@ function runShellProcess(command: string, ctx: ToolContext, env: Record<string, 
     shellArgs = ['-c', command]
   }
 
-  const child = spawn(shell, shellArgs, { cwd: ctx.workspace, env, windowsHide: true })
+  // detached (POSIX) puts the shell in its own process group so killTree can
+  // take down the whole tree. stdio pipes keep it reaped by Node.
+  const child = spawn(shell, shellArgs, { cwd: ctx.workspace, env, windowsHide: true, detached: !isWin })
   let stdout = ''
   let stderr = ''
   let truncated = false
@@ -87,32 +113,35 @@ function runShellProcess(command: string, ctx: ToolContext, env: Record<string, 
     onOutput(text)
     if (stdout.length + stderr.length > SHELL_OUTPUT_CAP * 2) {
       truncated = true
-      child.kill('SIGKILL')
+      killTree(child)
     }
   }
   child.stdout?.on('data', (c: Buffer) => append(c, 'out'))
   child.stderr?.on('data', (c: Buffer) => append(c, 'err'))
 
-  const timer = setTimeout(() => {
-    timedOut = true
-    child.kill('SIGKILL')
-  }, timeoutMs)
-  if (typeof timer.unref === 'function') timer.unref()
+  const timer =
+    timeoutMs === null
+      ? null
+      : setTimeout(() => {
+          timedOut = true
+          killTree(child)
+        }, timeoutMs)
+  if (timer && typeof timer.unref === 'function') timer.unref()
 
   const outcome = new Promise<RunOutcome>((resolve) => {
     child.on('error', (err) => {
-      clearTimeout(timer)
+      if (timer) clearTimeout(timer)
       resolve({ exitCode: null, signal: null, timedOut, stdout, stderr: `${stderr}\n${err.message}`.trim(), truncated })
     })
     child.on('close', (code, signal) => {
-      clearTimeout(timer)
+      if (timer) clearTimeout(timer)
       resolve({ exitCode: code, signal, timedOut, stdout, stderr, truncated })
     })
   })
 
   return {
     outcome,
-    kill: () => child.kill('SIGKILL'),
+    kill: () => killTree(child),
   }
 }
 
@@ -165,8 +194,11 @@ export const runCommandTool: ToolDef = {
         kind: 'bash',
         label,
         ownerAgentId: ctx.agentId,
+        sessionId: ctx.sessionId,
         run: async (controls) => {
-          handle = runShellProcess(command, ctx, env, timeout, (chunk) => controls.setOutput(chunk))
+          // Background jobs outlive the turn on purpose (dev servers, long
+          // builds) — no timeout. Output cap and job_kill still stop them.
+          handle = runShellProcess(command, ctx, env, null, (chunk) => controls.setOutput(chunk))
           const outcome = await handle.outcome
           controls.setOutput(`\n[${outcome.timedOut ? 'timed out' : outcome.signal ? `killed by ${outcome.signal}` : `finished with exit code ${outcome.exitCode ?? 'unknown'}`}]\n`)
           controls.settle(outcome.timedOut ? 'failed' : outcome.exitCode === null ? 'killed' : 'completed', outcome.exitCode)

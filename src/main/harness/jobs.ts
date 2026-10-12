@@ -13,6 +13,8 @@ export interface JobInfo {
   kind: string
   label: string
   ownerAgentId: string
+  /** Session the job was started from — completion notices ride back there. */
+  sessionId?: string
   status: JobStatus
   exitCode: number | null
   startedAt: number
@@ -73,6 +75,7 @@ export class JobRegistry {
     kind: string
     label: string
     ownerAgentId: string
+    sessionId?: string
     run: (controls: { setOutput: (chunk: string) => void; settle: (status: JobStatus, exitCode: number | null) => void }) => Promise<void>
     kill: (reason: string) => void
   }): { id: string; wait: Promise<void> } {
@@ -87,6 +90,7 @@ export class JobRegistry {
       kind: input.kind,
       label: input.label,
       ownerAgentId: input.ownerAgentId,
+      sessionId: input.sessionId,
       status: 'running',
       exitCode: null,
       startedAt: Date.now(),
@@ -196,7 +200,11 @@ export class JobRegistry {
     if (!job) return { ok: false, message: `Unknown job: ${jobId}.` }
     if (job.info.ownerAgentId !== ownerAgentId) return { ok: false, message: `Job ${jobId} belongs to another agent.` }
     if (job.info.status !== 'running') return { ok: false, message: `Job ${jobId} already ${job.info.status}.` }
-    job.info.status = 'stopping' as JobStatus
+    // Do NOT pre-set the status here: settle() only accepts transitions from
+    // 'running', so a placeholder state (e.g. 'stopping') would make the
+    // real settle call a no-op and the job would never reach a terminal
+    // status — its completion notice would be lost. The kill handler in the
+    // producing tool settles the job as 'killed' when the process exits.
     try {
       job.kill(reason ?? 'killed by agent')
     } catch (err) {

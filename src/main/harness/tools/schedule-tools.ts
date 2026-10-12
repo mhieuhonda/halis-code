@@ -88,7 +88,8 @@ export const scheduleDeleteTool: ToolDef = {
   kind: 'other',
   readOnly: false,
   async execute(args, ctx): Promise<ToolResult> {
-    const id = String(args.id ?? '')
+    const id = String(args.id ?? '').trim()
+    if (!id) return { output: 'id is required — get reminder ids from schedule_list.' }
     const schedules = ctx.schedules.forSession(ctx.sessionId)
     const target = schedules.find((s) => s.id === id || s.id.endsWith(id))
     if (!target) return { output: `No reminder matching "${id}" in this session.` }

@@ -22,10 +22,31 @@ export interface FuzzyMatchResult {
   strategy: 'exact' | 'normalized' | 'line-based' | 'none'
 }
 
-function splitKeepEndings(content: string): { lines: string[]; ending: '\r\n' | '\n' } {
-  const ending: '\r\n' | '\n' = content.includes('\r\n') ? '\r\n' : '\n'
-  const lines = content.split(/\r?\n/)
-  return { lines, ending }
+function splitKeepEndings(content: string): { lines: string[]; endings: string[] } {
+  // endings[i] is the newline that FOLLOWS lines[i] ('' after the last line).
+  // Keeping them per line preserves mixed CRLF/LF files byte-for-byte
+  // outside the replaced span.
+  const lines: string[] = []
+  const endings: string[] = []
+  let rest = content
+  for (;;) {
+    const idx = rest.indexOf('\n')
+    if (idx === -1) {
+      lines.push(rest)
+      endings.push('')
+      break
+    }
+    const line = rest.slice(0, idx)
+    if (line.endsWith('\r')) {
+      lines.push(line.slice(0, -1))
+      endings.push('\r\n')
+    } else {
+      lines.push(line)
+      endings.push('\n')
+    }
+    rest = rest.slice(idx + 1)
+  }
+  return { lines, endings }
 }
 
 export function fuzzyReplace(content: string, oldString: string, newString: string, replaceAll: boolean): FuzzyMatchResult {
@@ -33,50 +54,83 @@ export function fuzzyReplace(content: string, oldString: string, newString: stri
   const exactCount = content.split(oldString).length - 1
   if (exactCount > 0) {
     if (exactCount > 1 && !replaceAll) return { content: null, occurrences: exactCount, strategy: 'exact' }
-    const updated = replaceAll ? content.split(oldString).join(newString) : content.replace(oldString, newString)
+    // Function replacement: a string replacement would interpret $&, $`, $'
+    // and $$ patterns inside newString and silently corrupt the file.
+    const updated = replaceAll ? content.split(oldString).join(newString) : content.replace(oldString, () => newString)
     return { content: updated, occurrences: exactCount, strategy: 'exact' }
   }
 
-  // Tier 2 — unicode-normalized needle on normalized haystack.
-  const normalizedContent = normalizeForMatch(content)
-  const normalizedOld = normalizeForMatch(oldString)
-  const normalizedNew = normalizeForMatch(newString)
-  const normalizedCount = normalizedContent.split(normalizedOld).length - 1
-  if (normalizedCount > 0) {
-    if (normalizedCount > 1 && !replaceAll) return { content: null, occurrences: normalizedCount, strategy: 'normalized' }
-    const updated = replaceAll
-      ? normalizedContent.split(normalizedOld).join(normalizedNew)
-      : normalizedContent.replace(normalizedOld, normalizedNew)
-    return { content: updated, occurrences: normalizedCount, strategy: 'normalized' }
-  }
-
-  // Tier 3 — line-based match (trailing whitespace differences tolerated).
-  const { lines, ending } = splitKeepEndings(content)
+  // Tier 2 — unicode-normalized needle, matched LINE-WISE against the
+  // normalized lines but spliced into the ORIGINAL content, so everything
+  // outside the replaced span keeps its exact bytes (smart quotes, NBSP,
+  // NFD forms elsewhere in the file must survive the edit).
+  const { lines, endings } = splitKeepEndings(content)
+  // Keep each line's original terminator inside the comparison: a \n needle
+  // must NOT match a \r\n file here — that case belongs to tier 3, which
+  // reports it honestly as 'line-based'.
+  const normLines = lines.map((l, i) => normalizeForMatch(l + (endings[i] === '\r\n' ? '\r' : '')))
   const oldLines = normalizeForMatch(oldString).split('\n')
-  const newLines = normalizeForMatch(newString).split('\n')
-  const strip = (s: string) => s.replace(/\s+$/, '')
-
+  const newLines = newString.split('\n')
   const matchesAt: number[] = []
-  for (let i = 0; i + oldLines.length <= lines.length; i++) {
+  for (let i = 0; i + oldLines.length <= normLines.length; i++) {
     let ok = true
     for (let j = 0; j < oldLines.length; j++) {
-      if (strip(lines[i + j] ?? '') !== strip(oldLines[j] ?? '')) {
+      if (normLines[i + j] !== oldLines[j]) {
         ok = false
         break
       }
     }
     if (ok) matchesAt.push(i)
   }
+  if (matchesAt.length > 0) {
+    if (matchesAt.length > 1 && !replaceAll) return { content: null, occurrences: matchesAt.length, strategy: 'normalized' }
+    const targets = replaceAll ? matchesAt : [matchesAt[0]!]
+    for (const at of [...targets].sort((a, b) => b - a)) {
+      spliceLines(lines, endings, at, oldLines.length, newLines)
+    }
+    return { content: lines.map((l, i) => l + (endings[i] ?? '')).join(''), occurrences: targets.length, strategy: 'normalized' }
+  }
 
-  if (matchesAt.length === 0) return { content: null, occurrences: 0, strategy: 'none' }
-  if (matchesAt.length > 1 && !replaceAll) return { content: null, occurrences: matchesAt.length, strategy: 'line-based' }
+  // Tier 3 — line-based match (trailing whitespace differences tolerated).
+  const strip = (s: string) => s.replace(/\s+$/, '')
+  const oldLinesT = normalizeForMatch(oldString).split('\n')
+  const newLinesT = normalizeForMatch(newString).split('\n')
 
-  const targets = replaceAll ? matchesAt : [matchesAt[0]!]
+  const lineMatchesAt: number[] = []
+  for (let i = 0; i + oldLinesT.length <= lines.length; i++) {
+    let ok = true
+    for (let j = 0; j < oldLinesT.length; j++) {
+      if (strip(lines[i + j] ?? '') !== strip(oldLinesT[j] ?? '')) {
+        ok = false
+        break
+      }
+    }
+    if (ok) lineMatchesAt.push(i)
+  }
+
+  if (lineMatchesAt.length === 0) return { content: null, occurrences: 0, strategy: 'none' }
+  if (lineMatchesAt.length > 1 && !replaceAll) return { content: null, occurrences: lineMatchesAt.length, strategy: 'line-based' }
+
+  const targets = replaceAll ? lineMatchesAt : [lineMatchesAt[0]!]
   // Replace from the end so indices stay valid.
   for (const at of [...targets].sort((a, b) => b - a)) {
-    lines.splice(at, oldLines.length, ...newLines)
+    spliceLines(lines, endings, at, oldLinesT.length, newString.split('\n'))
   }
-  return { content: lines.join(ending), occurrences: targets.length, strategy: 'line-based' }
+  return { content: lines.map((l, i) => l + (endings[i] ?? '')).join(''), occurrences: targets.length, strategy: 'line-based' }
+}
+
+/**
+ * Replace oldCount lines at `at` with `newLines`, keeping the per-line
+ * endings of everything around them. New lines inherit the block's original
+ * line ending; the boundary with the following line is preserved.
+ */
+function spliceLines(lines: string[], endings: string[], at: number, oldCount: number, newLines: string[]): void {
+  const blockEnding = endings[at] ?? '\n'
+  const lastOldEnding = endings[at + oldCount - 1] ?? ''
+  const newEndings = new Array<string>(newLines.length).fill(blockEnding)
+  if (newEndings.length) newEndings[newEndings.length - 1] = lastOldEnding
+  lines.splice(at, oldCount, ...newLines)
+  endings.splice(at, oldCount, ...newEndings)
 }
 
 /* ------------------------------------------------------------------ */

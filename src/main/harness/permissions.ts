@@ -94,9 +94,12 @@ export function evaluate(ctx: PermissionContext): PermissionDecision {
     return { effect: 'allow', reason: 'Asking the user is always allowed.' }
   }
 
-  // 2. Read-only tools run automatically. MCP tools declaring readOnlyHint
-  //    are trusted as read-only too (their mutation siblings stay on ask).
-  if (ctx.readOnly && (READ_ONLY_TOOLS.has(tool) || tool.startsWith('mcp_'))) {
+  // 2. Read-only tools run automatically. The declared readOnly flag is the
+  //    source of truth for built-in tools (the old hardcoded allowlist kept
+  //    drifting out of sync — read_image kept popping approval cards); MCP
+  //    tools declaring readOnlyHint are trusted the same way, while their
+  //    mutation siblings stay on ask.
+  if (ctx.readOnly) {
     return { effect: 'allow', reason: 'Read-only tool.' }
   }
 

@@ -43,30 +43,48 @@ async function fetchBounded(url: URL, headers: Record<string, string>, timeoutMs
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const res = await fetch(url, { headers, redirect: 'follow', signal: controller.signal })
-    const contentType = res.headers.get('content-type') ?? ''
-    const declared = Number(res.headers.get('content-length') ?? 0)
-    if (declared > MAX_RESPONSE_BYTES) throw new Error(`Response too large (${(declared / 1048576).toFixed(1)} MB, cap 5 MB).`)
-    if (!res.body) return { status: res.status, contentType, body: '', finalUrl: res.url || url.toString() }
-    const reader = res.body.getReader()
-    const chunks: Uint8Array[] = []
-    let total = 0
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      total += value.byteLength
-      if (total > MAX_RESPONSE_BYTES) {
+    // Manual redirect handling: `redirect: 'follow'` would chase a 30x from
+    // a public URL straight into 169.254.169.254 or the LAN — the SSRF check
+    // must run again on EVERY hop.
+    let current = url
+    for (let hop = 0; hop < 6; hop++) {
+      const res = await fetch(current, { headers, redirect: 'manual', signal: controller.signal })
+      if (res.status >= 300 && res.status < 400) {
+        const location = res.headers.get('location')
         try {
-          await reader.cancel()
+          await res.arrayBuffer() // release the socket
         } catch {
           /* ignore */
         }
-        throw new Error(`Response exceeded 5 MB mid-download — aborted. Fetch a more specific URL.`)
+        if (!location) return { status: res.status, contentType: res.headers.get('content-type') ?? '', body: '', finalUrl: current.toString() }
+        current = assertHttpUrl(new URL(location, current).toString())
+        continue
       }
-      chunks.push(value)
+      const contentType = res.headers.get('content-type') ?? ''
+      const declared = Number(res.headers.get('content-length') ?? 0)
+      if (declared > MAX_RESPONSE_BYTES) throw new Error(`Response too large (${(declared / 1048576).toFixed(1)} MB, cap 5 MB).`)
+      if (!res.body) return { status: res.status, contentType, body: '', finalUrl: res.url || current.toString() }
+      const reader = res.body.getReader()
+      const chunks: Uint8Array[] = []
+      let total = 0
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        total += value.byteLength
+        if (total > MAX_RESPONSE_BYTES) {
+          try {
+            await reader.cancel()
+          } catch {
+            /* ignore */
+          }
+          throw new Error(`Response exceeded 5 MB mid-download — aborted. Fetch a more specific URL.`)
+        }
+        chunks.push(value)
+      }
+      const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)))
+      return { status: res.status, contentType, body: buf.toString('utf8'), finalUrl: res.url || current.toString() }
     }
-    const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)))
-    return { status: res.status, contentType, body: buf.toString('utf8'), finalUrl: res.url || url.toString() }
+    throw new Error('Too many redirects (6).')
   } finally {
     clearTimeout(timer)
   }

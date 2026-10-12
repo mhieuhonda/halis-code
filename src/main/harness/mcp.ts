@@ -109,8 +109,10 @@ export class McpManager {
   private async connect(entry: ServerEntry, attempt: number): Promise<void> {
     const { config } = entry
     const timeoutMs = config.timeoutMs ?? REQUEST_TIMEOUT_DEFAULT
+    let client: Client | null = null
+    let timer: NodeJS.Timeout | null = null
     try {
-      const client = new Client({ name: 'halis-code', version: '0.3.0' })
+      client = new Client({ name: 'halis-code', version: '0.3.0' })
       const transport = config.url
         ? new StreamableHTTPClientTransport(new URL(config.url), { requestInit: { headers: config.headers } })
         : new StdioClientTransport({
@@ -121,12 +123,28 @@ export class McpManager {
             stderr: 'ignore',
           })
       const connectPromise = client.connect(transport)
-      const timer = new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`connect timed out after ${timeoutMs}ms`)), timeoutMs))
-      await Promise.race([connectPromise, timer])
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`connect timed out after ${timeoutMs}ms`)), timeoutMs)
+        if (typeof timer.unref === 'function') timer.unref()
+      })
+      await Promise.race([connectPromise, timeout])
+      if (timer) clearTimeout(timer)
+      timer = null
       entry.client = client
       entry.error = undefined
       await this.refreshTools(entry)
     } catch (err) {
+      // Close whatever was created — a stdio transport has already spawned
+      // its child process at this point; leaving it running orphans one node
+      // process per failed (and retried) connect.
+      if (client) {
+        try {
+          await client.close()
+        } catch {
+          /* ignore */
+        }
+      }
+      if (timer) clearTimeout(timer)
       entry.client = null
       entry.error = err instanceof Error ? err.message : String(err)
       entry.tools = []
@@ -196,8 +214,14 @@ export class McpManager {
   }
 }
 
-function sanitize(name: string): string {
-  return name.replace(/[^a-zA-Z0-9_-]/g, '_')
+/**
+ * Injective encoding: every character outside [a-zA-Z0-9-] (including "_"!)
+ * becomes "_<hex>_". Plain concatenation of two sanitized names can never
+ * collide across server/tool pairs, so qualified MCP tool names stay unique
+ * and calls always reach the right server.
+ */
+export function sanitize(name: string): string {
+  return name.replace(/[^a-zA-Z0-9-]/g, (ch) => `_${ch.codePointAt(0)!.toString(16)}_`)
 }
 
 /** Child MCP servers get a lean environment — no credential leak-through. */
