@@ -16,12 +16,14 @@ import { bridge } from '../lib/ipc'
 interface ChatState {
   sessions: SessionMeta[]
   activeSessionId: string | null
+  /** The id of the session the user CLICKED (the fetch may still be in flight). */
+  pendingSessionId: string | null
   activeMode: 'agent' | 'swarm'
   messages: ChatMessage[]
   /** True when the session BEING VIEWED has a turn running. */
   running: boolean
-  /** The session whose turn is actually running (main keeps per-session turns). */
-  runningSessionId: string | null
+  /** Sessions whose turns are actually running (main runs them per-session). */
+  runningSessions: string[]
   /** Last rejected send (main refused the turn) — surfaced by the Composer. */
   sendError: string | null
   typing: Record<string, { name: string; since: number }>
@@ -46,6 +48,7 @@ interface ChatState {
   loadTasks: () => Promise<void>
   createTask: (title: string, description?: string) => Promise<void>
   updateTask: (taskId: string, patch: { status?: import('@shared/types').TaskStatus; blockedReason?: string }) => Promise<void>
+  loadLocks: () => Promise<void>
 }
 
 function applyEvent(state: ChatState, event: HarnessEvent): Partial<ChatState> | null {
@@ -116,6 +119,11 @@ function applyEvent(state: ChatState, event: HarnessEvent): Partial<ChatState> |
       return { typing }
     }
     case 'swarm-round':
+      // A swarm turn in session A must not paint "Round 2/4" onto the
+      // composer of another session the user switched to — and must not
+      // CLEAR A's own live indicator either (parallel swarms). Switching
+      // sessions already resets swarmRound in openSession.
+      if (event.sessionId !== state.activeSessionId) return null
       return { swarmRound: { round: event.round, maxRounds: event.maxRounds } }
     case 'todo-changed': {
       if (event.sessionId !== state.activeSessionId) return null
@@ -139,10 +147,11 @@ function applyEvent(state: ChatState, event: HarnessEvent): Partial<ChatState> |
 export const useChatStore = create<ChatState>((set, get) => ({
   sessions: [],
   activeSessionId: null,
+  pendingSessionId: null,
   activeMode: 'agent',
   messages: [],
   running: false,
-  runningSessionId: null,
+  runningSessions: [],
   sendError: null,
   typing: {},
   approvals: [],
@@ -190,13 +199,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   openSession: async (id) => {
+    // Track the REQUESTED id synchronously: comparing against the committed
+    // activeSessionId after the await rejected every switch after boot (the
+    // auto-open had already set it) — the sidebar, mode toggle and palette
+    // jumps were all silently dead.
+    set({ pendingSessionId: id })
     const session = (await bridge.sessionGet(id)) as Session | null
+    if (get().pendingSessionId !== id) return
     if (!session) return
-    // Re-check AFTER the await: openSession can be called concurrently
-    // (user clicks another session while this fetch is in flight) — the
-    // last explicit click must win, not whichever fetch resolved last.
-    // null activeSessionId means boot/first-open: allow it.
-    if (get().activeSessionId !== null && get().activeSessionId !== id) return
     // approvals are NOT wiped here: a turn may still be waiting on one in
     // the main process (they are global pending cards, deduped by id), and
     // clearing the array would make the card — the only path to
@@ -209,15 +219,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       swarmRound: null,
       todos: session.todos ?? [],
       // Per-session running state: the composer only locks up when the
-      // session on screen is the one with a live turn.
-      running: get().runningSessionId === id,
+      // session on screen is one of the sessions with a live turn.
+      running: get().runningSessions.includes(id),
     })
   },
 
   newSession: async (mode, modelId) => {
     const session = (await bridge.sessionNew(mode, undefined, modelId)) as Session
     await get().loadSessions()
-    set({ activeSessionId: session.id, messages: session.messages, activeMode: mode, typing: {}, swarmRound: null })
+    set({ activeSessionId: session.id, pendingSessionId: session.id, messages: session.messages, activeMode: mode, typing: {}, swarmRound: null })
     return session.id
   },
 
@@ -226,8 +236,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // sessions.save() on completion would resurrect the deleted session.
     await bridge.chatStop(id)
     await bridge.sessionDelete(id)
-    if (get().activeSessionId === id) set({ activeSessionId: null, messages: [] })
-    if (get().runningSessionId === id) set({ runningSessionId: null, running: false })
+    if (get().activeSessionId === id) set({ activeSessionId: null, pendingSessionId: null, messages: [] })
+    set((state) => {
+      const runningSessions = state.runningSessions.filter((s) => s !== id)
+      return { runningSessions, running: state.activeSessionId !== null && runningSessions.includes(state.activeSessionId) }
+    })
     await get().loadSessions()
   },
 
@@ -239,7 +252,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   send: async (text, modelId) => {
     const sessionId = get().activeSessionId
     if (!sessionId || !text.trim()) return
-    set({ running: true, runningSessionId: sessionId, sendError: null, swarmRound: null })
+    set((state) => ({
+      running: true,
+      runningSessions: state.runningSessions.includes(sessionId) ? state.runningSessions : [...state.runningSessions, sessionId],
+      sendError: null,
+      swarmRound: null,
+    }))
     try {
       // Turn-level failures arrive as system messages; the three early
       // rejections (turn already running / session gone / empty) come back
@@ -250,9 +268,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (err) {
       set({ sendError: err instanceof Error ? err.message : String(err) })
     } finally {
-      // Only clear the running flags if no OTHER turn started meanwhile
-      // (parallel sessions are supported by the main process).
-      if (get().runningSessionId === sessionId) set({ running: false, runningSessionId: null, typing: {} })
+      // Remove THIS session's slot (parallel turns in other sessions are
+      // unaffected) and re-derive `running` for the session on screen.
+      set((state) => {
+        const runningSessions = state.runningSessions.filter((s) => s !== sessionId)
+        return { runningSessions, running: state.activeSessionId !== null && runningSessions.includes(state.activeSessionId), typing: state.activeSessionId === sessionId ? {} : state.typing }
+      })
       await get().loadSessions()
       // Refresh the open session to catch anything missed by events — but
       // only if the user is still looking at it. Switching sessions while a
@@ -262,9 +283,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   stop: async () => {
-    // Stop the session with the live turn — which may not be the one on
-    // screen right now.
-    const sessionId = get().runningSessionId ?? get().activeSessionId
+    // Prefer stopping the turn of the session ON SCREEN; fall back to the
+    // most recent still-running turn when the viewed session is idle.
+    const active = get().activeSessionId
+    const runningSessions = get().runningSessions
+    const sessionId = active && runningSessions.includes(active) ? active : runningSessions[runningSessions.length - 1] ?? active
     if (sessionId) await bridge.chatStop(sessionId)
   },
 
@@ -291,5 +314,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
   updateTask: async (taskId, patch) => {
     await bridge.taskBoardUpdate(taskId, patch)
     await get().loadTasks()
+  },
+
+  loadLocks: async () => {
+    try {
+      const locks = (await bridge.locksList()) as LockInfo[]
+      set({ locks })
+    } catch {
+      /* the lock panel falls back to lock-changed events */
+    }
   },
 }))

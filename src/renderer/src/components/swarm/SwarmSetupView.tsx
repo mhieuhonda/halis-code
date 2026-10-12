@@ -161,7 +161,10 @@ function AgentCard({ agent, index }: { agent: AgentConfig; index: number }) {
               <div className="text-[11px] text-faint mb-1.5">{t('agent_model')}</div>
               <ModelPicker
                 value={agent.modelId}
-                onChange={(id) => updateAgent(agent.id, { modelId: id, apiKey: '' })}
+                // No apiKey here: updateAgent's provider check decides whether
+                // the saved key survives (switching models WITHIN one provider
+                // must keep it — the store already implements exactly that).
+                onChange={(id) => updateAgent(agent.id, { modelId: id })}
               />
             </div>
           </div>

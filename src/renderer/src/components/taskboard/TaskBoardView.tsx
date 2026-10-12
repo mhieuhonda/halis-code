@@ -61,6 +61,10 @@ export function TaskBoardView() {
 
   useEffect(() => {
     void chat.loadTasks()
+    // Locks held by a live turn only arrive via lock-changed events — after a
+    // renderer reload mid-turn the panel would stay empty until the next
+    // acquire/release. Seed it from the main process once on mount.
+    void chat.loadLocks()
   }, [])
 
   useEffect(() => {

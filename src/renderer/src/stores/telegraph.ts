@@ -70,7 +70,7 @@ export const useTelegraphStore = create<TelegraphState>((set, get) => ({
   importWallet: async (privateKey) => {
     set({ busy: true })
     try {
-      const result = (await bridge.tgImportWallet(privateKey)) as { address: string }
+      await bridge.tgImportWallet(privateKey)
       await get().loadStatus()
       return { ok: true }
     } catch (err) {

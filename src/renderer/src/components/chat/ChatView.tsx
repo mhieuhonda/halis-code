@@ -38,14 +38,10 @@ export function ChatView({ mode }: { mode: 'agent' | 'swarm' }) {
     if (el && stick.current) el.scrollTop = el.scrollHeight
   }, [chat.messages, chat.typing])
 
-  useEffect(() => {
-    if (chat.activeMode !== mode && (!chat.activeSessionId || chat.sessions.every((s) => s.id !== chat.activeSessionId))) {
-      // Mode switched with no matching session: open or create one.
-      const existing = chat.sessions.find((s) => s.mode === mode)
-      if (existing) void chat.openSession(existing.id)
-      else void chat.newSession(mode)
-    }
-  }, [mode])
+  // Mode switches are owned by the Sidebar (it opens or creates the matching
+  // session on toggle). A recovery effect here compared `chat.activeMode` to
+  // the `mode` prop — but App passes `chat.activeMode` as that prop, so the
+  // condition was provably always false and the effect could never fire.
 
   const nameOf = useMemo(() => {
     const map = new Map(swarm.config.agents.map((a) => [a.id, a.name]))
