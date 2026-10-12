@@ -230,6 +230,10 @@ export const vi: Dict = {
   /* settings */
   settings_title: 'Cài đặt',
   settings_language: 'Ngôn ngữ',
+  settings_theme: 'Giao diện',
+  settings_theme_hint: 'Mặc định là Light. Chọn Dark là áp dụng ngay và được ghi nhớ.',
+  theme_light: 'Light',
+  theme_dark: 'Dark',
   settings_workspace: 'Thư mục làm việc',
   settings_workspace_hint: 'Agent chỉ được đọc/ghi trong thư mục này.',
   settings_default_model: 'Model mặc định',

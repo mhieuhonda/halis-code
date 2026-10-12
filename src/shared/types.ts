@@ -476,8 +476,13 @@ export interface TelegraphStatus {
 
 export type AppLanguage = 'en' | 'vi'
 
+/** UI theme: light is the default, dark is opt-in from Settings. */
+export type AppTheme = 'light' | 'dark'
+
 export interface AppSettings {
   language: AppLanguage
+  /** Renderer theme; applied to body[data-ds-dark-theme]. */
+  theme: AppTheme
   workspace: string
   defaultModelId: string
   telegraph: TelegraphSettings

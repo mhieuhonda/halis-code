@@ -4,6 +4,7 @@ import { paths } from './paths'
 
 export const DEFAULT_SETTINGS: AppSettings = {
   language: 'en',
+  theme: 'light',
   workspace: '',
   defaultModelId: 'pollinations/openai-fast',
   telegraph: {
@@ -31,6 +32,8 @@ export function getSettings(): AppSettings {
       telegraphEnabled: loaded.telegraphEnabled ?? true,
       // Absent key (older settings file) means the default: off.
       ponytailEnabled: loaded.ponytailEnabled ?? false,
+      // Absent key (older settings file) falls back to the light default.
+      theme: loaded.theme === 'dark' ? 'dark' : 'light',
       mcpServers: (loaded.mcpServers ?? DEFAULT_SETTINGS.mcpServers).map((s) => ({ ...s })),
     }
   }

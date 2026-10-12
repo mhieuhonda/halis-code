@@ -228,6 +228,10 @@ export const en = {
   /* settings */
   settings_title: 'Settings',
   settings_language: 'Language',
+  settings_theme: 'Appearance',
+  settings_theme_hint: 'Light is the default. Dark is applied instantly and remembered.',
+  theme_light: 'Light',
+  theme_dark: 'Dark',
   settings_workspace: 'Workspace folder',
   settings_workspace_hint: 'Agents can only read and write inside this folder.',
   settings_default_model: 'Default model',

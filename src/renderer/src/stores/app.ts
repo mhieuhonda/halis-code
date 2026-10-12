@@ -1,7 +1,13 @@
 /** App-wide store: settings, model catalog, key status, workspace. */
 import { create } from 'zustand'
-import type { AppSettings, CatalogSnapshot, ProviderInfo } from '@shared/types'
+import type { AppSettings, AppTheme, CatalogSnapshot, ProviderInfo } from '@shared/types'
 import { bridge } from '../lib/ipc'
+
+/** Paint the saved theme onto the document (dark = body[data-ds-dark-theme]). */
+export function applyTheme(theme: AppTheme | undefined): void {
+  if (theme === 'dark') document.body.setAttribute('data-ds-dark-theme', '')
+  else document.body.removeAttribute('data-ds-dark-theme')
+}
 
 interface AppState {
   settings: AppSettings | null
@@ -24,11 +30,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   loadSettings: async () => {
     const settings = (await bridge.settingsGet()) as AppSettings
+    applyTheme(settings.theme)
     set({ settings })
   },
 
   setSettings: async (patch) => {
     const settings = (await bridge.settingsSet(patch)) as AppSettings
+    if (patch.theme) applyTheme(settings.theme)
     set({ settings })
     await get().loadWorkspace()
   },

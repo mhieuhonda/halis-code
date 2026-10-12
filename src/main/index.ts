@@ -27,7 +27,7 @@ function createWindow(): void {
     minWidth: 980,
     minHeight: 640,
     show: false,
-    backgroundColor: '#07080B',
+    backgroundColor: '#FFFFFF',
     title: 'Halis Code',
     icon: windowIcon(),
     webPreferences: {

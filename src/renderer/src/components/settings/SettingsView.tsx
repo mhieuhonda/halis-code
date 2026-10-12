@@ -1,13 +1,13 @@
-/** Settings: language, workspace, default model, approvals, MCP servers, web search, telegraph master switch, about. */
+/** Settings: appearance, language, workspace, default model, approvals, MCP servers, web search, telegraph master switch, about. */
 import { useEffect, useState } from 'react'
-import { FolderOpen, Globe, Plug, Plus, Scissors, ShieldAlert, Trash2, Zap, ZapOff } from 'lucide-react'
+import { FolderOpen, Globe, Moon, Plug, Plus, Scissors, ShieldAlert, Sun, Trash2, Zap, ZapOff } from 'lucide-react'
 import { useT } from '../../i18n'
 import { useAppStore } from '../../stores/app'
 import { bridge } from '../../lib/ipc'
 import { Badge, Button, Input, SectionTitle, Select, Toggle } from '../ui'
 import { ModelPicker } from '../chat/Composer'
 import { TELEGRAPH_NETWORKS } from '@shared/types'
-import type { McpServerConfig, McpServerStatus } from '@shared/types'
+import type { AppTheme, McpServerConfig, McpServerStatus } from '@shared/types'
 
 export function SettingsView() {
   const t = useT()
@@ -49,6 +49,33 @@ export function SettingsView() {
                 }`}
               >
                 {lang === 'en' ? '🇬🇧 English' : '🇻🇳 Tiếng Việt'}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* appearance */}
+        <section className="rounded-2xl border border-line bg-panel2 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Sun size={14} className="text-signal" />
+            <span className="text-[13.5px] font-semibold">{t('settings_theme')}</span>
+            <Badge color="#81858c">{(settings.theme ?? 'light') === 'dark' ? t('theme_dark') : t('theme_light')}</Badge>
+          </div>
+          <p className="text-[12px] text-muted mb-3">{t('settings_theme_hint')}</p>
+          <div className="flex gap-2">
+            {([
+              ['light', Sun],
+              ['dark', Moon],
+            ] as const).map(([value, Icon]) => (
+              <button
+                key={value}
+                onClick={() => void app.setSettings({ theme: value as AppTheme })}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-[13px] cursor-pointer transition-colors ${
+                  (settings.theme ?? 'light') === value ? 'border-signal/60 bg-signal/10 text-ink' : 'border-line text-muted hover:border-line2'
+                }`}
+              >
+                <Icon size={14} />
+                {value === 'light' ? t('theme_light') : t('theme_dark')}
               </button>
             ))}
           </div>
