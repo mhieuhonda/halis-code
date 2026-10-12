@@ -97,13 +97,7 @@ export class LlmDispatcher {
       return { ok: true, detail: res.text.trim().slice(0, 60) || 'connected' }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      try {
-        // /models endpoints are usually open even when chat is not; use them
-        // to distinguish "bad key" from "gateway down".
-        return { ok: false, detail: message }
-      } catch {
-        return { ok: false, detail: message }
-      }
+      return { ok: false, detail: message }
     }
   }
 }

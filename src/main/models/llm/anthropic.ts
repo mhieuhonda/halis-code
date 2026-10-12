@@ -17,6 +17,23 @@ function imageBlock(dataUri: string): ContentBlock | null {
   return { type: 'image', source: { type: 'base64', media_type: match[1]!.toLowerCase(), data: match[2]! } }
 }
 
+/**
+ * The Anthropic Messages API requires user/assistant roles to strictly
+ * alternate, but the agent loop legitimately produces consecutive user
+ * turns: one tool_result message per parallel tool call, and the final-step
+ * "wrap up" nudge right after tool results. Merge them into the previous
+ * user message's content blocks instead of sending two user messages in a
+ * row (a guaranteed 400: "roles must alternate").
+ */
+function pushUserMessage(messages: Array<Record<string, unknown>>, content: ContentBlock[]): void {
+  const last = messages[messages.length - 1]
+  if (last && last.role === 'user') {
+    last.content = [...(last.content as ContentBlock[]), ...content]
+    return
+  }
+  messages.push({ role: 'user', content })
+}
+
 export class AnthropicProvider implements LlmProvider {
   constructor(
     private readonly apiKey: string,
@@ -45,9 +62,9 @@ export class AnthropicProvider implements LlmProvider {
             const block = imageBlock(image.dataUri)
             if (block) content.push(block)
           }
-          messages.push({ role: 'user', content })
+          pushUserMessage(messages, content)
         } else {
-          messages.push({ role: 'user', content: m.content })
+          pushUserMessage(messages, [{ type: 'text', text: m.content }])
         }
       } else if (m.role === 'assistant') {
         const content: ContentBlock[] = []
@@ -68,10 +85,9 @@ export class AnthropicProvider implements LlmProvider {
           const block = imageBlock(image.dataUri)
           if (block) content.push(block)
         }
-        messages.push({
-          role: 'user',
-          content: [{ type: 'tool_result', tool_use_id: m.toolCallId, content: content.length > 1 ? content : m.content, is_error: !!m.isError }],
-        })
+        pushUserMessage(messages, [
+          { type: 'tool_result', tool_use_id: m.toolCallId, content: content.length > 1 ? content : m.content, is_error: !!m.isError },
+        ])
       }
     }
     const body: Record<string, unknown> = {

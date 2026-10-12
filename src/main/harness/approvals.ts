@@ -117,7 +117,7 @@ export class ApprovalManager {
     return { id, wait }
   }
 
-  /** Reject everything still parked — used when a turn is aborted. */
+  /** Reject everything still parked — used on app-wide aborts. */
   rejectAll(): void {
     for (const [, entry] of this.pending) {
       entry.resolve('reject')
@@ -129,6 +129,26 @@ export class ApprovalManager {
       this.hooks?.onResolved(question.request.id, false)
     }
     this.pendingQuestions.clear()
+  }
+
+  /**
+   * Reject only the approvals parked by ONE session's turn. Sessions run
+   * concurrently — a global rejectAll in session A's finally block would
+   * kill session B's approval card while the user is looking at it.
+   */
+  rejectAllForSession(sessionId: string): void {
+    for (const [id, entry] of this.pending) {
+      if (entry.request.sessionId !== sessionId) continue
+      this.pending.delete(id)
+      entry.resolve('reject')
+      this.hooks?.onResolved(entry.request.id, false)
+    }
+    for (const [id, question] of this.pendingQuestions) {
+      if (question.request.sessionId !== sessionId) continue
+      this.pendingQuestions.delete(id)
+      question.resolve(null)
+      this.hooks?.onResolved(question.request.id, false)
+    }
   }
 
   rulesFor(agentId: string): AlwaysAllowRule[] {

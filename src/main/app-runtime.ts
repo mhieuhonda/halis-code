@@ -69,6 +69,8 @@ export class HalisApp {
   private taskBoard: TaskBoard | null = null
   private running = new Map<string, AbortController>()
   private pendingReminders = new Map<string, Schedule[]>()
+  /** Background-job completion notices waiting for the session's next turn. */
+  private pendingJobNotices = new Map<string, string[]>()
   private broadcaster: ((event: HarnessEvent) => void) | null = null
   private swarmConfig: SwarmConfig | null = null
 
@@ -87,13 +89,13 @@ export class HalisApp {
     this.locks.setHooks({ onChanged: (locks) => this.emit({ type: 'lock-changed', locks }) })
     modelCatalog.setUpdatedListener((catalog) => this.emit({ type: 'model-catalog-updated', catalog }))
 
-    // Background jobs: completion notices become reminder-style nudges.
+    // Background jobs: completion notices ride into the owning session's
+    // next turn as a system note (no busy-polling).
     this.jobs.onSettled((jobId) => {
       const notice = this.jobs.takeNotice(jobId)
-      if (notice) {
-        const job = this.jobs.get(jobId)
-        if (job) this.deliverSystemNote(job.ownerAgentId, notice)
-      }
+      if (!notice) return
+      const job = this.jobs.get(jobId)
+      if (job?.sessionId) this.deliverSystemNote(job.sessionId, notice)
     })
 
     // Reminders fire back into their session as a prompt turn.
@@ -309,22 +311,67 @@ export class HalisApp {
       }
     } finally {
       this.running.delete(schedule.sessionId)
-      this.approvals.rejectAll()
-      this.locks.clear()
+      this.approvals.rejectAllForSession(schedule.sessionId)
+      if (![...this.running.keys()].some((id) => id.split(':')[0] !== schedule.sessionId)) this.locks.clear()
     }
   }
 
-  /** Job completion notices ride into the session as small system notes. */
-  private deliverSystemNote(agentId: string, note: string): void {
-    // Job notices only matter for a turn in flight; surface them as a receipt
-    // style event the chat can render. If no turn is running the agent will
-    // pick the state up from job_list on its next turn.
-    if (!this.broadcaster) return
-    // Find the session this agent belongs to by scanning running turns.
-    for (const sessionId of this.running.keys()) {
-      this.emit({ type: 'typing', sessionId, agentId: `job:${agentId}`, agentName: 'Background job', isTyping: false })
+  /**
+   * Queue a background-job completion notice for the session's next turn.
+   * The notice is delivered as a visible system message AND queued for the
+   * agent's transcript, so the model actually learns the job finished (the
+   * previous implementation computed the notice and threw it away).
+   */
+  private deliverSystemNote(sessionId: string, note: string): void {
+    const queue = this.pendingJobNotices.get(sessionId) ?? []
+    queue.push(note)
+    this.pendingJobNotices.set(sessionId, queue)
+    // Surface the note immediately as a system message so the user sees why
+    // the next reply suddenly talks about a background job.
+    const session = this.sessions.get(sessionId)
+    if (!session) return
+    const noteMessage: ChatMessage = {
+      id: newId('msg'),
+      sessionId,
+      mode: session.mode,
+      from: 'system',
+      fromName: 'Halis',
+      to: [],
+      mentions: [],
+      role: 'system',
+      content: note,
+      createdAt: Date.now(),
     }
-    void note
+    session.messages.push(noteMessage)
+    this.sessions.save(session)
+    this.emit({ type: 'message-start', sessionId, message: noteMessage })
+    this.emit({ type: 'message-done', sessionId, messageId: noteMessage.id, message: noteMessage })
+  }
+
+  /**
+   * Fold queued job notices into a user-role message so they reach the LLM
+   * transcript (system messages are skipped when rebuilding the transcript).
+   * Called at the start of a turn, before the new user message is added.
+   */
+  private drainJobNotices(session: Session): void {
+    const notices = this.pendingJobNotices.get(session.id)
+    if (!notices?.length) return
+    this.pendingJobNotices.delete(session.id)
+    const noticeMessage: ChatMessage = {
+      id: newId('msg'),
+      sessionId: session.id,
+      mode: session.mode,
+      from: 'system',
+      fromName: '⏙ Background job',
+      to: [],
+      mentions: [],
+      role: 'user',
+      content: notices.map((n) => `[Background job notice] ${n}`).join('\n\n'),
+      createdAt: Date.now(),
+    }
+    session.messages.push(noticeMessage)
+    this.sessions.save(session)
+    this.emit({ type: 'message-start', sessionId: session.id, message: noticeMessage })
   }
 
   /* ------------------------- chat ------------------------- */
@@ -355,6 +402,9 @@ export class HalisApp {
     this.running.set(sessionId, controller)
 
     try {
+      // Deliver background-job notices queued while no turn was running —
+      // before the new user message, so the transcript order stays honest.
+      this.drainJobNotices(session)
       // Parse @mentions for swarm routing (explicit addressing, no broadcast).
       let mentions: string[] = []
       let to: string[] = []
@@ -418,8 +468,10 @@ export class HalisApp {
       return { ok: false, error: message }
     } finally {
       this.running.delete(sessionId)
-      this.approvals.rejectAll()
-      this.locks.clear()
+      // Scope the cleanup to THIS session: another session's turn may be
+      // running concurrently with its own approval cards and file locks.
+      this.approvals.rejectAllForSession(sessionId)
+      if (![...this.running.keys()].some((id) => id.split(':')[0] !== sessionId)) this.locks.clear()
     }
   }
 
@@ -535,7 +587,10 @@ export class HalisApp {
     const plan = planCompaction(session.messages, modelCatalog.getModel(modelId))
     if (!plan.needed) return
     try {
-      const transcript = olderToTranscript(plan.older)
+      // Keep prior summaries in the chain: each new summary covers the older
+      // messages PLUS whatever the previous summary already folded.
+      const transcript =
+        (session.summary?.text ? `Previous summary of the even older conversation:\n\n${session.summary.text}\n\n` : '') + olderToTranscript(plan.older)
       const result = await this.dispatcher.complete(
         modelId,
         {
@@ -547,8 +602,12 @@ export class HalisApp {
       )
       const summary = result.text.trim()
       if (!summary || !looksLikeSummary(summary)) return
-      session.summary = { text: summary, coversMessages: plan.older.length, createdAt: Date.now() }
-      session.messages = [...plan.older.slice(0, 1), ...plan.recent]
+      // coversMessages is measured against the CURRENT messages array: after
+      // the prune below, every message BEFORE plan.recent is folded into the
+      // summary, so the transcript rebuild must keep all remaining messages
+      // (coversMessages stays 0 — the summary prefix + full message list).
+      session.summary = { text: summary, coversMessages: 0, createdAt: Date.now() }
+      session.messages = [...plan.recent]
       this.sessions.save(session)
       const note: ChatMessage = {
         id: newId('msg'),
@@ -596,7 +655,7 @@ export class HalisApp {
     this.sessions.save(session)
     this.emit({ type: 'message-start', sessionId: session.id, message: assistantMessage })
 
-    const history = transcriptFromSession(session.messages, assistantMessage.id)
+    const history = transcriptFromSession(session.messages, assistantMessage.id, session.summary)
     const systemPrompt = buildSingleAgentPrompt(this.effectiveWorkspace(), settings.language, taskBoard.renderForPrompt(), this.skillsSummary(), settings.telegraphEnabled !== false, settings.ponytailEnabled ? ponytailSection() : undefined)
     const runner = new AgentRunner(this.dispatcher, this.registry)
     const toolContext = this.baseToolContext({
@@ -819,7 +878,10 @@ export class HalisApp {
 /** Rebuild an LLM transcript from persisted chat messages (tool history + compaction summary included). */
 function transcriptFromSession(messages: ChatMessage[], excludeId?: string, summary?: Session['summary']): LlmMessage[] {
   const out: LlmMessage[] = []
-  // Compact prefix: the auto-summary stands in for the folded messages.
+  // Compacted prefix: the auto-summary stands in for the folded messages.
+  // coversMessages counts leading messages of the CURRENT array that the
+  // summary already covers (0 right after a compaction — the summary
+  // replaces everything before plan.recent).
   const startIndex = summary ? Math.max(summary.coversMessages, 0) : 0
   if (summary) {
     out.push({ role: 'user', content: `## Conversation summary (auto-compacted)\n\n${summary.text}\n\n(Continue from here.)` })
