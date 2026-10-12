@@ -182,7 +182,10 @@ class MarkdownRenderer {
       this.skipTag = tag
       return
     }
-    this.depth++
+    // Void tags (img, br, …) never get a close — counting them here would
+    // leak depth on every image until MAX_DEPTH truncates the rest of the
+    // document. Only real containers count.
+    if (!VOID_TAGS.has(tag)) this.depth++
     if (this.depth > MAX_DEPTH) {
       this.skipDepth = 1
       this.emit('\n[HTML content omitted: document nesting too deep to convert safely.]\n')

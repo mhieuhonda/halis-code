@@ -29,7 +29,9 @@ export interface TruncationResult {
 }
 
 export function truncateToolOutput(output: string, toolCallId: string): TruncationResult {
-  if (output.length <= TOOL_OUTPUT_MAX_BYTES) return { text: output, truncated: false }
+  // Budget is in BYTES (context windows are token/byte-shaped, not
+  // UTF-16-code-unit-shaped): .length under-counts multibyte text up to 3x.
+  if (Buffer.byteLength(output, 'utf8') <= TOOL_OUTPUT_MAX_BYTES) return { text: output, truncated: false }
 
   const lines = output.split('\n')
   let text = lines.slice(0, TOOL_OUTPUT_MAX_LINES).join('\n')

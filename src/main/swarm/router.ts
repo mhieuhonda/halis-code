@@ -20,7 +20,10 @@ export function extractMentions(text: string): string[] {
   // allowed (names like "Dev.Lead") but a mention never ENDS with a dot —
   // "@Vega, ship it." must capture "Vega", not "Vega," / "Vega.".
   const matches = text.match(/(?:^|[^A-Za-z0-9@])@([A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9][A-Za-z0-9_-]*)*)/g) ?? []
-  return [...new Set(matches.map((m) => m.trim().slice(1)))]
+  // The leading separator char is part of each match ("(@Rin", "**@Rin"),
+  // and .trim() only strips whitespace — cut after the LAST '@' so the
+  // sigil never leaks into the name.
+  return [...new Set(matches.map((m) => m.slice(m.lastIndexOf('@') + 1)))]
 }
 
 /** Resolve mention strings to agent ids (case-insensitive name match). */

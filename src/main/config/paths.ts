@@ -21,6 +21,11 @@ export const paths = {
     return join(this.userData, 'telegraph-receipts.json')
   },
   sessionFile(sessionId: string): string {
+    // Session ids come from the renderer over IPC; reject anything that is
+    // not a plain generated id ("../../settings" must never reach the path).
+    if (!/^[\w-]+$/.test(sessionId)) {
+      throw new Error(`Invalid session id: ${sessionId.slice(0, 40)}`)
+    }
     return join(this.sessionsDir, `${sessionId}.json`)
   },
   /** Workspace-local state directory (task board, lock journal). */

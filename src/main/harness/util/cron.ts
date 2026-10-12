@@ -81,7 +81,10 @@ export function cronNext(expression: string, after: Date): { at: Date } | { erro
   // Search horizon: 2 years is plenty for any sane schedule; deepseek uses 400.
   const horizon = after.getTime() + 2 * 366 * 24 * 3600 * 1000
   while (d.getTime() < horizon) {
-    if (!fields.month[d.getMonth() + 1]) {
+    // parseField stores month v at index v-1 (min=1); getMonth() is 0-based,
+    // so the lookup index IS getMonth(). The old +1 made every explicit
+    // month fire one month early and December unreachable.
+    if (!fields.month[d.getMonth()]) {
       // jump to the first day of next month at 00:00
       d.setMonth(d.getMonth() + 1, 1)
       d.setHours(0, 0, 0, 0)

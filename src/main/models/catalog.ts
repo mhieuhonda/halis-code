@@ -101,28 +101,33 @@ export class ModelCatalog {
   async refresh(): Promise<CatalogSnapshot> {
     if (this.refreshing) return this.snapshot
     this.refreshing = true
-    const [devResult, ollamaModels] = await Promise.all([this.fetchModelsDev(), this.fetchOllama()])
-    let models = [...BUNDLED_MODELS]
-    let providers = [...BUNDLED_PROVIDERS]
-    let source: CatalogSnapshot['source'] = 'bundled'
+    try {
+      const [devResult, ollamaModels] = await Promise.all([this.fetchModelsDev(), this.fetchOllama()])
+      let models = [...BUNDLED_MODELS]
+      let providers = [...BUNDLED_PROVIDERS]
+      let source: CatalogSnapshot['source'] = 'bundled'
 
-    if (devResult) {
-      // Keep only providers we bundle (curated, known API shapes) but take
-      // their freshest model lists.
-      const fresh = this.mergeModelsDev(devResult)
-      models = fresh.models
-      providers = fresh.providers
-      source = 'models.dev'
-    }
-    if (ollamaModels.length) {
-      models = [...models.filter((m) => m.providerId !== 'ollama' || !m.tags?.includes('suggested')), ...ollamaModels]
-      if (source === 'models.dev') source = 'merged'
-    }
+      if (devResult) {
+        // Keep only providers we bundle (curated, known API shapes) but take
+        // their freshest model lists.
+        const fresh = this.mergeModelsDev(devResult)
+        models = fresh.models
+        providers = fresh.providers
+        source = 'models.dev'
+      }
+      if (ollamaModels.length) {
+        models = [...models.filter((m) => m.providerId !== 'ollama' || !m.tags?.includes('suggested')), ...ollamaModels]
+        if (source === 'models.dev') source = 'merged'
+      }
 
-    this.snapshot = { providers, models, updatedAt: Date.now(), source }
-    this.refreshing = false
-    this.onUpdated?.(this.snapshot)
-    return this.snapshot
+      this.snapshot = { providers, models, updatedAt: Date.now(), source }
+      this.onUpdated?.(this.snapshot)
+      return this.snapshot
+    } finally {
+      // A throw anywhere above (bad payload shape from models.dev, …) must
+      // not wedge this flag — refresh would silently die until restart.
+      this.refreshing = false
+    }
   }
 
   private async fetchModelsDev(): Promise<Record<string, ModelsDevProvider> | null> {

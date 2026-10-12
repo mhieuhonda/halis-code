@@ -28,15 +28,23 @@ export class KeyVault {
       if (!existsSync(this.file)) return
       const raw = readFileSync(this.file)
       const parsed = JSON.parse(raw.toString('utf8')) as { v: number; enc?: boolean; keys?: Record<string, string> | Array<[string, string]> }
-      if (parsed.enc && this.codec?.isEncryptionAvailable()) {
-        const entries = parsed.keys as unknown as Array<[string, string]> | Record<string, string>
-        const pairs = Array.isArray(entries) ? entries : Object.entries(entries)
-        for (const [providerId, blob] of pairs) {
-          try {
-            this.keys[providerId] = this.codec.decrypt(Buffer.from(blob, 'base64'))
-          } catch {
-            // Keychain changed or was wiped — drop the unreadable key.
+      if (parsed.enc) {
+        if (this.codec?.isEncryptionAvailable()) {
+          const entries = parsed.keys as unknown as Array<[string, string]> | Record<string, string>
+          const pairs = Array.isArray(entries) ? entries : Object.entries(entries)
+          for (const [providerId, blob] of pairs) {
+            try {
+              this.keys[providerId] = this.codec.decrypt(Buffer.from(blob, 'base64'))
+            } catch {
+              // Keychain changed or was wiped — drop the unreadable key.
+            }
           }
+        } else {
+          // Encrypted vault but no usable keychain (Linux without a keyring):
+          // start empty. Falling through would load base64 ciphertext as
+          // plaintext API keys — send them to providers, then re-encrypt
+          // them on the next save, destroying the real entries for good.
+          console.warn('[halis] key vault: encryption unavailable, starting empty')
         }
       } else if (parsed.keys) {
         this.keys = parsed.keys as Record<string, string>

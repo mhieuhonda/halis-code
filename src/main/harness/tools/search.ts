@@ -136,7 +136,10 @@ export const grepTool: ToolDef = {
       const lines = content.split('\n')
       for (let i = 0; i < lines.length && results.length < MAX_GREP_RESULTS; i++) {
         const line = lines[i]!
-        if (re.test(line)) {
+        // Cap the tested prefix: a catastrophic-backtracking pattern against
+        // a minified 60 KB line freezes the whole main process for minutes
+        // (this tool runs synchronously, up to 400 files per call).
+        if (re.test(line.length > 8192 ? line.slice(0, 8192) : line)) {
           results.push(`${file}:${i + 1}: ${line.trim().slice(0, 240)}`)
         }
       }

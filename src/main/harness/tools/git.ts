@@ -55,7 +55,11 @@ export const gitDiffTool: ToolDef = {
     const diffArgs = ['diff', '--no-color']
     if (args.stat) diffArgs.push('--stat')
     if (args.staged) diffArgs.push('--cached')
-    for (const p of Array.isArray(args.paths) ? args.paths.map(String) : []) diffArgs.push(p)
+    const paths = Array.isArray(args.paths) ? args.paths.map(String).filter(Boolean) : []
+    // '--' ends option parsing: a model-supplied "path" like
+    // --output=/etc/x would otherwise be a writable-file option on a
+    // read-only, no-approval tool.
+    if (paths.length) diffArgs.push('--', ...paths)
     const result = await git(ctx, diffArgs)
     if (!result.ok) return { output: `git diff failed: ${result.stderr.trim().slice(0, 200)}` }
     if (!result.stdout.trim()) return { output: args.staged ? '(nothing staged)' : '(no unstaged changes)' }
