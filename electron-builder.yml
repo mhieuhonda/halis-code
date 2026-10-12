@@ -7,6 +7,8 @@ directories:
 extraResources:
   - from: build/icon.png
     to: icon.png
+  - from: resources/ponytail
+    to: ponytail
 files:
   - out/**
   - package.json
