@@ -9,8 +9,6 @@ import { newId } from '../util/id'
 import { writeJson } from '../util/json'
 import { FileLockManager } from './file-locking'
 
-const BOARD_LOCK = '.halis/task-board.json'
-
 export class TaskBoard {
   private tasks: BoardTask[] = []
   private hooks: { onChanged?: (tasks: BoardTask[]) => void } = {}

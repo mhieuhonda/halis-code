@@ -14,7 +14,6 @@ import { join } from 'node:path'
 import type { HarnessEvent, Session, SwarmConfig } from '@shared/types'
 import { LlmDispatcher } from '@main/models/llm/client'
 import { ModelCatalog } from '@main/models/catalog'
-import { AgentRunner } from '@main/harness/loop'
 import { ApprovalManager, defaultSingleAgentPermissions } from '@main/harness/approvals'
 import { FileLockManager } from '@main/harness/file-locking'
 import { TaskBoard } from '@main/harness/task-board'
@@ -126,7 +125,7 @@ describe('live: swarm turn on free models', () => {
           }),
           telegraph: {
             enabled: false,
-            network: TELEGRAPH_NETWORKS['base-sepolia'],
+            network: TELEGRAPH_NETWORKS['base-sepolia']!,
             autoApproveUpTo: 0,
             dailyBudgetUsd: 5,
             ledger,

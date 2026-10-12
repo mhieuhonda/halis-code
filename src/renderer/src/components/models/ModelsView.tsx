@@ -12,7 +12,6 @@ function KeyBox({ provider }: { provider: ProviderInfo }) {
   const [key, setKey] = useState('')
   const [visible, setVisible] = useState(false)
   const [state, setState] = useState<'idle' | 'saving' | 'ok' | 'error'>('idle')
-  const [detail, setDetail] = useState('')
 
   const save = async () => {
     if (!key.trim()) return
@@ -84,7 +83,6 @@ function KeyBox({ provider }: { provider: ProviderInfo }) {
               </a>
             ) : null}
           </div>
-          {detail ? <div className="text-[11px] text-faint mt-1 font-mono truncate">{detail}</div> : null}
         </div>
       )}
     </div>

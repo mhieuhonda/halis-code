@@ -645,7 +645,6 @@ export class HalisApp {
       throw new Error('The swarm has no enabled agents. Open Swarm Setup and enable at least one.')
     }
     const { sandbox, taskBoard } = this.ensureWorkspace()
-    const settings = getSettings()
     session.agentNames = config.agents.filter((a) => a.enabled).map((a) => a.name)
     this.sessions.save(session)
 

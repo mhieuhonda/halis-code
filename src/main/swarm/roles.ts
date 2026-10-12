@@ -285,7 +285,7 @@ Quy tắc:
 ]
 
 export function roleById(id: string): AgentRole {
-  return SWARM_ROLES.find((r) => r.id === id) ?? SWARM_ROLES[SWARM_ROLES.length - 1]
+  return SWARM_ROLES.find((r) => r.id === id) ?? SWARM_ROLES[SWARM_ROLES.length - 1]!
 }
 
 /** The 12-color palette agents draw from (index by hash for determinism). */
@@ -305,7 +305,8 @@ export const AGENT_COLORS = [
 ]
 
 export function colorForIndex(i: number): string {
-  return AGENT_COLORS[i % AGENT_COLORS.length]
+  const n = AGENT_COLORS.length
+  return AGENT_COLORS[((i % n) + n) % n]!
 }
 
 export const AVATAR_CHOICES = ['🤖', '🧭', '📐', '⌨️', '🔍', '🛡️', '🧪', '⚙️', '📚', '📝', '🦾', '🧠', '🐙', '🦊', '🐝', '⚡', '🌙', '🔥', '🍀', '🎯']

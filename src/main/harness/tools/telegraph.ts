@@ -62,7 +62,6 @@ async function runPaidAsk(params: { query: string; minerId?: string; ctx: ToolCo
   }
   const { network, ledger } = ctx.telegraph
 
-  let quotedUsd = 0
   try {
     const result = await askTelegraph({
       query: params.query,
@@ -70,7 +69,6 @@ async function runPaidAsk(params: { query: string; minerId?: string; ctx: ToolCo
       privateKey: ctx.telegraph.privateKey,
       network,
       onQuote: async (quote) => {
-        quotedUsd = quote.amountUsd
         // Daily budget hard stop.
         const spentToday = ledger.spentTodayUsd()
         if (ctx.telegraph.dailyBudgetUsd > 0 && spentToday + quote.amountUsd > ctx.telegraph.dailyBudgetUsd) {

@@ -5,7 +5,7 @@
  * - system  → quiet centered pill
  */
 import { useMemo, useState } from 'react'
-import { ArrowRight, Bot, Check, Copy, User as UserIcon } from 'lucide-react'
+import { ArrowRight, Bot, Check, Copy } from 'lucide-react'
 import type { ChatMessage, ReceiptRef, ToolRun } from '@shared/types'
 import { useT } from '../../i18n'
 import { Badge } from '../ui'

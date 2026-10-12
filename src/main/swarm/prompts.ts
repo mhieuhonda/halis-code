@@ -8,7 +8,7 @@ import { roleById } from './roles'
 
 export const MAX_AGENTS = 20
 
-function harnessRules(swarm: boolean, workspace: string, lang: AppLanguage): string {
+function harnessRules(workspace: string, lang: AppLanguage): string {
   const en = `# Harness rules
 - You operate inside ONE workspace: ${workspace || '(not set — ask the user to pick one in Settings)'}.
 - Files outside the workspace are off-limits. Terminal commands run inside the workspace and are screened.
@@ -101,7 +101,7 @@ export function buildSystemPrompt(params: {
 
   const sections = [base]
   if (swarm) sections.push(swarmProtocol(allAgents, language))
-  sections.push(harnessRules(swarm, workspace, language))
+  sections.push(harnessRules(workspace, language))
   if (taskBoardSummary) sections.push(`# Task board\n${taskBoardSummary}`)
   if (skillsSummary) sections.push(`# Available skills\n${skillsSummary}`)
   if (telegraphEnabled !== false) {

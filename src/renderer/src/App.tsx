@@ -48,7 +48,7 @@ export default function App() {
     if (!chat.sessionsLoaded) return
     if (chat.sessions.length === 0 && !chat.activeSessionId) {
       void chat.newSession('agent')
-    } else if (!chat.activeSessionId) {
+    } else if (!chat.activeSessionId && chat.sessions[0]) {
       void chat.openSession(chat.sessions[0].id)
     }
   }, [chat.sessionsLoaded, chat.sessions, chat.activeSessionId])

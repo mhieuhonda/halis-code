@@ -49,7 +49,7 @@ export interface PatchApplyResult {
 function stripHeredoc(patch: string): string {
   // Models sometimes wrap the patch in a shell heredoc — accept and strip it.
   const m = patch.match(/^\s*cat\s+(?:<<-?|<<\s*)['"]?(\w+)['"]?\s*\n([\s\S]*?)\n\1\s*$/)
-  return m ? m[2] : patch
+  return m ? (m[2] ?? patch) : patch
 }
 
 export function parsePatch(patchText: string): { sections: PatchSection[]; errors: string[] } {
@@ -70,7 +70,7 @@ export function parsePatch(patchText: string): { sections: PatchSection[]; error
 
     let m = trimmed.match(/^\*\*\* Add File: (.+)$/)
     if (m) {
-      const path = m[1].trim()
+      const path = m[1]!.trim()
       i++
       const content: string[] = []
       while (i < lines.length && (lines[i]!.startsWith('+') || lines[i] === '+')) {
@@ -84,14 +84,14 @@ export function parsePatch(patchText: string): { sections: PatchSection[]; error
 
     m = trimmed.match(/^\*\*\* Delete File: (.+)$/)
     if (m) {
-      sections.push({ type: 'delete', path: m[1].trim() })
+      sections.push({ type: 'delete', path: m[1]!.trim() })
       i++
       continue
     }
 
     m = trimmed.match(/^\*\*\* Update File: (.+)$/)
     if (m) {
-      const path = m[1].trim()
+      const path = m[1]!.trim()
       i++
       let moveTo: string | undefined
       const chunks: PatchChunk[] = []
@@ -99,7 +99,7 @@ export function parsePatch(patchText: string): { sections: PatchSection[]; error
         const t = lines[i]?.trim() ?? ''
         const mv = t.match(/^\*\*\* Move to: (.+)$/)
         if (mv) {
-          moveTo = mv[1].trim()
+          moveTo = mv[1]!.trim()
           i++
           continue
         }
@@ -273,7 +273,7 @@ export function applyPatch(input: PatchApplyInput): PatchApplyResult {
             // anchor at the end: the context lines must match the tail
             const tail = lines.slice(lines.length - pattern.length)
             const normalizedPattern = pattern.map((l) => normalizeUnicode(l).trim())
-            const tailOk = pattern.every((l, j) => normalizeUnicode(tail[j] ?? '').trim() === normalizedPattern[j])
+            const tailOk = pattern.every((_, j) => normalizeUnicode(tail[j] ?? '').trim() === normalizedPattern[j])
             if (!tailOk) throw new Error(`End-of-file context not found near the end of ${section.path}:\n${chunk.contextText || pattern.join('\n')}`)
             offset = lines.length - pattern.length
           } else {

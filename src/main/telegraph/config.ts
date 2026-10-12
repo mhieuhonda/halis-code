@@ -15,7 +15,7 @@ export { TELEGRAPH_NETWORKS }
 export type { TelegraphNetworkConfig }
 
 export function getNetwork(id: string): TelegraphNetworkConfig {
-  return TELEGRAPH_NETWORKS[id] ?? TELEGRAPH_NETWORKS['base-sepolia']
+  return TELEGRAPH_NETWORKS[id] ?? TELEGRAPH_NETWORKS['base-sepolia']!
 }
 
 /** Endpoints on the Telegraph node. */

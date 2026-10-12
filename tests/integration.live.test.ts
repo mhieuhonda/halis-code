@@ -28,15 +28,6 @@ import { ReceiptLedger } from '@main/telegraph/receipts'
 import { listIntents, listMiners, quoteAsk } from '@main/telegraph/client'
 import { TELEGRAPH_NETWORKS } from '@shared/types'
 
-const ONLINE = (() => {
-  try {
-    // synchronous connectivity probe via catalog fetch would be async; use a flag set in beforeAll
-    return true
-  } catch {
-    return false
-  }
-})()
-
 let online = false
 beforeAll(async () => {
   try {
@@ -80,7 +71,7 @@ describe('live: free model agent turn', () => {
           alwaysRules: [],
           autoApproveAll: true, // unattended run
           telegraph: {
-            network: TELEGRAPH_NETWORKS['base-sepolia'],
+            network: TELEGRAPH_NETWORKS['base-sepolia']!,
             autoApproveUpTo: 0,
             dailyBudgetUsd: 5,
             ledger,
@@ -139,7 +130,7 @@ describe('live: telegraph testnet', () => {
     'discovers miners and intents from the live node (free)',
     { timeout: 30_000, retry: 1 },
     async () => {
-      const network = TELEGRAPH_NETWORKS['base-sepolia']
+      const network = TELEGRAPH_NETWORKS['base-sepolia']!
       const miners = await listMiners(network)
       expect(Array.isArray(miners)).toBe(true)
       if (miners.length) {
@@ -155,7 +146,7 @@ describe('live: telegraph testnet', () => {
     'quotes a paid ask from the 402 challenge without paying',
     { timeout: 30_000, retry: 1 },
     async () => {
-      const network = TELEGRAPH_NETWORKS['base-sepolia']
+      const network = TELEGRAPH_NETWORKS['base-sepolia']!
       const quote = await quoteAsk({ network, query: 'What is the price direction of ETH?' })
       // Either a priced 402 challenge or a free serve — both prove the rail works.
       expect(quote).toHaveProperty('amountUsd')

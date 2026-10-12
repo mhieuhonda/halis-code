@@ -7,7 +7,7 @@
  *  - every served request carries a receipt (miner, intent, amount, tx hash,
  *    network label) that the UI surfaces and links to the explorer.
  */
-import type { TelegraphAskResult, TelegraphMiner, TelegraphNetworkConfig, TelegraphReceipt } from '@shared/types'
+import type { TelegraphAskResult, TelegraphMiner, TelegraphNetworkConfig } from '@shared/types'
 import { enginePaths } from './config'
 import { extractReceipt, getPaidFetch } from './x402'
 

@@ -4,15 +4,11 @@
  */
 import type {
   AgentConfig,
-  AppLanguage,
   AppSettings,
   ApprovalRequest,
   BoardTask,
   CatalogSnapshot,
-  ChatMessage,
   ChatMode,
-  ModelInfo,
-  ReceiptRef,
   Session,
   SessionMeta,
   SwarmConfig,

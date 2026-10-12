@@ -56,10 +56,10 @@ function parseField(field: string, min: number, max: number): { set: boolean[] }
     let from = min
     let to = max
     if (m[1] !== '*') {
-      const range = m[1].match(/^(\d+)-(\d+)$/)
+      const range = m[1]!.match(/^(\d+)-(\d+)$/)
       if (range) {
-        from = Number(range[1])
-        to = Number(range[2])
+        from = Number(range[1]!)
+        to = Number(range[2]!)
       } else {
         from = to = Number(m[1])
       }
@@ -68,18 +68,6 @@ function parseField(field: string, min: number, max: number): { set: boolean[] }
     for (let v = from; v <= to; v += step) set[v - min] = true
   }
   return { set }
-}
-
-function matches(fields: CronFields, d: Date): boolean {
-  if (!fields.minute[d.getMinutes()]) return false
-  if (!fields.hour[d.getHours()]) return false
-  if (!fields.month[d.getMonth() + 1]) return false
-  const domOk = fields.dom[d.getDate() - 1]
-  const dowOk = fields.dow[d.getDay()]
-  if (fields.domRestricted && fields.dowRestricted) return domOk || dowOk
-  if (fields.domRestricted) return domOk
-  if (fields.dowRestricted) return dowOk
-  return true
 }
 
 /** Next occurrence strictly after `after` (or an error for absurd horizons). */
@@ -99,8 +87,8 @@ export function cronNext(expression: string, after: Date): { at: Date } | { erro
       d.setHours(0, 0, 0, 0)
       continue
     }
-    const domOk = fields.dom[d.getDate() - 1]
-    const dowOk = fields.dow[d.getDay()]
+    const domOk = fields.dom[d.getDate() - 1] ?? false
+    const dowOk = fields.dow[d.getDay()] ?? false
     const dayOk = fields.domRestricted && fields.dowRestricted ? domOk || dowOk : fields.domRestricted ? domOk : fields.dowRestricted ? dowOk : true
     if (!dayOk) {
       d.setDate(d.getDate() + 1)

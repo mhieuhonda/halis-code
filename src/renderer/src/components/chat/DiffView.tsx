@@ -34,8 +34,11 @@ function lineDiff(oldText: string, newText: string): DiffLine[] {
   if (n * m > 4_000_000) return [{ kind: 'hunk', text: '@@ large change @@' }, ...b.map((l) => ({ kind: 'add' as const, text: l }))]
   const dp: Uint32Array[] = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1))
   for (let i = n - 1; i >= 0; i--) {
+    const ai = a[i]!
+    const dpNext = dp[i + 1]!
+    const dpCur = dp[i]!
     for (let j = m - 1; j >= 0; j--) {
-      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1])
+      dpCur[j] = ai === b[j] ? dpNext[j + 1]! + 1 : Math.max(dpNext[j]!, dpCur[j + 1]!)
     }
   }
   const raw: DiffLine[] = []
@@ -43,38 +46,38 @@ function lineDiff(oldText: string, newText: string): DiffLine[] {
   let j = 0
   while (i < n && j < m) {
     if (a[i] === b[j]) {
-      raw.push({ kind: 'ctx', text: a[i] })
+      raw.push({ kind: 'ctx', text: a[i]! })
       i++
       j++
-    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
-      raw.push({ kind: 'del', text: a[i] })
+    } else if (dp[i + 1]![j]! >= dp[i]![j + 1]!) {
+      raw.push({ kind: 'del', text: a[i]! })
       i++
     } else {
-      raw.push({ kind: 'add', text: b[j] })
+      raw.push({ kind: 'add', text: b[j]! })
       j++
     }
   }
-  while (i < n) raw.push({ kind: 'del', text: a[i++] })
-  while (j < m) raw.push({ kind: 'add', text: b[j++] })
+  while (i < n) raw.push({ kind: 'del', text: a[i++]! })
+  while (j < m) raw.push({ kind: 'add', text: b[j++]! })
 
   // collapse long runs of unchanged lines around edits
   const out: DiffLine[] = []
   let k = 0
   while (k < raw.length) {
-    if (raw[k].kind === 'ctx') {
+    if (raw[k]!.kind === 'ctx') {
       let end = k
-      while (end < raw.length && raw[end].kind === 'ctx') end++
+      while (end < raw.length && raw[end]!.kind === 'ctx') end++
       const runLen = end - k
       if (runLen > CONTEXT * 2 + 2) {
-        for (let x = k; x < k + CONTEXT; x++) out.push(raw[x])
+        out.push(...raw.slice(k, k + CONTEXT))
         out.push({ kind: 'hunk', text: `⋯ ${runLen - CONTEXT * 2} unchanged` })
-        for (let x = end - CONTEXT; x < end; x++) out.push(raw[x])
+        out.push(...raw.slice(end - CONTEXT, end))
       } else {
-        for (let x = k; x < end; x++) out.push(raw[x])
+        out.push(...raw.slice(k, end))
       }
       k = end
     } else {
-      out.push(raw[k++])
+      out.push(raw[k++]!)
     }
   }
   return out

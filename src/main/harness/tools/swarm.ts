@@ -3,7 +3,7 @@
  * message goes through here with an explicit recipient, never broadcast.
  * The orchestrator parses @mentions and routes to exactly those agents.
  */
-import type { ToolContext, ToolDef, ToolResult } from './index'
+import type { ToolDef, ToolResult } from './index'
 
 export const sendMessageTool: ToolDef = {
   name: 'send_message',

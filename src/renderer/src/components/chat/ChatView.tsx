@@ -9,7 +9,7 @@ import { MessageBubble } from '../chat/MessageBubble'
 import { ApprovalCard } from '../chat/ApprovalCard'
 import { TodoPanel } from '../chat/TodoPanel'
 import { Composer } from '../chat/Composer'
-import { Badge, Button } from '../ui'
+import { Button } from '../ui'
 import logoUrl from '../../assets/logo-64.png'
 
 export function ChatView({ mode }: { mode: 'agent' | 'swarm' }) {

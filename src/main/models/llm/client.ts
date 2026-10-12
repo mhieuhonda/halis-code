@@ -83,13 +83,17 @@ export class LlmDispatcher {
   /** Cheap liveness/key check: one-token completion. */
   async testModel(modelId: string, keyOverride?: string): Promise<{ ok: boolean; detail: string }> {
     try {
-      const res = await this.complete(modelId, {
-        model: modelId,
-        messages: [
-          { role: 'user', content: 'Reply with the single word: pong' },
-        ],
-        maxTokens: 16,
-      })
+      const res = await this.complete(
+        modelId,
+        {
+          model: modelId,
+          messages: [
+            { role: 'user', content: 'Reply with the single word: pong' },
+          ],
+          maxTokens: 16,
+        },
+        keyOverride,
+      )
       return { ok: true, detail: res.text.trim().slice(0, 60) || 'connected' }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)

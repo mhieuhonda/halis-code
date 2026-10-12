@@ -5,7 +5,7 @@
  * Pollinations, LLM7, Ollama, OpenCode Zen and every other gateway that
  * speaks the /chat/completions dialect.
  */
-import type { LlmMessage, LlmProvider, LlmRequest, LlmResult, LlmStreamEvent, LlmStreamOptions, LlmToolCall } from './types'
+import type { LlmMessage, LlmProvider, LlmRequest, LlmResult, LlmStreamOptions, LlmToolCall } from './types'
 import { LlmError } from './types'
 
 interface OpenAiToolCallDelta {

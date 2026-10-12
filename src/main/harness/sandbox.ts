@@ -3,7 +3,7 @@
  * File tools are path-jailed; shell commands run with cwd = workspace and
  * are screened against an obvious-danger blocklist.
  */
-import { isAbsolute, join, normalize, resolve, sep } from 'node:path'
+import { isAbsolute, normalize, resolve, sep } from 'node:path'
 import { existsSync, realpathSync } from 'node:fs'
 
 export class SandboxError extends Error {

@@ -35,7 +35,7 @@ function parseAttrs(raw: string): Record<string, string> {
   const re = /([a-zA-Z_:@][-a-zA-Z0-9_:.]*)\s*(?:=\s*("([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g
   let m: RegExpExecArray | null
   while ((m = re.exec(raw))) {
-    attrs[m[1].toLowerCase()] = decodeEntities(m[3] ?? m[4] ?? m[5] ?? '')
+    attrs[m[1]!.toLowerCase()] = decodeEntities(m[3] ?? m[4] ?? m[5] ?? '')
   }
   return attrs
 }
@@ -193,7 +193,7 @@ class MarkdownRenderer {
         this.inPre = true
         this.preContent = []
         const codeClass = /language-([\w+-]+)/.exec(attrs['class'] ?? '')
-        this.preLang = codeClass ? codeClass[1] : ''
+        this.preLang = codeClass?.[1] ?? ''
         return
       }
       case 'h1':
@@ -266,7 +266,7 @@ class MarkdownRenderer {
       case 'code': {
         if (this.inPre && !this.preLang) {
           const codeClass = /language-([\w+-]+)/.exec(attrs['class'] ?? '')
-          if (codeClass) this.preLang = codeClass[1]
+          if (codeClass) this.preLang = codeClass[1] ?? ''
           return
         }
         if (!this.inPre) this.emit('`')

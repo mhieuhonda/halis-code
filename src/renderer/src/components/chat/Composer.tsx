@@ -80,7 +80,7 @@ export function Composer() {
 
   const mentionStart = (() => {
     const match = text.match(/@([A-Za-z0-9_.-]*)$/)
-    return match ? match[1].toLowerCase() : null
+    return match?.[1]?.toLowerCase() ?? null
   })()
 
   const suggestions = mentionStart !== null ? swarmConfig.agents.filter((a) => a.name.toLowerCase().includes(mentionStart) && mentionStart !== a.name.toLowerCase()).slice(0, 5) : []

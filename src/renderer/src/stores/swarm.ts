@@ -18,8 +18,19 @@ interface SwarmState {
   regeneratePrompt: (id: string) => void
 }
 
+const FALLBACK_ROLE: AgentRole = {
+  id: 'coder',
+  name: 'Coder',
+  nameVi: 'Lập trình',
+  emoji: '💻',
+  priority: 3,
+  defaultPermissions: {},
+  prompt: 'You are a member of a coding swarm. Follow the objective, coordinate through the planner, address teammates with @Name, and use the task board for shared work.',
+  promptVi: 'Bạn là thành viên của một swarm lập trình. Bám sát mục tiêu, phối hợp qua planner, gọi teammate bằng @Tên, và dùng task board cho công việc chung.',
+}
+
 function blankAgent(roles: AgentRole[], existing: AgentConfig[], index: number): AgentConfig {
-  const role = roles.find((r) => r.id === 'coder') ?? roles[0]
+  const role = roles.find((r) => r.id === 'coder') ?? roles[0] ?? FALLBACK_ROLE
   const colors = ['#7C6CFF', '#4ADE80', '#38BDF8', '#F472B6', '#FBBF24', '#2DD4BF', '#F97316', '#A78BFA']
   const avatars = ['🤖', '🧭', '📐', '⌨️', '🔍', '🛡️', '🧪', '⚙️', '📚', '📝', '🦾', '🧠', '🐙', '🦊', '🐝', '⚡']
   let name = `Agent${index + 1}`
@@ -31,8 +42,8 @@ function blankAgent(roles: AgentRole[], existing: AgentConfig[], index: number):
   return {
     id: `ag_${Math.random().toString(36).slice(2, 10)}`,
     name,
-    avatar: avatars[index % avatars.length],
-    color: colors[index % colors.length],
+    avatar: avatars[index % avatars.length]!,
+    color: colors[index % colors.length]!,
     roleId: role.id,
     modelId: 'pollinations/openai-fast',
     apiKey: '',

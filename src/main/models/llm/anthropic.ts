@@ -180,7 +180,7 @@ export class AnthropicProvider implements LlmProvider {
       }
     }
 
-    for (const [idx, acc] of [...toolAcc.entries()].sort((a, b) => a[0] - b[0])) {
+    for (const [, acc] of [...toolAcc.entries()].sort((a, b) => a[0] - b[0])) {
       const call: LlmToolCall = { id: acc.id, name: acc.name, arguments: acc.args || '{}' }
       result.toolCalls.push(call)
       options.onEvent({ type: 'toolCall', call })

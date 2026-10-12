@@ -5,7 +5,7 @@
  * step. The turn ends when the model answers without tool calls, hits the
  * step cap, or is aborted.
  */
-import type { ChatMessage, HarnessEvent, ToolRun } from '@shared/types'
+import type { HarnessEvent, ToolRun } from '@shared/types'
 import type { LlmDispatcher } from '../models/llm/client'
 import type { LlmMessage, LlmResult, LlmStreamEvent, LlmToolCall } from '../models/llm/types'
 import { evaluate } from './permissions'

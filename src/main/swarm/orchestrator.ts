@@ -143,7 +143,6 @@ export class SwarmOrchestrator {
     const { session, config, signal } = params
     const agents = config.agents.filter((a) => a.enabled)
     if (!agents.length) throw new Error('No enabled agents in the swarm. Configure the team first.')
-    const settings = this.deps.getSettings()
     const planner = agents.find((a) => a.roleId === 'planner')
     const speakBudget = new Map<string, number>(agents.map((a) => [a.id, 2]))
     const produced: ChatMessage[] = []

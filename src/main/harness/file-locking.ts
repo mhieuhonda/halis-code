@@ -44,7 +44,7 @@ export class FileLockManager {
     }
     const others = [...holders.values()].filter((l) => l.holderAgentId !== agentId)
     if (mode === 'hard' && others.length) {
-      const other = others[0]
+      const other = others[0]!
       throw new Error(
         `File is locked by ${other.holderName} (hard lock since ${new Date(other.acquiredAt).toLocaleTimeString()}). Wait for them to finish or coordinate through the planner.`,
       )

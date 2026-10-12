@@ -36,7 +36,7 @@ function globToRegExp(pattern: string): RegExp {
   let re = ''
   let i = 0
   while (i < pattern.length) {
-    const c = pattern[i]
+    const c = pattern[i]!
     if (c === '*') {
       if (pattern[i + 1] === '*') {
         re += '.*'
@@ -135,8 +135,9 @@ export const grepTool: ToolDef = {
       }
       const lines = content.split('\n')
       for (let i = 0; i < lines.length && results.length < MAX_GREP_RESULTS; i++) {
-        if (re.test(lines[i])) {
-          results.push(`${file}:${i + 1}: ${lines[i].trim().slice(0, 240)}`)
+        const line = lines[i]!
+        if (re.test(line)) {
+          results.push(`${file}:${i + 1}: ${line.trim().slice(0, 240)}`)
         }
       }
       if (results.length >= MAX_GREP_RESULTS) break

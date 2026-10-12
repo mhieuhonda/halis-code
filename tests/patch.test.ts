@@ -19,8 +19,8 @@ describe('parsePatch', () => {
     expect(sections[0]).toEqual({ type: 'add', path: 'new.txt', content: 'hello\nworld\n' })
     expect(sections[1]?.type).toBe('update')
     if (sections[1]?.type === 'update') {
-      expect(sections[1].chunks[0].oldLines).toEqual(['old line'])
-      expect(sections[1].chunks[0].newLines).toEqual(['new line'])
+      expect(sections[1].chunks[0]!.oldLines).toEqual(['old line'])
+      expect(sections[1].chunks[0]!.newLines).toEqual(['new line'])
     }
     expect(sections[2]).toEqual({ type: 'delete', path: 'gone.txt' })
   })
@@ -38,7 +38,7 @@ describe('parsePatch', () => {
     expect(errors).toEqual([])
     if (sections[0]?.type === 'update') {
       expect(sections[0].moveTo).toBe('b.ts')
-      expect(sections[0].chunks[0].isEndOfFile).toBe(true)
+      expect(sections[0].chunks[0]!.isEndOfFile).toBe(true)
     } else throw new Error('expected update section')
   })
 

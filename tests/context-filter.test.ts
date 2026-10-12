@@ -52,8 +52,7 @@ describe('messageConcerns', () => {
   })
 
   it('excludes messages for other agents (planner override aside)', () => {
-    const m = msg({ from: 'a2', role: 'assistant', content: '@Mai fix it', to: ['a3'], mentions: ['Mai'] })
-    // a2 authored it so it concerns a2; for a NON-planner third party use a sender that is not the planner:
+    // a NON-planner third party sender keeps the exclusion path deterministic:
     const m2 = msg({ from: 'a3', role: 'assistant', content: 'internal note', to: ['a2'], mentions: ['Bao'] })
     expect(messageConcerns(m2, 'a2', 'a1', agents)).toBe(true)
     // planner always visible:
@@ -87,7 +86,7 @@ describe('buildAgentContext', () => {
     ]
     const baoCtx = buildAgentContext({ agent: bao, agents, plannerId: 'a1', messages, objective: 'Ship login' })
     // Bao sees: the user message (digest), planner message (planner), its own.
-    const speakers = baoCtx.transcript.map((t) => t.text.split(/[(:]/)[0].trim())
+    const speakers = baoCtx.transcript.map((t) => t.text.split(/[(:]/)[0]!.trim())
     expect(speakers).toContain('Rin')
     expect(speakers).toContain('Bao')
     // Mai's reply to Bao is visible to Bao (addressed), Mai's own context differs:

@@ -3,7 +3,7 @@
  * Inspired by opencode's searchable dialog-select.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, Cpu, ListChecks, MessageSquarePlus, Search, Settings, Sparkles, Star, Users, Zap } from 'lucide-react'
+import { Cpu, ListChecks, MessageSquarePlus, Search, Settings, Sparkles, Star, Users, Zap } from 'lucide-react'
 import { useT } from '../../i18n'
 import { useAppStore } from '../../stores/app'
 import { useChatStore } from '../../stores/chat'
@@ -174,7 +174,7 @@ export function CommandPalette({ open, onClose, setRoute }: { open: boolean; onC
             <div className="px-4 py-6 text-center text-[12.5px] text-faint">{t('no_results')}</div>
           ) : (
             grouped.map((g) => (
-              <div key={`${g.group}-${g.items[0].idx}`}>
+              <div key={`${g.group}-${g.items[0]!.idx}`}>
                 <div className="px-4 pt-2 pb-1 text-[10px] uppercase tracking-wider text-faint font-medium">{g.group}</div>
                 {g.items.map(({ cmd, idx }) => (
                   <button

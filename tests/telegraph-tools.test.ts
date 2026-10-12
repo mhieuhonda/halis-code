@@ -76,10 +76,11 @@ function makeCtx(overrides: Partial<ToolContext['telegraph']> = {}): ToolContext
     telegraph: {
       enabled: true,
       privateKey: '0x' + '1'.repeat(64),
-      network: TELEGRAPH_NETWORKS['base-sepolia'],
+      network: TELEGRAPH_NETWORKS['base-sepolia']!,
       autoApproveUpTo: 5,
       dailyBudgetUsd: 5,
       ledger: new ReceiptLedger(join(dir, 'receipts.json')),
+      ...overrides,
     },
     emit: () => {},
     jobs: {} as ToolContext['jobs'],
