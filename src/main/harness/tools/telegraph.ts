@@ -8,6 +8,7 @@ import type { TelegraphReceipt } from '@shared/types'
 import { askTelegraph, listIntents, listMiners, verifySignal } from '../../telegraph/client'
 import { CODING_INTENTS } from '../../telegraph/config'
 import { evaluate } from '../permissions'
+import { raceWithAbort } from '../util/abort-race'
 import type { ToolContext, ToolDef, ToolResult } from './index'
 
 class DeniedError extends Error {
@@ -166,7 +167,11 @@ async function requestSpendApproval(ctx: ToolContext, amountUsd: number, query: 
       startedAt: Date.now(),
     },
   })
-  const response = await wait
+  // The loop deliberately skips its own abort race for usdc-spend tools —
+  // so THIS wait must observe the signal itself, or Stop never unwinds the
+  // turn and the session stays "running" until the app restarts.
+  const response = await raceWithAbort(wait, ctx.signal)
+  if (response === null) return 'rejected'
   return response === 'reject' ? 'rejected' : 'approved'
 }
 

@@ -7,6 +7,7 @@
  * and credential-shaped env vars never reach children.
  */
 import { spawn, type ChildProcess } from 'node:child_process'
+import { StringDecoder } from 'node:string_decoder'
 import { existsSync } from 'node:fs'
 import { SHELL_OUTPUT_CAP, SHELL_TIMEOUT_MS } from '../sandbox'
 import type { ToolContext, ToolDef, ToolResult } from './index'
@@ -106,8 +107,11 @@ function runShellProcess(command: string, ctx: ToolContext, env: Record<string, 
   let truncated = false
   let timedOut = false
 
-  const append = (chunk: Buffer, target: 'out' | 'err') => {
-    const text = chunk.toString('utf8')
+  const append = (decoder: StringDecoder, chunk: Buffer, target: 'out' | 'err') => {
+    // Chunks split on buffer boundaries, not character boundaries — a raw
+    // toString('utf8') would mojibake any multibyte char (CJK, emoji) that
+    // straddles a chunk edge.
+    const text = decoder.write(chunk)
     if (target === 'out') stdout += text
     else stderr += text
     onOutput(text)
@@ -116,8 +120,10 @@ function runShellProcess(command: string, ctx: ToolContext, env: Record<string, 
       killTree(child)
     }
   }
-  child.stdout?.on('data', (c: Buffer) => append(c, 'out'))
-  child.stderr?.on('data', (c: Buffer) => append(c, 'err'))
+  const outDecoder = new StringDecoder('utf8')
+  const errDecoder = new StringDecoder('utf8')
+  child.stdout?.on('data', (c: Buffer) => append(outDecoder, c, 'out'))
+  child.stderr?.on('data', (c: Buffer) => append(errDecoder, c, 'err'))
 
   const timer =
     timeoutMs === null
@@ -128,14 +134,23 @@ function runShellProcess(command: string, ctx: ToolContext, env: Record<string, 
         }, timeoutMs)
   if (timer && typeof timer.unref === 'function') timer.unref()
 
+  // A foreground Stop press must kill the running command, not leave the
+  // turn parked until the command finishes or times out on its own.
+  const onAbort = () => killTree(child)
+  ctx.signal?.addEventListener('abort', onAbort, { once: true })
+
   const outcome = new Promise<RunOutcome>((resolve) => {
+    const finish = (patch: RunOutcome) => {
+      ctx.signal?.removeEventListener('abort', onAbort)
+      resolve(patch)
+    }
     child.on('error', (err) => {
       if (timer) clearTimeout(timer)
-      resolve({ exitCode: null, signal: null, timedOut, stdout, stderr: `${stderr}\n${err.message}`.trim(), truncated })
+      finish({ exitCode: null, signal: null, timedOut, stdout, stderr: `${stderr}\n${err.message}`.trim(), truncated })
     })
     child.on('close', (code, signal) => {
       if (timer) clearTimeout(timer)
-      resolve({ exitCode: code, signal, timedOut, stdout, stderr, truncated })
+      finish({ exitCode: code, signal, timedOut, stdout, stderr, truncated })
     })
   })
 
@@ -182,7 +197,11 @@ export const runCommandTool: ToolDef = {
   async execute(args, ctx: ToolContext): Promise<ToolResult> {
     const command = String(args.command ?? '')
     ctx.sandbox.screenCommand(command)
-    const timeout = Math.min(Math.max(Number(args.timeout_ms ?? SHELL_TIMEOUT_MS), 1000), 600_000)
+    const requested = Number(args.timeout_ms ?? SHELL_TIMEOUT_MS)
+    // A model may send "timeout_ms": "90 seconds" — NaN propagates through
+    // Math.min/max and setTimeout(NaN) fires immediately, killing every
+    // command instantly. Fall back to the default instead.
+    const timeout = Math.min(Math.max(Number.isFinite(requested) ? requested : SHELL_TIMEOUT_MS, 1000), 600_000)
     const env = childEnv(ctx)
     const label = String(args.description ?? '').trim() || command.slice(0, 80)
 

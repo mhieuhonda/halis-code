@@ -190,8 +190,11 @@ export class AnthropicProvider implements LlmProvider {
             if (evt.usage?.output_tokens) result.usage.outputTokens = evt.usage.output_tokens
             break
           case 'error':
-            options.onEvent({ type: 'error', error: evt.error?.message ?? 'stream error' })
-            break
+            // Anthropic sends `event: error` mid-stream (e.g. overloaded).
+            // Swallowing it turned a server-side failure into a silently
+            // truncated "successful" answer — surface it so withRetry can
+            // retry and the runner can mark the turn errored.
+            throw new LlmError(evt.error?.message ?? 'Anthropic stream error', undefined, this.providerName)
         }
       }
     }

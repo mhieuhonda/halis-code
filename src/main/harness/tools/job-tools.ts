@@ -38,7 +38,8 @@ export const jobOutputTool: ToolDef = {
   async execute(args, ctx): Promise<ToolResult> {
     const jobId = String(args.job_id ?? '')
     if (!jobId) return { output: 'job_id is required.' }
-    const result = await ctx.jobs.read(jobId, ctx.agentId, !!args.wait, Number(args.timeout_ms ?? 30_000))
+    const requested = Number(args.timeout_ms ?? 30_000)
+    const result = await ctx.jobs.read(jobId, ctx.agentId, !!args.wait, requested, ctx.signal)
     if ('error' in result) return { output: result.error }
     const status = result.stillRunning ? 'still running' : `${result.job.status}${result.job.exitCode !== null ? ` (exit ${result.job.exitCode})` : ''}`
     return {

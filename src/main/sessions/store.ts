@@ -9,6 +9,11 @@ import { readJson, writeJson } from '../util/json'
 import { paths } from '../config/paths'
 
 export class SessionStore {
+  /** Tombstoned ids: a deleted session must not be resurrected by a
+   *  still-running turn's post-abort save (chatStop only aborts — the
+   *  runner unwinds asynchronously and then saves). */
+  private deleted = new Set<string>()
+
   list(): SessionMeta[] {
     if (!existsSync(paths.sessionsDir)) return []
     const metas: SessionMeta[] = []
@@ -16,6 +21,7 @@ export class SessionStore {
       if (!file.endsWith('.json')) continue
       const session = readJson<Session | null>(paths.sessionFile(file.replace(/\.json$/, '')), null)
       if (!session?.id) continue
+      if (this.deleted.has(session.id)) continue
       metas.push(this.toMeta(session))
     }
     return metas.sort((a, b) => b.updatedAt - a.updatedAt)
@@ -35,6 +41,7 @@ export class SessionStore {
   }
 
   get(sessionId: string): Session | null {
+    if (this.deleted.has(sessionId)) return null
     const session = readJson<Session | null>(paths.sessionFile(sessionId), null)
     if (!session?.id) return null
     // Streaming flags may have been persisted mid-turn (crash) — clear them.
@@ -59,6 +66,7 @@ export class SessionStore {
   }
 
   save(session: Session): void {
+    if (this.deleted.has(session.id)) return
     session.updatedAt = Date.now()
     session.messageCount = session.messages.length
     writeJson(paths.sessionFile(session.id), session)
@@ -67,6 +75,9 @@ export class SessionStore {
   delete(sessionId: string): void {
     const file = paths.sessionFile(sessionId)
     if (existsSync(file)) unlinkSync(file)
+    // Tombstone AFTER unlinking: any late save from an unwinding turn is a
+    // no-op, so the "deleted" session never reappears in the sidebar.
+    this.deleted.add(sessionId)
   }
 
   rename(sessionId: string, title: string): void {

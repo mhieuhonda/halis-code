@@ -45,7 +45,12 @@ export function truncateToolOutput(output: string, toolCallId: string): Truncati
   if (spillDir) {
     try {
       counter++
-      spillPath = join(spillDir, `tool_${toolCallId.replace(/[^\w-]/g, '') || String(counter)}.txt`)
+      // The id alone can collide across agents/sessions (local backends emit
+      // sequential "call_0", "call_1"…) — a second spill would overwrite the
+      // first and the model would read ANOTHER tool's output. Prefix with
+      // monotonic counters so every file is unique.
+      const safeId = toolCallId.replace(/[^\w-]/g, '')
+      spillPath = join(spillDir, `tool_${counter}_${Date.now().toString(36)}_${safeId}.txt`)
       writeFileSync(spillPath, output, 'utf8')
     } catch {
       spillPath = undefined

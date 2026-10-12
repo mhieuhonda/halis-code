@@ -55,7 +55,10 @@ export const applyPatchTool: ToolDef = {
   async execute(args, ctx: ToolContext): Promise<ToolResult> {
     const patchText = String(args.patch ?? '')
     const { sections, errors } = parsePatch(patchText)
-    if (errors.length && !sections.length) {
+    // Surface parse errors even when some sections parsed — a patch that
+    // half-parses (e.g. "*** Add File:" followed by a blank line) must not
+    // silently apply only the valid-looking parts.
+    if (errors.length) {
       return { output: `Invalid patch.\n${errors.join('\n')}\n\n${INSTRUCTIONS}` }
     }
 
@@ -80,14 +83,16 @@ export const applyPatchTool: ToolDef = {
       if (section.type === 'add') lockPaths.add(resolveInside(ctx, section.path)!)
     }
     const acquired: Array<{ path: string; mode: 'hard' }> = []
-    for (const path of lockPaths) {
-      ctx.locks.acquire(path, ctx.agentId, ctx.agentName, 'hard')
-      acquired.push({ path, mode: 'hard' })
-    }
-
     const previews: Array<{ file: string; before: number; after: number; added: number; removed: number }> = []
     const beforeContents = new Map<string, string>()
     try {
+      // Acquisition is inside the try: if a later acquire throws (the file
+      // is held by someone else), the earlier hard locks still get released
+      // by the finally below instead of leaking until the turn ends.
+      for (const path of lockPaths) {
+        ctx.locks.acquire(path, ctx.agentId, ctx.agentName, 'hard')
+        acquired.push({ path, mode: 'hard' })
+      }
       const result = applyPatch({
         sections,
         read: (rel) => {

@@ -5,6 +5,7 @@
  * job; a completion notice is queued so the harness can inject it into the
  * agent's next turn (no busy-polling).
  */
+import { raceWithAbort } from './util/abort-race'
 
 export type JobStatus = 'running' | 'completed' | 'killed' | 'failed'
 
@@ -175,14 +176,19 @@ export class JobRegistry {
   }
 
   /** Read accumulated output; optionally wait (bounded) for the job to settle. */
-  async read(jobId: string, ownerAgentId: string, wait?: boolean, timeoutMs?: number): Promise<JobOutput | { error: string }> {
+  async read(jobId: string, ownerAgentId: string, wait?: boolean, timeoutMs?: number, signal?: AbortSignal): Promise<JobOutput | { error: string }> {
     const job = this.jobs.get(jobId)
     if (!job) return { error: `Unknown job: ${jobId}. Use job_list to see current jobs.` }
     if (job.info.ownerAgentId !== ownerAgentId) return { error: `Job ${jobId} belongs to another agent.` }
 
     if (wait && job.info.status === 'running') {
-      const budget = Math.min(Math.max(timeoutMs ?? 30_000, 1000), 600_000)
-      await Promise.race([job.wait, new Promise((resolve) => setTimeout(resolve, budget))])
+      // NaN from a malformed "timeout_ms": "five minutes" would make the
+      // wait fire instantly — clamp a finite fallback instead.
+      const requested = Number(timeoutMs ?? 30_000)
+      const budget = Math.min(Math.max(Number.isFinite(requested) ? requested : 30_000, 1000), 600_000)
+      // A Stop press must settle the wait immediately, not park the turn for
+      // the full budget while every other agent has already finished.
+      await raceWithAbort(Promise.race([job.wait, new Promise((resolve) => setTimeout(resolve, budget))]), signal)
     }
 
     const text = job.chunks.join('')

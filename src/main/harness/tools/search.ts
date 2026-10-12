@@ -25,7 +25,9 @@ function walk(root: string, dir = '', out: string[] = [], depth = 0): string[] {
     if (entry.isDirectory()) {
       if (SKIP_DIRS.has(entry.name) || entry.name.startsWith('.') && entry.name !== '.github') continue
       walk(root, rel, out, depth + 1)
-    } else {
+    } else if (entry.isFile() || entry.isSymbolicLink()) {
+      // FIFOs (mkfifo) and sockets must not enter the list: a synchronous
+      // readFileSync on a writer-less FIFO blocks the main process forever.
       out.push(rel)
     }
   }
@@ -129,7 +131,13 @@ export const grepTool: ToolDef = {
       let content: string
       try {
         const full = join(sub, file)
-        content = readFileSync(statSync(sub).isDirectory() ? full : sub, 'utf8')
+        const target = statSync(sub).isDirectory() ? full : sub
+        const st = statSync(target)
+        // Only regular files up to 8 MB — the same cap read_file enforces.
+        // A 2 GB log loaded synchronously freezes the main process; a FIFO
+        // would block forever.
+        if (!st.isFile() || st.size > 8 * 1024 * 1024) continue
+        content = readFileSync(target, 'utf8')
       } catch {
         continue
       }

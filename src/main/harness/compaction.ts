@@ -57,6 +57,15 @@ export function planCompaction(messages: ChatMessage[], model: ModelInfo | undef
   }
   // Always begin the recent window at a user message so the summary sits
   // cleanly in front of a turn boundary.
+  // Backstop: when the keep budget broke BEFORE reaching any user message
+  // (huge tool results inflate the first iterations), the walk above leaves
+  // lastUserIndex at messages.length — that would fold the ENTIRE
+  // conversation, including the newest user request, into the summary.
+  // Snap the boundary to the newest user message instead.
+  if (lastUserIndex === messages.length) {
+    lastUserIndex = messages.findLastIndex((m) => m.role === 'user')
+    if (lastUserIndex < 0) return { needed: false, older: [], recent: messages }
+  }
   const older = messages.slice(0, lastUserIndex).filter((m) => m.role !== 'system')
   const recentFinal = messages.slice(lastUserIndex)
   if (!older.length) return { needed: false, older: [], recent: messages }

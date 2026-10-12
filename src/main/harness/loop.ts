@@ -11,6 +11,7 @@ import type { LlmMessage, LlmResult, LlmStreamEvent, LlmToolCall } from '../mode
 import { evaluate } from './permissions'
 import type { ToolContext, ToolRegistry } from './tools'
 import { truncateToolOutput } from './util/truncate'
+import { raceWithAbort } from './util/abort-race'
 
 export interface TurnRequest {
   sessionId: string
@@ -76,6 +77,10 @@ export class AgentRunner {
     const toolRuns: ToolRun[] = []
     let steps = 0
     let text = ''
+    // Text streamed during the CURRENT step. A mid-stream abort throws away
+    // the provider's internal result, but the deltas already reached the UI —
+    // keeping them here preserves the user's partial answer in history.
+    let streamText = ''
     let reasoning = ''
     let aborted = false
     let lastFinish: LlmResult['finishReason'] = 'stop'
@@ -108,14 +113,17 @@ export class AgentRunner {
           {
             signal: req.signal,
             onEvent: (ev: LlmStreamEvent) => {
-              if (ev.type === 'text') emit({ type: 'message-delta', sessionId: req.sessionId, messageId: req.messageId, delta: ev.delta })
-              else if (ev.type === 'reasoning') emit({ type: 'message-reasoning', sessionId: req.sessionId, messageId: req.messageId, delta: ev.delta })
+              if (ev.type === 'text') {
+                streamText += ev.delta
+                emit({ type: 'message-delta', sessionId: req.sessionId, messageId: req.messageId, delta: ev.delta })
+              } else if (ev.type === 'reasoning') emit({ type: 'message-reasoning', sessionId: req.sessionId, messageId: req.messageId, delta: ev.delta })
             },
           },
           req.apiKey,
         )
         lastFinish = result.finishReason
-        text = result.text
+        text = result.text || streamText
+        streamText = ''
         reasoning = result.reasoning
         usage.inputTokens += result.usage?.inputTokens ?? 0
         usage.outputTokens += result.usage?.outputTokens ?? 0
@@ -127,7 +135,6 @@ export class AgentRunner {
 
         for (const call of result.toolCalls) {
           const run = await this.executeToolCall(call, ctx, req, emit)
-          toolRuns.push(run)
           const runData = (run as ToolRun & { _data?: { image?: { mime: string; dataUri: string } } })._data
           history.push({
             role: 'tool',
@@ -137,14 +144,21 @@ export class AgentRunner {
             isError: run.state !== 'completed',
             images: runData?.image ? [{ mime: runData.image.mime, dataUri: runData.image.dataUri }] : undefined,
           })
+          // Strip the base64 payload before the run is stored in toolRuns →
+          // message.parts → session JSON (megabytes of duplicates otherwise).
+          delete (run as ToolRun & { _data?: unknown })._data
+          toolRuns.push(run)
         }
       }
     } catch (err) {
       if (req.signal?.aborted || (err as Error)?.name === 'AbortError') {
         aborted = true
+        // Keep whatever reached the UI before the abort — an empty overwrite
+        // would erase the partial answer the user already read.
+        if (streamText) text = text || streamText
       } else {
         const message = err instanceof Error ? err.message : String(err)
-        return { text, reasoning, steps, toolRuns, aborted, error: message, finishReason: 'error', usage }
+        return { text: text || streamText, reasoning, steps, toolRuns, aborted, error: message, finishReason: 'error', usage }
       }
     }
 
@@ -246,16 +260,7 @@ export class AgentRunner {
         risk: kind === 'shell' ? 'medium' : kind === 'file-write' ? 'medium' : 'low',
         tool: tool.name,
       })
-      const response = await Promise.race([
-        wait,
-        req.signal
-          ? new Promise<null>((resolve) => {
-              // An already-aborted signal never fires 'abort' — resolve now.
-              if (req.signal!.aborted) return resolve(null)
-              req.signal!.addEventListener('abort', () => resolve(null), { once: true })
-            })
-          : new Promise<null>(() => {}),
-      ])
+      const response = await raceWithAbort(wait, req.signal)
       if (response === null) {
         emitRun('rejected', { error: 'Turn aborted', endedAt: Date.now() })
         return run

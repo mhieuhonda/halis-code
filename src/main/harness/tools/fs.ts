@@ -168,7 +168,7 @@ export const writeFileTool: ToolDef = {
         data: { path: rel(ctx.workspace, path), existed, beforeChars: before.length, afterChars: content.length },
       }
     } finally {
-      if (mode === 'hard') ctx.locks.release(path, ctx.agentId)
+      ctx.locks.release(path, ctx.agentId)
     }
   },
 }
@@ -205,7 +205,9 @@ export const editFileTool: ToolDef = {
     try {
       const content = readFileSync(path, 'utf8')
       const match = fuzzyReplace(content, oldString, newString, !!args.replace_all)
-      if (!match.content) {
+      // content === '' is a VALID result (an edit that empties the file) —
+      // only null means "no match". A falsy check would reject it.
+      if (match.content === null) {
         if (match.occurrences > 1) {
           return { output: `old_string occurs ${match.occurrences} times in ${rel(ctx.workspace, path)}. Provide more surrounding context or set replace_all: true.` }
         }
@@ -222,7 +224,7 @@ export const editFileTool: ToolDef = {
         data: { path: rel(ctx.workspace, path), replacements: match.occurrences, strategy: match.strategy, oldString, newString },
       }
     } finally {
-      if (mode === 'hard') ctx.locks.release(path, ctx.agentId)
+      ctx.locks.release(path, ctx.agentId)
     }
   },
 }
@@ -272,7 +274,7 @@ export const multiEditTool: ToolDef = {
         if (!oldString) return { output: `Edit ${i + 1}: old_string is empty.` }
         if (oldString === newString) return { output: `Edit ${i + 1}: old_string and new_string are identical.` }
         const match = fuzzyReplace(content, oldString, newString, !!edit?.replace_all)
-        if (!match.content) {
+        if (match.content === null) {
           return {
             output: `Edit ${i + 1} failed: old_string not found${match.occurrences > 1 ? ` (${match.occurrences} ambiguous occurrences)` : ''} in ${rel(ctx.workspace, path)}. NOTHING was written. Fix the edit and retry.`,
           }
@@ -289,7 +291,7 @@ export const multiEditTool: ToolDef = {
         data: { path: rel(ctx.workspace, path), edits: applied },
       }
     } finally {
-      if (mode === 'hard') ctx.locks.release(path, ctx.agentId)
+      ctx.locks.release(path, ctx.agentId)
     }
   },
 }

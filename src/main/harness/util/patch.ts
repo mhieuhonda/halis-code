@@ -73,12 +73,40 @@ export function parsePatch(patchText: string): { sections: PatchSection[]; error
       const path = m[1]!.trim()
       i++
       const content: string[] = []
-      while (i < lines.length && (lines[i]!.startsWith('+') || lines[i] === '+')) {
-        content.push(lines[i]!.slice(1))
-        i++
+      let started = false
+      while (i < lines.length) {
+        const line = lines[i]!
+        if (line.startsWith('+') || line === '+') {
+          started = true
+          content.push(line.slice(1))
+          i++
+          continue
+        }
+        // A blank line before any + line is a formatting separator models
+        // emit after the header — skip it instead of ending the collector.
+        if (!started && line.trim() === '') {
+          i++
+          continue
+        }
+        // A blank line after content started is an empty content line when
+        // another + line follows (multi-paragraph files), otherwise it ends
+        // the section. Without the lookahead, every paragraph break after
+        // the first would silently TRUNCATE the added file.
+        if (started && line.trim() === '' && (lines[i + 1]?.startsWith('+') || lines[i + 1] === '+')) {
+          content.push('')
+          i++
+          continue
+        }
+        break
       }
-      if (!content.length) errors.push(`Add File "${path}": no + lines found.`)
-      sections.push({ type: 'add', path, content: content.join('\n') + '\n' })
+      // Never queue a section for a failed Add File — pushing an empty
+      // section here would let the patch apply a newline-only file while
+      // the error itself went unreported.
+      if (!content.length) {
+        errors.push(`Add File "${path}": no + lines found.`)
+      } else {
+        sections.push({ type: 'add', path, content: content.join('\n') + '\n' })
+      }
       continue
     }
 

@@ -31,11 +31,15 @@ export function resolveMentions(mentions: string[], agents: AgentConfig[]): { re
   const resolved: string[] = []
   const unknown: string[] = []
   for (const mention of mentions) {
-    const agent = agents.find((a) => a.name.toLowerCase() === mention.toLowerCase())
+    // Models pass "@Name" as often as "Name" — strip the sigil before
+    // matching (the sigil-aware extractMentions already does this upstream,
+    // but manual callers and tool arguments may not).
+    const name = mention.trim().replace(/^@+/, '')
+    const agent = agents.find((a) => a.name.toLowerCase() === name.toLowerCase())
     if (agent) {
       if (!resolved.includes(agent.id)) resolved.push(agent.id)
     } else {
-      unknown.push(mention)
+      unknown.push(name)
     }
   }
   return { resolved, unknown }

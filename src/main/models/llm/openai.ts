@@ -155,11 +155,19 @@ export class OpenAiCompatProvider implements LlmProvider {
           finish_reason?: string | null
         }>
         usage?: { prompt_tokens?: number; completion_tokens?: number }
+        error?: { message?: string } | string
       }
       try {
         chunk = JSON.parse(data)
       } catch {
         continue
+      }
+      // OpenAI-compatible gateways signal mid-stream failures as an error
+      // payload instead of a choice (or close the stream right after) —
+      // swallowing them produced silently truncated answers.
+      if (chunk.error) {
+        const message = typeof chunk.error === 'string' ? chunk.error : chunk.error.message
+        throw new LlmError(message || 'Provider stream error', undefined, this.providerName)
       }
       if (chunk.usage) {
         result.usage.inputTokens = chunk.usage.prompt_tokens ?? result.usage.inputTokens

@@ -108,7 +108,10 @@ export const webFetchTool: ToolDef = {
   async execute(args, _ctx: ToolContext): Promise<ToolResult> {
     const url = assertHttpUrl(String(args.url ?? ''))
     const format = ['markdown', 'text', 'html'].includes(String(args.format)) ? (String(args.format) as 'markdown' | 'text' | 'html') : 'markdown'
-    const timeoutS = Math.min(Math.max(Number(args.timeout_s ?? 30), 1), 120)
+    const requestedS = Number(args.timeout_s ?? 30)
+    // NaN slips through Math.min/max and turns every fetch into an instant
+    // AbortError — fall back to the default for malformed input.
+    const timeoutS = Math.min(Math.max(Number.isFinite(requestedS) ? requestedS : 30, 1), 120)
     const headers: Record<string, string> = {
       'User-Agent': USER_AGENT,
       Accept: format === 'markdown' ? 'text/markdown;q=1.0, text/plain;q=0.9, text/html;q=0.7' : format === 'text' ? 'text/plain;q=1.0, text/html;q=0.7' : 'text/html;q=1.0',
@@ -167,7 +170,8 @@ export const webSearchTool: ToolDef = {
     const queriesRaw = Array.isArray(args.queries) ? args.queries.map(String) : [String(args.queries ?? '')]
     const queries = queriesRaw.map((q) => q.trim()).filter(Boolean).slice(0, 4)
     if (!queries.length) return { output: 'Provide at least one query.' }
-    const maxResults = Math.min(Math.max(Number(args.max_results ?? 8), 1), 12)
+    const requestedResults = Number(args.max_results ?? 8)
+    const maxResults = Math.min(Math.max(Number.isFinite(requestedResults) ? requestedResults : 8, 1), 12)
     const tavilyKey = ctx.settings.tavilyApiKey
 
     const notice =
