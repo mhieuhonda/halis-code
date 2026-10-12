@@ -1,4 +1,10 @@
-# Halis Code
+<div align="center">
+  <img src="logo.png" alt="Halis Code logo" width="140" />
+  <br />
+  <img src="name.png" alt="Halis Code" width="320" />
+</div>
+
+<br />
 
 **A desktop coding agent with a 20-agent swarm, wired into the [Telegraph](https://telegraphprotocol.com) intelligence network.**
 
