@@ -1,46 +1,40 @@
 ---
 name: ponytail-debt
 description: >
-  List every `shortcut:` comment (and older `ponytail:` ones) as a debt ledger. One-shot report,
-  changes nothing. Use for "ponytail debt", "what did ponytail defer", "list the
-  shortcuts".
+  List every `shortcut:` comment as a debt ledger: what was simplified, its
+  ceiling, and the trigger to revisit. One-shot report, changes nothing.
+  Use for "ponytail debt", "what did ponytail defer", "list the shortcuts".
 ---
 
-Every deliberate ponytail shortcut is marked with a `shortcut:` comment naming
-its ceiling and upgrade path (older code may say `ponytail:`). This collects them into one ledger so a deferral
-can't quietly become permanent.
+Every deliberate ponytail shortcut is marked with a `shortcut:` comment
+naming its ceiling and upgrade path. This collects them into one ledger so a
+deferral can't quietly become permanent. One-shot: report only.
 
 ## Scan
 
-Grep the repo for comment markers, skipping `node_modules`, `.git`, and build
-output:
+Grep the repo for the marker, skipping `node_modules`, `.git` and build
+output. Use the `grep` tool with pattern
+`(#|//|/\*)\s*(shortcut|ponytail):`, or run the equivalent `grep -rnE` with
+`run_command`. The comment prefix keeps prose that merely mentions the
+convention out of the ledger; skip hits that are not a deferral (a keyboard
+shortcut, for example).
 
-`grep -rnE --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=build '(#|//|/[*]) ?(shortcut|ponytail):' .`  (add other comment prefixes if your stack uses them)
-
-Run it with run_command, or use the search tool with the same pattern.
-
-If the user names their own marker word ("ponytail debt TODO"), grep for that word instead.
-
-Each hit is one ledger row. The comment prefix keeps prose that merely mentions
-the convention out of the ledger. Skip hits that are not a deferral, like a note
-about a keyboard shortcut.
+If the user names their own marker word, grep for that word instead.
 
 ## Output
 
 One row per marker, grouped by file:
 
-`<file>:<line>, <what was simplified>. ceiling: <the limit named>. upgrade: <the trigger to revisit>.`
+`<file>:<line>, <what was simplified>. ceiling: <the limit>. upgrade: <the trigger>.`
 
-The convention is `shortcut: <ceiling>, <upgrade path>`, so pull the ceiling
-and the trigger straight from the comment. Want an owner per row too? add
-`git blame -L<line>,<line>`.
+Pull the ceiling and trigger straight from the comment — the convention is
+`shortcut: <ceiling>, <upgrade path>`. Flag rot risk: a marker naming no
+upgrade path gets a `no-trigger` tag; those silently rot.
 
-Flag the rot risk: any marker comment that names no upgrade path or
-trigger gets a `no-trigger` tag, those are the ones that silently rot.
-
-End with `<N> markers, <M> with no trigger.` Nothing found: `No shortcut debt. Clean ledger.`
+End with `<N> markers, <M> with no trigger.` Nothing found: `No shortcut
+debt. Clean ledger.`
 
 ## Boundaries
 
-Reads and reports only, changes nothing. To persist it, ask and it writes the
-ledger to a file (e.g. `PONYTAIL-DEBT.md`). One-shot.
+Reads and reports only, changes nothing. To persist it, ask first, then
+write the ledger to a file (e.g. `PONYTAIL-DEBT.md`). One-shot.
