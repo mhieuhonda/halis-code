@@ -222,8 +222,8 @@ export function deriveState(lines: string[], pattern: string[], eof: boolean): n
   if (!pattern.length) return -1
   const searchStart = eof ? Math.max(0, lines.length - pattern.length) : 0
   const searchEnd = eof ? lines.length - pattern.length : lines.length - pattern.length
-  for (const { name, fn } of compares) {
-    const normalized = name === 'trim' ? fn : fn
+  for (const { fn } of compares) {
+    const normalized = fn
     const p = pattern.map(normalized)
     for (let offset = Math.max(0, searchStart); offset <= Math.max(-1, searchEnd); offset++) {
       let ok = true
@@ -288,6 +288,15 @@ export function applyPatch(input: PatchApplyInput): PatchApplyResult {
       } else {
         const source = input.read(section.path)
         if (!source.exists) throw new Error(`File not found: ${section.path}`)
+        // Preserve the file's own line endings and trailing-newline state:
+        // rewriting a CRLF file with LF (and forcing a final newline) shows
+        // the WHOLE file as changed to git and breaks CRLF-sensitive tooling.
+        // edit_file already goes to great lengths to preserve these — the
+        // patch path must not be the odd one out.
+        const crlfCount = (source.content.match(/\r\n/g) ?? []).length
+        const loneLfCount = (source.content.match(/(?<!\r)\n/g) ?? []).length
+        const usedCrLf = crlfCount > loneLfCount
+        const hadTrailingNewline = source.content.length > 0 && /\r?\n$/.test(source.content)
         let lines = source.content.replace(/\r\n/g, '\n').split('\n')
         if (lines.length && lines[lines.length - 1] === '') lines.pop()
 
@@ -316,8 +325,8 @@ export function applyPatch(input: PatchApplyInput): PatchApplyResult {
         }
 
         const targetPath = section.moveTo ?? section.path
-        let content = lines.join('\n')
-        if (content) content += '\n'
+        let content = lines.join(usedCrLf ? '\r\n' : '\n')
+        if (content && hadTrailingNewline) content += usedCrLf ? '\r\n' : '\n'
         if (section.moveTo && section.moveTo !== section.path) {
           input.write(section.path, null)
           input.write(targetPath, content)

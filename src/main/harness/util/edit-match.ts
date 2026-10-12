@@ -94,7 +94,6 @@ export function fuzzyReplace(content: string, oldString: string, newString: stri
   // Tier 3 — line-based match (trailing whitespace differences tolerated).
   const strip = (s: string) => s.replace(/\s+$/, '')
   const oldLinesT = normalizeForMatch(oldString).split('\n')
-  const newLinesT = normalizeForMatch(newString).split('\n')
 
   const lineMatchesAt: number[] = []
   for (let i = 0; i + oldLinesT.length <= lines.length; i++) {

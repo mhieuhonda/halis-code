@@ -186,9 +186,21 @@ export class JobRegistry {
       // wait fire instantly — clamp a finite fallback instead.
       const requested = Number(timeoutMs ?? 30_000)
       const budget = Math.min(Math.max(Number.isFinite(requested) ? requested : 30_000, 1000), 600_000)
-      // A Stop press must settle the wait immediately, not park the turn for
-      // the full budget while every other agent has already finished.
-      await raceWithAbort(Promise.race([job.wait, new Promise((resolve) => setTimeout(resolve, budget))]), signal)
+      // The timer must die with the wait: when job.wait settles early the
+      // bare setTimeout keeps running for the whole budget (up to 10 min) —
+      // dozens of dangling timers per chatty turn.
+      let timer: NodeJS.Timeout | undefined
+      const budgetPromise = new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, budget)
+        if (typeof timer.unref === 'function') timer.unref()
+      })
+      try {
+        // A Stop press must settle the wait immediately, not park the turn for
+        // the full budget while every other agent has already finished.
+        await raceWithAbort(Promise.race([job.wait, budgetPromise]), signal)
+      } finally {
+        if (timer) clearTimeout(timer)
+      }
     }
 
     const text = job.chunks.join('')

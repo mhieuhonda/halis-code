@@ -4,14 +4,38 @@
  * and the full output is spilled to a file the model can re-read with
  * read_file. Applies a uniform context budget across all tools.
  */
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 export const TOOL_OUTPUT_MAX_LINES = 2_000
 export const TOOL_OUTPUT_MAX_BYTES = 50 * 1024
 
+/** Spill files older than this are pruned (the model re-reads them
+ * essentially immediately or never — nothing should grow unbounded inside
+ * the user's workspace for months). */
+const SPILL_MAX_AGE_MS = 48 * 60 * 60 * 1000
+
 let spillDir: string | null = null
 let counter = 0
+
+/** Best-effort pruning of stale spill files (every ~50 spills, not every write). */
+function pruneSpillDir(): void {
+  if (!spillDir) return
+  try {
+    const cutoff = Date.now() - SPILL_MAX_AGE_MS
+    for (const name of readdirSync(spillDir)) {
+      if (!name.endsWith('.txt')) continue
+      try {
+        const file = join(spillDir, name)
+        if (statSync(file).mtimeMs < cutoff) unlinkSync(file)
+      } catch {
+        /* raced away — fine */
+      }
+    }
+  } catch {
+    /* best effort */
+  }
+}
 
 export function setToolOutputSpillDir(dir: string): void {
   spillDir = dir
@@ -52,6 +76,7 @@ export function truncateToolOutput(output: string, toolCallId: string): Truncati
       const safeId = toolCallId.replace(/[^\w-]/g, '')
       spillPath = join(spillDir, `tool_${counter}_${Date.now().toString(36)}_${safeId}.txt`)
       writeFileSync(spillPath, output, 'utf8')
+      if (counter % 50 === 0) pruneSpillDir()
     } catch {
       spillPath = undefined
     }

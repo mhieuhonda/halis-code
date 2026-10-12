@@ -15,6 +15,16 @@ const MAX_READ_CHARS = 200_000
 const MAX_LS_ENTRIES = 500
 const IMAGE_MIMES: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp' }
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+/** Edit tools load the whole file synchronously on the main process — a
+ * multi-GB artifact would freeze (or OOM) the app before any matching. */
+const MAX_EDIT_BYTES = 8 * 1024 * 1024
+
+/** Number() + isFinite: "offset": "line 50" → NaN would slice(NaN, NaN) into a
+ * silently EMPTY result — the model would conclude the file is empty. */
+function toFiniteInt(value: unknown, fallback: number): number {
+  const n = Number(value)
+  return Number.isFinite(n) ? n : fallback
+}
 
 function rel(ws: string, p: string): string {
   const r = relative(ws, p)
@@ -76,11 +86,17 @@ export const readFileTool: ToolDef = {
     if (stat.isDirectory()) {
       return { output: `${String(args.path)} is a directory. Use list_dir instead.` }
     }
+    // FIFOs / sockets / devices: statSync reports them size 0, and a
+    // synchronous readFileSync would BLOCK the main process forever (open()
+    // waits for a writer that never comes — the whole UI dies).
+    if (!stat.isFile()) {
+      return { output: `Not a regular file: ${String(args.path)}.` }
+    }
     if (stat.size > 8 * 1024 * 1024) return { output: `File too large (${(stat.size / 1048576).toFixed(1)} MB).` }
     const content = readFileSync(path, 'utf8')
     const lines = content.split('\n')
-    const offset = Math.max(1, Number(args.offset ?? 1))
-    const limit = Math.min(Number(args.limit ?? 2000), 2000)
+    const offset = Math.max(1, toFiniteInt(args.offset, 1))
+    const limit = Math.min(toFiniteInt(args.limit, 2000), 2000)
     const slice = lines.slice(offset - 1, offset - 1 + limit)
     const numbered = slice.map((line, i) => `${offset + i}: ${line}`).join('\n')
     return {
@@ -148,7 +164,9 @@ export const writeFileTool: ToolDef = {
         // target path is an existing DIRECTORY — impossible to overwrite
         return { output: `${String(args.path)} is a directory — write to a file path inside it instead.` }
       }
-      const before = existed ? readFileSync(path, 'utf8') : ''
+      // `before` exists ONLY to report beforeChars — skip the read for huge
+      // files (a synchronous multi-GB load would freeze the main process).
+      const before = existed && statSync(path).size <= MAX_EDIT_BYTES ? readFileSync(path, 'utf8') : ''
       ensureWritableParent(path, ctx.workspace)
       const tmp = `${path}.halis-tmp`
       try {
@@ -203,6 +221,9 @@ export const editFileTool: ToolDef = {
     const mode = isLogLikePath(path) ? 'advisory' : 'hard'
     const lockResult = ctx.locks.acquire(path, ctx.agentId, ctx.agentName, mode)
     try {
+      if (statSync(path).size > MAX_EDIT_BYTES) {
+        return { output: `File too large to edit (${(statSync(path).size / 1048576).toFixed(1)} MB, cap 8 MB). Use run_command for targeted edits (grep/sed) instead.` }
+      }
       const content = readFileSync(path, 'utf8')
       const match = fuzzyReplace(content, oldString, newString, !!args.replace_all)
       // content === '' is a VALID result (an edit that empties the file) —
@@ -265,6 +286,9 @@ export const multiEditTool: ToolDef = {
     const mode = isLogLikePath(path) ? 'advisory' : 'hard'
     const lockResult = ctx.locks.acquire(path, ctx.agentId, ctx.agentName, mode)
     try {
+      if (statSync(path).size > MAX_EDIT_BYTES) {
+        return { output: `File too large to edit (${(statSync(path).size / 1048576).toFixed(1)} MB, cap 8 MB). Use run_command for targeted edits (grep/sed) instead.` }
+      }
       let content = readFileSync(path, 'utf8')
       const applied: Array<{ strategy: string; replacements: number }> = []
       for (let i = 0; i < edits.length; i++) {
@@ -355,7 +379,11 @@ export const readImageTool: ToolDef = {
   async execute(args, ctx): Promise<ToolResult> {
     const path = ctx.sandbox.safePath(String(args.path ?? ''))
     if (!existsSync(path)) return { output: `File not found: ${String(args.path)}` }
-    if (statSync(path).isDirectory()) return { output: `${String(args.path)} is a directory.` }
+    const stat = statSync(path)
+    if (stat.isDirectory()) return { output: `${String(args.path)} is a directory.` }
+    // A FIFO named "x.png" reports size 0 — readFileSync would block the
+    // main process forever. Only regular files are images.
+    if (!stat.isFile()) return { output: `Not a regular file: ${String(args.path)}.` }
     const ext = path.slice(path.lastIndexOf('.')).toLowerCase()
     const mime = IMAGE_MIMES[ext]
     if (!mime) return { output: `Unsupported image type "${ext || '(none)'}" — PNG, JPEG, GIF and WebP are supported.` }
