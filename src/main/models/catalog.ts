@@ -32,6 +32,11 @@ interface ModelsDevModel {
   modalities?: { output?: string[] }
 }
 
+/** Strip stray double quotes from generated/merged model ids. */
+function cleanModelToken(token: string): string {
+  return token.replace(/"/g, '').trim()
+}
+
 export class ModelCatalog {
   private snapshot: CatalogSnapshot
   private timer: NodeJS.Timeout | null = null
@@ -41,7 +46,10 @@ export class ModelCatalog {
   constructor() {
     this.snapshot = {
       providers: BUNDLED_PROVIDERS,
-      models: BUNDLED_MODELS,
+      // Guard against the generator double-quoting ids again: a quoted id
+      // would flow into API requests verbatim and every provider would
+      // reject it as an unknown model.
+      models: BUNDLED_MODELS.map((m) => ({ ...m, id: cleanModelToken(m.id), apiId: cleanModelToken(m.apiId) })),
       updatedAt: Date.now(),
       source: 'bundled',
     }
@@ -51,8 +59,10 @@ export class ModelCatalog {
     return this.snapshot
   }
 
+  /** Lookup tolerates quoted or whitespace-polluted ids from older saved configs. */
   getModel(id: string): ModelInfo | undefined {
-    return this.snapshot.models.find((m) => m.id === id)
+    const wanted = cleanModelToken(id)
+    return this.snapshot.models.find((m) => m.id === wanted)
   }
 
   getProvider(id: string): ProviderInfo | undefined {
@@ -155,7 +165,7 @@ export class ModelCatalog {
       for (const [modelKey, m] of Object.entries(fresh.models ?? {})) {
         if (m.status === 'deprecated') continue
         if (m.modalities?.output && !m.modalities.output.includes('text')) continue
-        const apiId = m.id ?? modelKey
+        const apiId = cleanModelToken(m.id ?? modelKey)
         const id = `${bundled.id}/${apiId}`
         if (seen.has(id)) continue
         seen.add(id)
