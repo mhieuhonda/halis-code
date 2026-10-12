@@ -11,6 +11,9 @@ import { ApprovalManager } from '@main/harness/approvals'
 import { TaskBoard } from '@main/harness/task-board'
 import { FileLockManager } from '@main/harness/file-locking'
 import { sanitize } from '@main/harness/mcp'
+import { cronNext } from '@main/harness/util/cron'
+import { extractMentions } from '@main/swarm/router'
+import { truncateToolOutput, TOOL_OUTPUT_MAX_BYTES } from '@main/harness/util/truncate'
 
 let ws: string
 let outside: string
@@ -163,5 +166,38 @@ describe('mcp qualified names', () => {
     const inputs = ['a', 'a_b', 'a.b', 'a-b', 'a__b', 'a  b', 'A.B', 'x/y', 'x_y']
     const outputs = inputs.map(sanitize)
     expect(new Set(outputs).size).toBe(outputs.length)
+  })
+})
+
+describe('round-2 fixes', () => {
+  it('cron matches explicit months at the right index (0 0 1 4 * → April)', () => {
+    // The old lookup (getMonth()+1) fired April jobs in March and left
+    // December unreachable / January never firing.
+    const from = new Date('2026-03-15T10:00:00')
+    const result = cronNext('0 0 1 4 *', from)
+    if ('error' in result) throw new Error(result.error)
+    expect(result.at.getFullYear()).toBe(2026)
+    expect(result.at.getMonth()).toBe(3) // April, not March
+    expect(result.at.getDate()).toBe(1)
+  })
+
+  it('cron reaches December (0 0 1 12 * fires on Dec 1, not November)', () => {
+    const result = cronNext('0 0 1 12 *', new Date('2026-03-15T10:00:00'))
+    if ('error' in result) throw new Error(result.error)
+    expect(result.at.getMonth()).toBe(11)
+    expect(result.at.getDate()).toBe(1)
+  })
+
+  it('extractMentions strips punctuation prefixes ("(@Rin" → "Rin")', () => {
+    expect(extractMentions('(@Rin and **@Kai** review this)')).toEqual(['Rin', 'Kai'])
+    expect(extractMentions('"@Vega", ship it.')).toEqual(['Vega'])
+    expect(extractMentions('plain @Alpha @Beta.')).toEqual(['Alpha', 'Beta'])
+    expect(extractMentions('mail me a@b.com')).toEqual([])
+  })
+
+  it('truncateToolOutput budgets bytes, not UTF-16 units', () => {
+    const cjk = '漢'.repeat(TOOL_OUTPUT_MAX_BYTES) // 3 bytes per char ≈ 3x the cap
+    expect(truncateToolOutput(cjk, 'test').truncated).toBe(true)
+    expect(truncateToolOutput('a'.repeat(TOOL_OUTPUT_MAX_BYTES), 'test').truncated).toBe(false)
   })
 })
