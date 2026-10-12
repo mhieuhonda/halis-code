@@ -103,7 +103,7 @@ export interface IpcApi {
   modelKeyStatus(): Record<string, boolean>
   modelSaveKey(providerId: string, key: string): { ok: boolean; error?: string }
   modelRemoveKey(providerId: string): void
-  modelTestKey(modelId: string): { ok: boolean; detail: string }
+  modelTestKey(modelId: string, keyOverride?: string): { ok: boolean; detail: string }
   modelValidateAgentKey(candidate: {
     apiKey: string
     modelId: string

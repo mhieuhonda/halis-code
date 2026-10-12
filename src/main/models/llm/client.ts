@@ -29,8 +29,9 @@ export class LlmDispatcher {
 
   /**
    * Explicit key overrides the vault (used by per-agent keys in Swarm).
-   * Pass an empty string to force "no key" (swarm model changes require
-   * re-entering the key — no silent vault fallback there).
+   * A blank/whitespace override (e.g. a swarm agent with no per-agent key)
+   * falls through to the vault, so a key saved once in Models & Keys works
+   * for every agent on that provider without re-entering it.
    */
   resolve(modelId: string, keyOverride?: string): ProviderResolution {
     const { providers, models } = this.getCatalog()
@@ -38,7 +39,8 @@ export class LlmDispatcher {
     if (!model) throw new LlmError(`Unknown model: ${modelId}. Only models shipped with the app can be used.`, undefined, 'catalog')
     const providerInfo = providers.find((p) => p.id === model.providerId)
     if (!providerInfo) throw new LlmError(`Unknown provider: ${model.providerId}`, undefined, 'catalog')
-    const key = keyOverride !== undefined ? keyOverride : this.lookupKey(model.providerId)
+    const explicit = keyOverride?.trim()
+    const key = explicit ? explicit : this.lookupKey(model.providerId)
     if (!providerInfo.keyless && !key) {
       throw new LlmError(`No API key set for ${providerInfo.name}. Open Models & Keys to add one (${providerInfo.envKey ?? 'API key'}).`, undefined, providerInfo.id)
     }

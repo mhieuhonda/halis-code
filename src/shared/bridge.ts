@@ -36,7 +36,7 @@ export interface HalisBridge {
   modelKeyStatus(): Promise<Record<string, boolean>>
   modelSaveKey(providerId: string, key: string): Promise<{ ok: boolean }>
   modelRemoveKey(providerId: string): Promise<void>
-  modelTestKey(modelId: string): Promise<{ ok: boolean; detail: string }>
+  modelTestKey(modelId: string, keyOverride?: string): Promise<{ ok: boolean; detail: string }>
   modelValidateAgentKey(candidate: { apiKey: string; modelId: string; agentId: string; existingAgents: AgentConfig[] }): Promise<{ conflict: boolean; agentName?: string; message: string }>
 
   /* sessions */

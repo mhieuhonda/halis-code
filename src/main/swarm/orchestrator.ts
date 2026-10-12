@@ -29,6 +29,7 @@ import type { McpManager } from '../harness/mcp'
 import { buildSystemPrompt } from './prompts'
 import { ponytailSection } from '../harness/ponytail'
 import { parseAgentReply, routeNext } from './router'
+import { raceWithAbort } from '../harness/util/abort-race'
 
 export interface SwarmDeps {
   dispatcher: LlmDispatcher
@@ -83,7 +84,7 @@ export class SwarmOrchestrator {
     }
   }
 
-  private toolContextFor(agent: AgentConfig, session: Session, allAgents: AgentConfig[], messageId: string, outbox: ChatMessage[]): ToolContext {
+  private toolContextFor(agent: AgentConfig, session: Session, allAgents: AgentConfig[], messageId: string, outbox: ChatMessage[], signal?: AbortSignal): ToolContext {
     const settings = this.deps.getSettings()
     return {
       sandbox: this.deps.sandbox,
@@ -107,8 +108,10 @@ export class SwarmOrchestrator {
           ...this.agentMessageBase(session, agent),
           streaming: false,
           content,
+          // `to` carries resolved agent ids; `mentions` keeps the raw names
+          // so routeNext (a name-based resolver) can re-resolve them.
           to: mentioned,
-          mentions: mentioned,
+          mentions: to.map((n) => n.trim().replace(/^@+/, '')),
         }
         outbox.push(message)
       },
@@ -118,12 +121,16 @@ export class SwarmOrchestrator {
       todos: this.deps.todoFor(session.id, this.deps.emit),
       settings: { tavilyApiKey: settings.tavilyApiKey },
       askUser: (questions) =>
-        this.deps.askUser(questions as QuestionPrompt[], {
-          sessionId: session.id,
-          agentId: agent.id,
-          agentName: agent.name,
-          agentColor: agent.color,
-        }),
+        raceWithAbort(
+          this.deps.askUser(questions as QuestionPrompt[], {
+            sessionId: session.id,
+            agentId: agent.id,
+            agentName: agent.name,
+            agentColor: agent.color,
+          }),
+          signal,
+        ),
+      signal,
       delegationDepth: 1,
     }
   }
@@ -203,14 +210,25 @@ export class SwarmOrchestrator {
             roundMessages.push(...outbox, message)
           } catch (err) {
             const error = err instanceof Error ? err.message : String(err)
-            const failMessage: ChatMessage = {
-              ...this.agentMessageBase(session, agent),
-              streaming: false,
-              to: ['user'],
-              content: '',
-              error: `Agent failed: ${error}`,
+            // Surface the failure on the streaming placeholder the agent may
+            // already have pushed (runOneAgent pushes before running) instead
+            // of creating a second, orphaned bubble for the same agent.
+            const ghost = [...session.messages].reverse().find((m) => m.from === agent.id && m.streaming)
+            if (ghost) {
+              ghost.streaming = false
+              ghost.error = `Agent failed: ${error}`
+              roundMessages.push(ghost)
+              this.deps.emit({ type: 'message-done', sessionId: session.id, messageId: ghost.id, message: ghost })
+            } else {
+              const failMessage: ChatMessage = {
+                ...this.agentMessageBase(session, agent),
+                streaming: false,
+                to: ['user'],
+                content: '',
+                error: `Agent failed: ${error}`,
+              }
+              roundMessages.push(failMessage)
             }
-            roundMessages.push(failMessage)
           } finally {
             this.deps.emit({ type: 'typing', sessionId: session.id, agentId, agentName: agent.name, isTyping: false })
           }
@@ -220,8 +238,11 @@ export class SwarmOrchestrator {
       if (!roundMessages.length) break
 
       // Persist + index the round's messages, oldest first for stable routing.
+      // runOneAgent already pushed its own streaming message into
+      // session.messages — dedupe by identity so replies are stored once.
       roundMessages.sort((a, b) => a.createdAt - b.createdAt)
-      session.messages.push(...roundMessages)
+      const fresh = roundMessages.filter((m) => !session.messages.includes(m))
+      session.messages.push(...fresh)
       produced.push(...roundMessages)
       outboxAll.push(...roundMessages)
       this.deps.persistSession(session)
@@ -233,6 +254,14 @@ export class SwarmOrchestrator {
         if (message.role !== 'assistant' || message.from === 'system') continue
         const next = routeNext({ message, agents, plannerId: undefined, alreadySpoke })
         for (const id of next.toRun) nextTargets.add(id)
+      }
+      // When the planner ran alone this round, the agents the user (or the
+      // routing) originally asked for must not be silently dropped — carry
+      // them forward unless they already spoke this turn.
+      if (batch.length === 1 && batch[0] === planner?.id) {
+        for (const id of decision.toRun) {
+          if (id !== planner.id && (speakBudget.get(id) ?? 0) > 0) nextTargets.add(id)
+        }
       }
       decision = { toRun: [...nextTargets], unknownMentions: [] }
     }
@@ -279,13 +308,15 @@ export class SwarmOrchestrator {
       ponytailSection: settings.ponytailEnabled ? ponytailSection() : undefined,
     })
 
-    const toolContext = this.toolContextFor(agent, session, allAgents, message.id, outbox)
+    const toolContext = this.toolContextFor(agent, session, allAgents, message.id, outbox, signal)
     const result = await this.runner.runTurn(
       {
         sessionId: session.id,
         messageId: message.id,
         modelId: agent.modelId,
-        apiKey: agent.apiKey,
+        // A blank per-agent key means "use the provider key saved in the
+        // vault" — pass undefined, not '', or the vault would be skipped.
+        apiKey: agent.apiKey?.trim() || undefined,
         systemPrompt,
         history,
         swarm: true,

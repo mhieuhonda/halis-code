@@ -19,7 +19,7 @@ const api: HalisBridge = {
   modelKeyStatus: () => ipcRenderer.invoke(IPC.modelKeyStatus),
   modelSaveKey: (providerId, key) => ipcRenderer.invoke(IPC.modelSaveKey, providerId, key),
   modelRemoveKey: (providerId) => ipcRenderer.invoke(IPC.modelRemoveKey, providerId),
-  modelTestKey: (modelId) => ipcRenderer.invoke(IPC.modelTestKey, modelId),
+  modelTestKey: (modelId, keyOverride) => ipcRenderer.invoke(IPC.modelTestKey, modelId, keyOverride),
   modelValidateAgentKey: (candidate) => ipcRenderer.invoke(IPC.modelValidateAgentKey, candidate),
 
   /* sessions */

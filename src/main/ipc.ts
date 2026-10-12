@@ -64,7 +64,7 @@ export function registerIpc(app: HalisApp, getWindow: () => BrowserWindow | null
     return { ok: true }
   })
   ipcMain.handle(IPC.modelRemoveKey, (_e, providerId: string) => app.vault.remove(providerId))
-  ipcMain.handle(IPC.modelTestKey, async (_e, modelId: string) => app.dispatcher.testModel(modelId))
+  ipcMain.handle(IPC.modelTestKey, async (_e, modelId: string, keyOverride?: string) => app.dispatcher.testModel(modelId, keyOverride))
   ipcMain.handle(IPC.modelValidateAgentKey, (_e, candidate: { apiKey: string; modelId: string; agentId: string; existingAgents: Array<{ id: string; name: string; modelId: string; apiKey?: string }> }) => {
     if (!candidate.apiKey) return { conflict: false, message: 'No key entered yet.' }
     for (const other of candidate.existingAgents ?? []) {
@@ -153,18 +153,20 @@ export function registerIpc(app: HalisApp, getWindow: () => BrowserWindow | null
   ipcMain.handle(IPC.tgCreateWallet, () => {
     requireTelegraph()
     const wallet = createBurnerWallet()
-    app.updateSettings({ telegraph: { ...getSettings().telegraph, privateKey: wallet.privateKey } })
+    // The key lives in the OS-keychain-encrypted vault — settings.json never
+    // holds wallet secrets.
+    app.walletKeySet(wallet.privateKey)
     return wallet
   })
   ipcMain.handle(IPC.tgImportWallet, (_e, privateKey: string) => {
     requireTelegraph()
     const wallet = importWallet(privateKey)
-    app.updateSettings({ telegraph: { ...getSettings().telegraph, privateKey: wallet.privateKey } })
+    app.walletKeySet(wallet.privateKey)
     return { address: wallet.address }
   })
   ipcMain.handle(IPC.tgExportWallet, () => {
     requireTelegraph()
-    const key = getSettings().telegraph.privateKey
+    const key = app.walletKey()
     return key ? { privateKey: key } : null
   })
   ipcMain.handle(IPC.tgMiners, () => {

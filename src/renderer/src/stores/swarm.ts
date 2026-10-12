@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import type { AgentConfig, AgentRole, SwarmConfig } from '@shared/types'
 import { bridge } from '../lib/ipc'
 import { translate } from '../i18n'
+import { useAppStore } from './app'
 
 interface SwarmState {
   config: SwarmConfig
@@ -78,10 +79,19 @@ export const useSwarmStore = create<SwarmState>((set, get) => ({
         agents: state.config.agents.map((a) => {
           if (a.id !== id) return a
           const next = { ...a, ...patch }
-          // Rule: changing the model clears the key — it must be re-entered.
+          // Changing the model clears the key only when the PROVIDER changes —
+          // models from the same provider share one vault key, so switching
+          // between them must not force re-entry (same provider = same key).
           if (patch.modelId !== undefined && patch.modelId !== a.modelId) {
-            next.apiKey = ''
-            next.duplicateKeyAck = false
+            const providerOf = (modelId: string) => {
+              const catalog = useAppStore.getState().catalog
+              const model = catalog?.models.find((m) => m.id === modelId)
+              return model?.providerId
+            }
+            if (providerOf(patch.modelId) !== providerOf(a.modelId)) {
+              next.apiKey = ''
+              next.duplicateKeyAck = false
+            }
           }
           // Prompt follows the role unless the user edited it manually —
           // regenerating is explicit, so switching role keeps the old text

@@ -45,6 +45,7 @@ import { extractMentions, resolveMentions } from './swarm/router'
 import { SWARM_ROLES } from './swarm/roles'
 import { readJson, writeJson } from './util/json'
 import { newId } from './util/id'
+import { raceWithAbort } from './harness/util/abort-race'
 import { SessionStore } from './sessions/store'
 import { getNetwork } from './telegraph/config'
 import { ReceiptLedger } from './telegraph/receipts'
@@ -71,6 +72,13 @@ export class HalisApp {
   private pendingReminders = new Map<string, Schedule[]>()
   /** Background-job completion notices waiting for the session's next turn. */
   private pendingJobNotices = new Map<string, string[]>()
+  /**
+   * In-memory session objects of turns currently running. A turn keeps
+   * mutating its own copy and overwrites the session file on every save —
+   * anything delivered mid-turn (job notes) must go into THIS object, not
+   * into a fresh parse, or the next save erases it.
+   */
+  private liveSessions = new Map<string, Session>()
   private broadcaster: ((event: HarnessEvent) => void) | null = null
   private swarmConfig: SwarmConfig | null = null
 
@@ -80,6 +88,7 @@ export class HalisApp {
     this.ledger = new ReceiptLedger(paths.receiptsFile)
     setToolOutputSpillDir(paths.toolOutputDir)
     this.schedules = new ScheduleStore(paths.userData)
+    this.migrateTelegraphKey()
 
     this.approvals.setHooks({
       onRequest: (request) => this.emit({ type: 'approval-request', request }),
@@ -118,6 +127,37 @@ export class HalisApp {
   }
 
   /* ------------------------- Telegraph master switch ------------------------- */
+
+  /** Vault id holding the Telegraph burner wallet private key. */
+  static readonly TELEGRAPH_WALLET_VAULT_ID = 'telegraph-wallet'
+
+  /**
+   * One-time migration: the wallet key used to live in plaintext
+   * settings.json — move it into the OS-keychain-encrypted vault and scrub
+   * the plaintext copy. Idempotent: a migrated install has no key left in
+   * settings.
+   */
+  private migrateTelegraphKey(): void {
+    try {
+      const settings = getSettings()
+      const plain = settings.telegraph.privateKey?.trim()
+      if (plain) {
+        this.vault.set(HalisApp.TELEGRAPH_WALLET_VAULT_ID, plain)
+        setSettings({ telegraph: { ...settings.telegraph, privateKey: undefined } })
+      }
+    } catch (err) {
+      console.warn('[halis] telegraph key migration failed:', err)
+    }
+  }
+
+  /** The wallet key now lives (encrypted) in the vault, never in settings. */
+  walletKey(): string | undefined {
+    return this.vault.get(HalisApp.TELEGRAPH_WALLET_VAULT_ID)
+  }
+
+  walletKeySet(privateKey: string): void {
+    this.vault.set(HalisApp.TELEGRAPH_WALLET_VAULT_ID, privateKey)
+  }
 
   /** Register or unregister every telegraph_* tool based on the Settings switch. */
   applyTelegraphEnabled(): void {
@@ -216,6 +256,10 @@ export class HalisApp {
       this.sandbox = createSandbox(ws)
       this.taskBoard = new TaskBoard(paths.taskBoardFile(ws), this.locks)
       this.taskBoard.setHooks({ onChanged: (tasks) => this.emit({ type: 'task-board-changed', tasks }) })
+      // Spill truncated tool outputs INSIDE the workspace: the marker tells
+      // the model to read_file the path, and read_file is jailed to the
+      // workspace — a userData path would be permanently unreadable.
+      setToolOutputSpillDir(join(ws, '.halis', 'tool-outputs'))
     } catch (err) {
       console.warn('[halis] workspace init failed:', err)
     }
@@ -232,7 +276,7 @@ export class HalisApp {
     const network = getNetwork(settings.telegraph.networkId)
     return {
       enabled: settings.telegraphEnabled !== false,
-      privateKey: settings.telegraph.privateKey,
+      privateKey: this.walletKey(),
       network,
       autoApproveUpTo: settings.telegraph.autoApproveUpTo,
       dailyBudgetUsd: settings.telegraph.dailyBudgetUsd,
@@ -288,6 +332,7 @@ export class HalisApp {
     try {
       const session = this.sessions.get(schedule.sessionId)
       if (!session) return
+      this.liveSessions.set(schedule.sessionId, session)
       const reminderMessage: ChatMessage = {
         id: newId('msg'),
         sessionId: session.id,
@@ -311,8 +356,20 @@ export class HalisApp {
       }
     } finally {
       this.running.delete(schedule.sessionId)
+      this.liveSessions.delete(schedule.sessionId)
       this.approvals.rejectAllForSession(schedule.sessionId)
       if (![...this.running.keys()].some((id) => id.split(':')[0] !== schedule.sessionId)) this.locks.clear()
+    }
+    // Fire reminders that queued while THIS reminder turn was running —
+    // send() only drains the queue for user-initiated turns, so without
+    // this a recurring reminder firing mid-turn would be lost until the
+    // user happened to message the session again.
+    const queued = this.pendingReminders.get(schedule.sessionId)
+    if (queued?.length) {
+      this.pendingReminders.delete(schedule.sessionId)
+      for (const next of queued) {
+        await this.runReminderTurn(next)
+      }
     }
   }
 
@@ -327,8 +384,10 @@ export class HalisApp {
     queue.push(note)
     this.pendingJobNotices.set(sessionId, queue)
     // Surface the note immediately as a system message so the user sees why
-    // the next reply suddenly talks about a background job.
-    const session = this.sessions.get(sessionId)
+    // the next reply suddenly talks about a background job. Route into the
+    // live turn's session object when one is running — the turn's own saves
+    // would otherwise overwrite this note away.
+    const session = this.liveSessions.get(sessionId) ?? this.sessions.get(sessionId)
     if (!session) return
     const noteMessage: ChatMessage = {
       id: newId('msg'),
@@ -400,6 +459,7 @@ export class HalisApp {
 
     const controller = new AbortController()
     this.running.set(sessionId, controller)
+    this.liveSessions.set(sessionId, session)
 
     try {
       // Deliver background-job notices queued while no turn was running —
@@ -468,6 +528,7 @@ export class HalisApp {
       return { ok: false, error: message }
     } finally {
       this.running.delete(sessionId)
+      this.liveSessions.delete(sessionId)
       // Scope the cleanup to THIS session: another session's turn may be
       // running concurrently with its own approval cards and file locks.
       this.approvals.rejectAllForSession(sessionId)
@@ -576,6 +637,12 @@ export class HalisApp {
                 return { output: result.text || '(sub-agent finished with no output)' }
               } finally {
                 this.running.delete(`${session.id}:sub`)
+                // Sub turns run under `${session.id}:sub` — cleanup scoped to
+                // the plain id never touches their pending approval cards.
+                // Without this, an aborted delegation leaves ghost cards that
+                // survive the whole turn (and write junk always-rules if
+                // clicked).
+                this.approvals.rejectAllForSession(`${session.id}:sub`)
               }
             },
     }
@@ -731,7 +798,9 @@ export class HalisApp {
           agentColor: ctx.agentColor,
           questions,
         })
-        return wait
+        // Stop must settle swarm question cards too — an unresolved wait
+        // parks the whole turn and the session stays "running" forever.
+        return raceWithAbort(wait, controller.signal)
       },
       getSettings: () => getSettings(),
       telegraph: this.telegraphDeps(),
@@ -751,7 +820,13 @@ export class HalisApp {
       this.swarmConfig = {
         maxRounds: loaded.maxRounds ?? 4,
         plannerCoordination: loaded.plannerCoordination ?? true,
-        agents: (loaded.agents ?? []).slice(0, 20),
+        agents: (loaded.agents ?? []).slice(0, 20).map((a) => ({
+          ...a,
+          // Older builds saved model ids wrapped in literal double quotes
+          // (a generator bug). Clean them so catalog lookups match again.
+          modelId: a.modelId?.replace(/"/g, '').trim() ?? a.modelId,
+          apiKey: a.apiKey?.trim() || undefined,
+        })),
       }
     }
     return this.swarmConfig
@@ -781,8 +856,10 @@ export class HalisApp {
       if (!model) errors.push(`${agent.name}: model "${agent.modelId}" is not in the app's model list. Pick one from the list.`)
       else {
         const provider = modelCatalog.getProvider(model.providerId)
-        if (!provider?.keyless && !agent.apiKey) {
-          errors.push(`${agent.name}: API key required for ${model.name}.`)
+        // A provider key saved in the vault satisfies the requirement —
+        // a per-agent key is only one of the two valid sources.
+        if (provider && !provider.keyless && !agent.apiKey?.trim() && !this.vault.has(provider.id)) {
+          errors.push(`${agent.name}: API key required for ${model.name}. Save it once in Models & Keys, or enter it for this agent.`)
         }
       }
       // Duplicate-key rule: same key on two different models → warn.
@@ -828,9 +905,10 @@ export class HalisApp {
         spentTotalUsd: 0,
       }
     }
-    const address = settings.telegraph.privateKey ? walletAddress(settings.telegraph.privateKey) : undefined
+    const key = this.walletKey()
+    const address = key ? walletAddress(key) : undefined
     const [balance, ping] = await Promise.all([
-      address ? usdcBalance(settings.telegraph.privateKey!, network) : Promise.resolve('0'),
+      address ? usdcBalance(key!, network) : Promise.resolve('0'),
       pingNode(network),
     ])
     let intentCount = 0
@@ -861,7 +939,7 @@ export class HalisApp {
     if (!this.telegraphEnabled()) throw new TelegraphDisabledError()
     const settings = getSettings()
     const network = getNetwork(settings.telegraph.networkId)
-    const result = await askTelegraph({ query, privateKey: settings.telegraph.privateKey ?? '', network })
+    const result = await askTelegraph({ query, privateKey: this.walletKey() ?? '', network })
     if (result.receipt) {
       const receipt = this.ledger.append({ ...result.receipt, signalHash: result.signalHash }, network, query)
       this.emit({ type: 'receipt', sessionId: sessionId ?? '', receipt })

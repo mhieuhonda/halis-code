@@ -12,6 +12,7 @@ function AgentCard({ agent, index }: { agent: AgentConfig; index: number }) {
   const t = useT()
   const { updateAgent, removeAgent, regeneratePrompt, roles } = useSwarmStore()
   const catalog = useAppStore((s) => s.catalog)
+  const keyStatus = useAppStore((s) => s.keyStatus)
   const [expanded, setExpanded] = useState(index < 2)
   const [keyDraft, setKeyDraft] = useState(agent.apiKey ?? '')
   const [dupWarn, setDupWarn] = useState<{ agentName: string; message: string } | null>(null)
@@ -20,8 +21,17 @@ function AgentCard({ agent, index }: { agent: AgentConfig; index: number }) {
   const model = catalog?.models.find((m) => m.id === agent.modelId)
   const provider = catalog?.providers.find((p) => p.id === model?.providerId)
   const needsKey = !!provider && !provider.keyless
+  // A provider key saved in Models & Keys covers this agent until a
+  // per-agent key is entered — no forced re-entry in the swarm setup.
+  const vaultHasKey = !!provider && !!(keyStatus[provider.id] ?? false)
   const role = roles.find((r) => r.id === agent.roleId)
   const language = useAppStore((s) => s.settings?.language ?? 'en')
+
+  // Keep the draft in sync when the saved key changes from elsewhere
+  // (config reload, model switch resetting it, …).
+  useEffect(() => {
+    setKeyDraft(agent.apiKey ?? '')
+  }, [agent.apiKey])
 
   const saveKey = async () => {
     const trimmed = keyDraft.trim()
@@ -41,7 +51,9 @@ function AgentCard({ agent, index }: { agent: AgentConfig; index: number }) {
 
   const testKey = async () => {
     setKeyState('testing')
-    const result = (await window.halis.modelTestKey(agent.modelId)) as { ok: boolean; detail: string }
+    // Test with the exact key the agent will actually use at runtime:
+    // its own key when present, otherwise the provider's vault key.
+    const result = (await window.halis.modelTestKey(agent.modelId, agent.apiKey?.trim() || undefined)) as { ok: boolean; detail: string }
     setKeyState(result.ok ? 'ok' : 'bad')
   }
 
@@ -67,9 +79,10 @@ function AgentCard({ agent, index }: { agent: AgentConfig; index: number }) {
           />
           <div className="flex items-center gap-1.5 px-1 flex-wrap">
             <Badge color={agent.color}>{role ? (language === 'vi' ? role.nameVi : role.name) : agent.roleId}</Badge>
-            <span className="text-[10.5px] text-faint font-mono truncate">{agent.modelId.split('/').pop()}</span>
-            {needsKey && !agent.apiKey ? <Badge color="#FBBF24">{t('key_needed')}</Badge> : null}
+            <span className="text-[10.5px] text-faint font-mono truncate">{agent.modelId.split('/').pop()?.replace(/"/g, '')}</span>
+            {needsKey && !agent.apiKey && !vaultHasKey ? <Badge color="#FBBF24">{t('key_needed')}</Badge> : null}
             {needsKey && agent.apiKey ? <Badge color="#4ADE80">{t('key_saved')}</Badge> : null}
+            {needsKey && !agent.apiKey && vaultHasKey ? <Badge color="#38BDF8">✓ key</Badge> : null}
           </div>
         </div>
         <Toggle checked={agent.enabled} onChange={(v) => updateAgent(agent.id, { enabled: v })} />
@@ -165,7 +178,7 @@ function AgentCard({ agent, index }: { agent: AgentConfig; index: number }) {
                 <Input
                   type="password"
                   value={keyDraft}
-                  placeholder={t('enter_key')}
+                  placeholder={vaultHasKey ? t('key_placeholder_vault') : t('enter_key')}
                   onChange={(e) => setKeyDraft(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') void saveKey()
@@ -174,7 +187,7 @@ function AgentCard({ agent, index }: { agent: AgentConfig; index: number }) {
                 <Button size="sm" onClick={() => void saveKey()} disabled={!keyDraft.trim()}>
                   <Check size={13} /> {t('save')}
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => void testKey()} disabled={!agent.apiKey}>
+                <Button size="sm" variant="ghost" onClick={() => void testKey()} disabled={!agent.apiKey && !vaultHasKey}>
                   {keyState === 'testing' ? t('testing') : t('test_model')}
                 </Button>
               </div>
@@ -183,6 +196,8 @@ function AgentCard({ agent, index }: { agent: AgentConfig; index: number }) {
                   <span className="text-[11px] text-good">
                     ✓ {t('key_saved')} · {agent.apiKey.slice(0, 4)}…{agent.apiKey.slice(-4)}
                   </span>
+                ) : vaultHasKey ? (
+                  <span className="text-[11px] text-cyan">✓ {t('agent_key_vault')}</span>
                 ) : (
                   <span className="text-[11px] text-amber">{t('agent_key_reenter')}</span>
                 )}
@@ -270,19 +285,27 @@ function AgentCard({ agent, index }: { agent: AgentConfig; index: number }) {
 export function SwarmSetupView() {
   const t = useT()
   const swarm = useSwarmStore()
+  const keyStatus = useAppStore((s) => s.keyStatus)
+  const loadKeyStatus = useAppStore((s) => s.loadKeyStatus)
   const [errors, setErrors] = useState<string[]>([])
   const [saved, setSaved] = useState(false)
   const [warnings, setWarnings] = useState<string[]>([])
 
   useEffect(() => {
     if (!swarm.loaded) void swarm.load()
+    // Refresh the vault status so agents already covered by a saved provider
+    // key are not flagged as missing keys.
+    void loadKeyStatus()
   }, [swarm.loaded])
 
   const missingKeys = swarm.config.agents.filter((a) => {
-    // cheap check: provider known from catalog
+    // Cheap check: provider known from catalog; a key saved in the vault for
+    // that provider satisfies the requirement, same as a per-agent key.
     const model = useAppStore.getState().catalog?.models.find((m) => m.id === a.modelId)
     const provider = useAppStore.getState().catalog?.providers.find((p) => p.id === model?.providerId)
-    return !!provider && !provider.keyless && !a.apiKey
+    if (!provider || provider.keyless) return false
+    if (a.apiKey?.trim()) return false
+    return !(keyStatus[provider.id] ?? false)
   }).length
 
   const save = async () => {
@@ -296,7 +319,6 @@ export function SwarmSetupView() {
       setTimeout(() => setSaved(false), 1800)
     }
   }
-
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-3xl mx-auto px-6 py-6">
