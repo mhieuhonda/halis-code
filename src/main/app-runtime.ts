@@ -36,6 +36,7 @@ import { JobRegistry } from './harness/jobs'
 import { ScheduleStore, type Schedule } from './harness/schedules'
 import { McpManager, type McpToolInfo } from './harness/mcp'
 import { discoverSkills } from './harness/skills'
+import { ponytailSection } from './harness/ponytail'
 import { planCompaction, olderToTranscript, summarizeRequest, looksLikeSummary } from './harness/compaction'
 import { setToolOutputSpillDir } from './harness/util/truncate'
 import { SwarmOrchestrator } from './swarm/orchestrator'
@@ -502,7 +503,7 @@ export class HalisApp {
                 })
                 subContext.todos = new TodoStore(`${session.id}:sub`, input.emit)
                 delete (subContext as { askUser?: unknown }).askUser
-                const systemPrompt = `${buildSingleAgentPrompt(sandbox.workspace, getSettings().language, taskBoard?.renderForPrompt(), this.skillsSummary(), getSettings().telegraphEnabled !== false)}\n\nYou are a SUB-AGENT spawned for one focused task: "${task.description}". Work autonomously and end with a complete final report — your reply is returned verbatim to the parent agent.`
+                const systemPrompt = `${buildSingleAgentPrompt(sandbox.workspace, getSettings().language, taskBoard?.renderForPrompt(), this.skillsSummary(), getSettings().telegraphEnabled !== false, getSettings().ponytailEnabled ? ponytailSection() : undefined)}\n\nYou are a SUB-AGENT spawned for one focused task: "${task.description}". Work autonomously and end with a complete final report — your reply is returned verbatim to the parent agent.`
                 const history: LlmMessage[] = [{ role: 'user', content: task.prompt }]
                 const runner = new AgentRunner(this.dispatcher, this.registry)
                 const result = await runner.runTurn(
@@ -596,7 +597,7 @@ export class HalisApp {
     this.emit({ type: 'message-start', sessionId: session.id, message: assistantMessage })
 
     const history = transcriptFromSession(session.messages, assistantMessage.id)
-    const systemPrompt = buildSingleAgentPrompt(this.effectiveWorkspace(), settings.language, taskBoard.renderForPrompt(), this.skillsSummary(), settings.telegraphEnabled !== false)
+    const systemPrompt = buildSingleAgentPrompt(this.effectiveWorkspace(), settings.language, taskBoard.renderForPrompt(), this.skillsSummary(), settings.telegraphEnabled !== false, settings.ponytailEnabled ? ponytailSection() : undefined)
     const runner = new AgentRunner(this.dispatcher, this.registry)
     const toolContext = this.baseToolContext({
       session,

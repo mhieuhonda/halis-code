@@ -233,6 +233,8 @@ export const en = {
   settings_restart_note: 'Some changes apply to the next turn.',
   settings_telegraph_toggle: 'Telegraph Protocol',
   settings_telegraph_toggle_hint: 'Master switch for the paid-intelligence network: the agents\' Telegraph tools, the Telegraph tab, the burner wallet and on-chain receipts. Turning it off pauses every Telegraph feature and keeps your wallet and history safe; turning it on restores everything.',
+  settings_ponytail: 'PonyTail',
+  settings_ponytail_hint: 'Inject the six bundled Ponytail skills (lazy senior-dev rules, code review, repo audit, shortcut debt, impact scoreboard, help) verbatim into the agent system prompt — full text, not an on-demand skill. Turn it off to remove them.',
 
   /* shell / palette */
   nav_go: 'Go to',

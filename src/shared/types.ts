@@ -489,6 +489,11 @@ export interface AppSettings {
   telegraphEnabled: boolean
   /** Master switch: auto-approve everything (demo mode). Off by default. */
   autoApproveAll: boolean
+  /**
+   * PonyTail pack: inject the six bundled ponytail SKILL.md files
+   * (resources/ponytail/) verbatim into the agent system prompt.
+   */
+  ponytailEnabled: boolean
   /** MCP servers the harness connects to (opencode/deepseek-style). */
   mcpServers: McpServerConfig[]
   /** Optional Tavily key; without it web_search uses the keyless DuckDuckGo backend. */

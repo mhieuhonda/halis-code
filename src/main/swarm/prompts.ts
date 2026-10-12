@@ -94,8 +94,10 @@ export function buildSystemPrompt(params: {
   taskBoardSummary?: string
   skillsSummary?: string
   telegraphEnabled?: boolean
+  /** Full text of the bundled ponytail skills, when the Settings toggle is on. */
+  ponytailSection?: string
 }): string {
-  const { agent, allAgents, swarm, workspace, language, taskBoardSummary, skillsSummary, telegraphEnabled } = params
+  const { agent, allAgents, swarm, workspace, language, taskBoardSummary, skillsSummary, telegraphEnabled, ponytailSection } = params
   const role = roleById(agent.roleId)
   const base = agent.systemPrompt?.trim() || (language === 'vi' ? role.promptVi : role.prompt)
 
@@ -104,6 +106,7 @@ export function buildSystemPrompt(params: {
   sections.push(harnessRules(workspace, language))
   if (taskBoardSummary) sections.push(`# Task board\n${taskBoardSummary}`)
   if (skillsSummary) sections.push(`# Available skills\n${skillsSummary}`)
+  if (ponytailSection) sections.push(`# Ponytail skills (injected via Settings > PonyTail)\n${ponytailSection}`)
   if (telegraphEnabled !== false) {
     sections.push(
       language === 'vi'
@@ -121,6 +124,7 @@ export function buildSingleAgentPrompt(
   taskBoardSummary?: string,
   skillsSummary?: string,
   telegraphEnabled?: boolean,
+  ponytailSection?: string,
 ): string {
   const en = `You are Halis, the coding agent of the Halis Code desktop app. You help the user build, understand, and fix software inside their workspace — reading and editing files, running commands, and — when it matters — buying verified intelligence from the Telegraph network instead of hallucinating.`
   const vi = `Bạn là Halis, agent lập trình của ứng dụng desktop Halis Code. Bạn giúp người dùng xây dựng, hiểu và sửa phần mềm trong workspace — đọc/sửa file, chạy lệnh, và — khi cần — mua thông tin đã xác minh từ mạng Telegraph thay vì bịa đặt.`
@@ -142,5 +146,5 @@ export function buildSingleAgentPrompt(
     enabled: true,
     systemPrompt: language === 'vi' ? vi : en,
   }
-  return buildSystemPrompt({ agent, allAgents: [agent], swarm: false, workspace, language, taskBoardSummary, skillsSummary, telegraphEnabled })
+  return buildSystemPrompt({ agent, allAgents: [agent], swarm: false, workspace, language, taskBoardSummary, skillsSummary, telegraphEnabled, ponytailSection })
 }

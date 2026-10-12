@@ -1,6 +1,6 @@
 /** Settings: language, workspace, default model, approvals, MCP servers, web search, telegraph master switch, about. */
 import { useEffect, useState } from 'react'
-import { FolderOpen, Globe, Plug, Plus, ShieldAlert, Trash2, Zap, ZapOff } from 'lucide-react'
+import { FolderOpen, Globe, Plug, Plus, Scissors, ShieldAlert, Trash2, Zap, ZapOff } from 'lucide-react'
 import { useT } from '../../i18n'
 import { useAppStore } from '../../stores/app'
 import { bridge } from '../../lib/ipc'
@@ -103,6 +103,18 @@ export function SettingsView() {
             <span className="text-[13.5px] font-semibold">{t('approval_title')}</span>
           </div>
           <Toggle checked={settings.autoApproveAll} onChange={(v) => void app.setSettings({ autoApproveAll: v })} label={t('settings_autoapprove')} />
+          <p className="text-[11px] text-faint mt-2.5">{t('settings_restart_note')}</p>
+        </section>
+
+        {/* ponytail */}
+        <section className={`rounded-2xl border p-4 ${settings.ponytailEnabled ? 'border-signal/40 bg-signal/5' : 'border-line bg-panel2'}`}>
+          <div className="flex items-center gap-2 mb-2">
+            <Scissors size={14} className={settings.ponytailEnabled ? 'text-signal' : 'text-muted'} />
+            <span className="text-[13.5px] font-semibold">{t('settings_ponytail')}</span>
+            <Badge color={settings.ponytailEnabled ? '#3ED598' : '#59637a'}>{settings.ponytailEnabled ? 'on' : 'off'}</Badge>
+          </div>
+          <p className="text-[12px] text-muted mb-3 leading-relaxed">{t('settings_ponytail_hint')}</p>
+          <Toggle checked={settings.ponytailEnabled === true} onChange={(v) => void app.setSettings({ ponytailEnabled: v })} label={t('settings_ponytail')} />
           <p className="text-[11px] text-faint mt-2.5">{t('settings_restart_note')}</p>
         </section>
 

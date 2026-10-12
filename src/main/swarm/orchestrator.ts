@@ -27,6 +27,7 @@ import type { JobRegistry } from '../harness/jobs'
 import type { ScheduleStore } from '../harness/schedules'
 import type { McpManager } from '../harness/mcp'
 import { buildSystemPrompt } from './prompts'
+import { ponytailSection } from '../harness/ponytail'
 import { parseAgentReply, routeNext } from './router'
 
 export interface SwarmDeps {
@@ -42,7 +43,7 @@ export interface SwarmDeps {
   todoFor: (sessionId: string, emit: (event: HarnessEvent) => void) => TodoStore
   saveTodos: (session: Session) => void
   askUser: (questions: QuestionPrompt[], ctx: { sessionId: string; agentId: string; agentName: string; agentColor?: string }) => Promise<QuestionAnswer[] | null>
-  getSettings: () => { workspace: string; language: import('@shared/types').AppLanguage; autoApproveAll: boolean; telegraph: import('@shared/types').TelegraphSettings; telegraphEnabled?: boolean; tavilyApiKey?: string }
+  getSettings: () => { workspace: string; language: import('@shared/types').AppLanguage; autoApproveAll: boolean; telegraph: import('@shared/types').TelegraphSettings; telegraphEnabled?: boolean; ponytailEnabled?: boolean; tavilyApiKey?: string }
   telegraph: ToolContext['telegraph']
   emit: (event: HarnessEvent) => void
   persistSession: (session: Session) => void
@@ -275,6 +276,7 @@ export class SwarmOrchestrator {
       language: settings.language,
       taskBoardSummary: this.deps.taskBoard.renderForPrompt(),
       telegraphEnabled: settings.telegraphEnabled !== false,
+      ponytailSection: settings.ponytailEnabled ? ponytailSection() : undefined,
     })
 
     const toolContext = this.toolContextFor(agent, session, allAgents, message.id, outbox)

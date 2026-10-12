@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   telegraphEnabled: true,
   autoApproveAll: false,
+  ponytailEnabled: false,
   mcpServers: [],
   tavilyApiKey: '',
 }
@@ -28,6 +29,8 @@ export function getSettings(): AppSettings {
       telegraph: { ...DEFAULT_SETTINGS.telegraph, ...(loaded.telegraph ?? {}) },
       // Absent key (older settings file) means the default: on.
       telegraphEnabled: loaded.telegraphEnabled ?? true,
+      // Absent key (older settings file) means the default: off.
+      ponytailEnabled: loaded.ponytailEnabled ?? false,
       mcpServers: (loaded.mcpServers ?? DEFAULT_SETTINGS.mcpServers).map((s) => ({ ...s })),
     }
   }

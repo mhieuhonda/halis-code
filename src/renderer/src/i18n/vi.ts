@@ -235,6 +235,8 @@ export const vi: Dict = {
   settings_restart_note: 'Một số thay đổi có hiệu lực từ lượt tiếp theo.',
   settings_telegraph_toggle: 'Telegraph Protocol',
   settings_telegraph_toggle_hint: 'Công tắc tổng cho mạng trí tuệ trả phí: tool Telegraph của agent, tab Telegraph, ví burner và biên nhận on-chain. Tắt đi sẽ tạm dừng mọi tính năng Telegraph nhưng giữ nguyên ví và lịch sử; bật lại sẽ khôi phục tất cả.',
+  settings_ponytail: 'PonyTail',
+  settings_ponytail_hint: 'Nhét thẳng nội dung 6 skill Ponytail đi kèm (nguyên tắc senior dev lười, review code, audit repo, nợ shortcut, bảng hiệu quả, trợ giúp) vào system prompt của agent — nguyên văn toàn bộ, không load theo yêu cầu. Tắt đi là gỡ bỏ.',
 
   /* shell / palette */
   nav_go: 'Đi tới',
