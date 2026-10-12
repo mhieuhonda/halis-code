@@ -46,22 +46,37 @@ export function MessageBubble({ message, swarm, nameOf }: { message: ChatMessage
     setTimeout(() => setCopied(false), 1400)
   }
 
-  // Highlight @mentions in swarm text.
+  // Highlight @mentions in swarm text — but only OUTSIDE fenced code blocks.
+  // Splitting blindly chopped fences at every `@` inside code (decorators,
+  // emails), leaving broken half-fences on both sides of a false mention.
   const rendered = useMemo(() => {
     if (!swarm || isSystem) return <Markdown>{message.content}</Markdown>
-    const parts = message.content.split(/(@[A-Za-z0-9][A-Za-z0-9_.-]{0,31})/g)
+    if (!message.content.includes('@')) return <Markdown>{message.content}</Markdown>
+    const parts: Array<{ text: string; mention: boolean }> = []
+    let fence = false
+    for (const line of message.content.split('\n')) {
+      if (/^\s*(```|~~~)/.test(line)) fence = !fence
+      if (fence) {
+        parts.push({ text: line + '\n', mention: false })
+        continue
+      }
+      const chunks = line.split(/(@[A-Za-z0-9][A-Za-z0-9_.-]{0,31})/g)
+      const joined = chunks.map((c) => ({ text: c, mention: c.startsWith('@') && c.length > 1 }))
+      parts.push(...joined)
+      parts.push({ text: '\n', mention: false })
+    }
     return (
       <div className="md-body selectable">
         {parts.map((part, i) =>
-          part.startsWith('@') && part.length > 1 ? (
+          part.mention ? (
             <span key={i} className="text-signal font-medium">
-              {part}
+              {part.text}
             </span>
-          ) : (
+          ) : part.text ? (
             <span key={i}>
-              <Markdown>{part}</Markdown>
+              <Markdown>{part.text}</Markdown>
             </span>
-          ),
+          ) : null,
         )}
       </div>
     )

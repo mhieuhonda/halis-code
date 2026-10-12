@@ -182,6 +182,14 @@ export function Composer() {
           ) : null}
         </div>
       </div>
+      {chat.sendError ? (
+        <div className="mt-1.5 mx-1 rounded-lg border border-red/40 bg-red/10 px-3 py-1.5 text-[11.5px] text-red flex items-center gap-2">
+          <span className="flex-1">⚠ {t('send_failed')} — {chat.sendError}</span>
+          <button className="text-red/70 hover:text-red cursor-pointer" onClick={() => useChatStore.setState({ sendError: null })}>
+            ✕
+          </button>
+        </div>
+      ) : null}
       <div className="px-1.5 mt-1.5 text-[10.5px] text-faint flex items-center gap-2">
         <span>Enter ↵ {t('send')}</span>
         <span className="text-line2">·</span>

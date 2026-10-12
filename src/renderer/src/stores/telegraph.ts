@@ -15,7 +15,7 @@ interface TelegraphState {
   loadMiners: () => Promise<void>
   loadIntents: () => Promise<void>
   createWallet: () => Promise<void>
-  importWallet: (privateKey: string) => Promise<string | undefined>
+  importWallet: (privateKey: string) => Promise<{ ok: boolean; error?: string }>
   ask: (query: string) => Promise<void>
   verify: (signalHash: string) => Promise<{ found: boolean; detail: string }>
   refreshAll: () => Promise<void>
@@ -72,9 +72,9 @@ export const useTelegraphStore = create<TelegraphState>((set, get) => ({
     try {
       const result = (await bridge.tgImportWallet(privateKey)) as { address: string }
       await get().loadStatus()
-      return result.address
+      return { ok: true }
     } catch (err) {
-      return err instanceof Error ? err.message : String(err)
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
     } finally {
       set({ busy: false })
     }

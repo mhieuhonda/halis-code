@@ -43,15 +43,17 @@ export default function App() {
   }, [])
 
   // Boot: once the session list is loaded, open the newest or create one —
-  // never duplicate empty sessions across launches.
+  // never duplicate empty sessions across launches. The fallback session
+  // keeps the CURRENT mode: deleting the last swarm session must not yank
+  // the user into agent mode.
   useEffect(() => {
     if (!chat.sessionsLoaded) return
     if (chat.sessions.length === 0 && !chat.activeSessionId) {
-      void chat.newSession('agent')
+      void chat.newSession(chat.activeMode)
     } else if (!chat.activeSessionId && chat.sessions[0]) {
       void chat.openSession(chat.sessions[0].id)
     }
-  }, [chat.sessionsLoaded, chat.sessions, chat.activeSessionId])
+  }, [chat.sessionsLoaded, chat.sessions, chat.activeSessionId, chat.activeMode])
 
   // Global shortcuts: Ctrl+K palette, Ctrl+N new chat, Esc closes palette.
   useEffect(() => {

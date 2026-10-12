@@ -49,9 +49,9 @@ export function TelegraphView() {
 
   const doImport = async () => {
     setImportError('')
-    const err = await tg.importWallet(importKey.trim())
-    if (err && err.length > 42) {
-      setImportError(err)
+    const result = await tg.importWallet(importKey.trim())
+    if (!result.ok) {
+      setImportError(result.error ?? 'Import failed')
       return
     }
     setImportOpen(false)

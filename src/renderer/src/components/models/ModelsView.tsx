@@ -16,17 +16,28 @@ function KeyBox({ provider }: { provider: ProviderInfo }) {
   const save = async () => {
     if (!key.trim()) return
     setState('saving')
-    await window.halis.modelSaveKey(provider.id, key.trim())
-    await loadKeyStatus()
-    setState('ok')
-    setKey('')
-    setTimeout(() => setState('idle'), 2000)
+    try {
+      await window.halis.modelSaveKey(provider.id, key.trim())
+      await loadKeyStatus()
+      setState('ok')
+      setKey('')
+      setTimeout(() => setState('idle'), 2000)
+    } catch {
+      // A failed save must not leave the button stuck on its spinner.
+      setState('error')
+      setTimeout(() => setState('idle'), 2500)
+    }
   }
 
   const remove = async () => {
-    await window.halis.modelRemoveKey(provider.id)
-    await loadKeyStatus()
-    setState('idle')
+    try {
+      await window.halis.modelRemoveKey(provider.id)
+      await loadKeyStatus()
+      setState('idle')
+    } catch {
+      setState('error')
+      setTimeout(() => setState('idle'), 2500)
+    }
   }
 
   const hasKey = useAppStore((s) => !!s.keyStatus[provider.id] && !provider.keyless)
