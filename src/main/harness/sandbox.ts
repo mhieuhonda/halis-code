@@ -3,7 +3,7 @@
  * File tools are path-jailed; shell commands run with cwd = workspace and
  * are screened against an obvious-danger blocklist.
  */
-import { isAbsolute, normalize, resolve, sep } from 'node:path'
+import { dirname, isAbsolute, normalize, resolve, sep } from 'node:path'
 import { existsSync, realpathSync } from 'node:fs'
 
 export class SandboxError extends Error {
@@ -64,16 +64,21 @@ export function createSandbox(workspace: string): Sandbox {
       )
     }
 
-    // Symlink escape check when the file exists.
-    if (existsSync(normalized)) {
+    // Symlink escape check: resolve the deepest path component that actually
+    // exists and jail-check its real path. Checking only the full path would
+    // miss `symlink-outside/newfile` where the leaf does not exist yet — the
+    // write would land outside the workspace through the symlinked parent.
+    let probe = normalized
+    while (probe.startsWith(root + sep) && !existsSync(probe)) probe = dirname(probe)
+    if (existsSync(probe)) {
       let real: string
       try {
-        real = realpathSync(normalized)
+        real = realpathSync(probe)
       } catch {
         throw new SandboxError(`Could not resolve "${input}".`)
       }
       if (!inside(real)) {
-        throw new SandboxError(`Access denied: "${input}" is a symlink pointing outside the workspace.`)
+        throw new SandboxError(`Access denied: "${input}" goes through a symlink pointing outside the workspace.`)
       }
     }
     return normalized

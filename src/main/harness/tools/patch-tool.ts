@@ -5,8 +5,9 @@
  * on this format.
  */
 import { existsSync, readFileSync, writeFileSync, renameSync, mkdirSync, unlinkSync, statSync } from 'node:fs'
-import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
+import { dirname, relative, resolve } from 'node:path'
 import type { ToolContext, ToolDef, ToolResult } from './index'
+import { isStateFilePath } from '../file-locking'
 import { applyPatch, parsePatch } from '../util/patch'
 import { diffStats } from '../util/edit-match'
 
@@ -23,12 +24,20 @@ const INSTRUCTIONS = `Patch format:
 *** Delete File: obsolete.txt
 *** End Patch`
 
-function resolveInside(workspace: string, rel: string): string | null {
-  const base = isAbsolute(rel) ? resolve(rel) : resolve(workspace, rel)
-  const norm = resolve(base)
-  const root = resolve(workspace)
-  if (norm === root || norm.startsWith(root + sep)) return norm
-  return null
+/**
+ * Resolve a patch path through the sandbox jail (lexical + symlink realpath
+ * check). A lexical-only check would let `*** Update File: link-outside/x`
+ * write through a symlink pointing outside the workspace. Harness state
+ * files under .halis/ are off-limits — the same rule write_file enforces.
+ */
+function resolveInside(ctx: ToolContext, rel: string): string | null {
+  try {
+    const full = ctx.sandbox.safePath(rel)
+    if (isStateFilePath(full)) return null
+    return full
+  } catch {
+    return null
+  }
 }
 
 export const applyPatchTool: ToolDef = {
@@ -54,8 +63,11 @@ export const applyPatchTool: ToolDef = {
     for (const section of sections) {
       const paths = section.type === 'update' ? [section.path, section.moveTo ?? section.path] : [section.path]
       for (const p of paths) {
-        if (!resolveInside(ctx.workspace, p)) {
-          return { output: `Patch path escapes the workspace: ${p}` }
+        if (isStateFilePath(resolve(ctx.workspace, p))) {
+          return { output: `Patch refused: "${p}" is under .halis/ — harness state files are managed by the task-board tools.` }
+        }
+        if (!resolveInside(ctx, p)) {
+          return { output: `Patch path escapes the workspace (or hits a symlink pointing outside): ${p}` }
         }
       }
     }
@@ -63,9 +75,9 @@ export const applyPatchTool: ToolDef = {
     // Lock every file we're about to mutate (hard).
     const lockPaths = new Set<string>()
     for (const section of sections) {
-      if (section.type === 'update' || section.type === 'delete') lockPaths.add(resolveInside(ctx.workspace, section.path)!)
-      if (section.type === 'update' && section.moveTo) lockPaths.add(resolveInside(ctx.workspace, section.moveTo)!)
-      if (section.type === 'add') lockPaths.add(resolveInside(ctx.workspace, section.path)!)
+      if (section.type === 'update' || section.type === 'delete') lockPaths.add(resolveInside(ctx, section.path)!)
+      if (section.type === 'update' && section.moveTo) lockPaths.add(resolveInside(ctx, section.moveTo)!)
+      if (section.type === 'add') lockPaths.add(resolveInside(ctx, section.path)!)
     }
     const acquired: Array<{ path: string; mode: 'hard' }> = []
     for (const path of lockPaths) {
@@ -79,7 +91,7 @@ export const applyPatchTool: ToolDef = {
       const result = applyPatch({
         sections,
         read: (rel) => {
-          const full = resolveInside(ctx.workspace, rel)
+          const full = resolveInside(ctx, rel)
           if (!full || !existsSync(full)) return { exists: false, content: '' }
           try {
             const content = readFileSync(full, 'utf8')
@@ -90,7 +102,7 @@ export const applyPatchTool: ToolDef = {
           }
         },
         write: (rel, content) => {
-          const full = resolveInside(ctx.workspace, rel)
+          const full = resolveInside(ctx, rel)
           if (!full) throw new Error(`Path escapes workspace: ${rel}`)
           if (content === null) {
             if (existsSync(full)) unlinkSync(full)
@@ -110,7 +122,7 @@ export const applyPatchTool: ToolDef = {
       for (const section of sections) {
         if (section.type !== 'update') continue
         const target = section.moveTo ?? section.path
-        const full = resolveInside(ctx.workspace, target)
+        const full = resolveInside(ctx, target)
         if (!full || !existsSync(full)) continue
         try {
           const after = readFileSync(full, 'utf8')
@@ -124,7 +136,7 @@ export const applyPatchTool: ToolDef = {
       if (!result.success && result.failedPath) {
         return { output: `${result.output}\n\nPatch format reference:\n${INSTRUCTIONS}` }
       }
-      const relNames = result.files.map((f) => relative(ctx.workspace, resolveInside(ctx.workspace, f) ?? f))
+      const relNames = result.files.map((f) => relative(ctx.workspace, resolveInside(ctx, f) ?? f))
       return {
         output: `${result.output}\nFiles touched: ${relNames.join(', ') || '(none)'}`,
         data: { files: relNames, previews },
