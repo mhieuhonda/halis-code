@@ -49,32 +49,41 @@ export function MessageBubble({ message, swarm, nameOf }: { message: ChatMessage
   // Highlight @mentions in swarm text — but only OUTSIDE fenced code blocks.
   // Splitting blindly chopped fences at every `@` inside code (decorators,
   // emails), leaving broken half-fences on both sides of a false mention.
+  // Consecutive non-mention fragments are merged into ONE Markdown run so
+  // fenced code blocks and GFM tables stay intact across the mention.
   const rendered = useMemo(() => {
     if (!swarm || isSystem) return <Markdown>{message.content}</Markdown>
     if (!message.content.includes('@')) return <Markdown>{message.content}</Markdown>
-    const parts: Array<{ text: string; mention: boolean }> = []
+    const fragments: Array<{ text: string; mention: boolean }> = []
     let fence = false
     for (const line of message.content.split('\n')) {
       if (/^\s*(```|~~~)/.test(line)) fence = !fence
       if (fence) {
-        parts.push({ text: line + '\n', mention: false })
+        fragments.push({ text: line + '\n', mention: false })
         continue
       }
       const chunks = line.split(/(@[A-Za-z0-9][A-Za-z0-9_.-]{0,31})/g)
-      const joined = chunks.map((c) => ({ text: c, mention: c.startsWith('@') && c.length > 1 }))
-      parts.push(...joined)
-      parts.push({ text: '\n', mention: false })
+      for (const c of chunks) {
+        if (c) fragments.push({ text: c, mention: c.startsWith('@') && c.length > 1 })
+      }
+      fragments.push({ text: '\n', mention: false })
+    }
+    const runs: Array<{ text: string; mention: boolean }> = []
+    for (const fragment of fragments) {
+      const last = runs[runs.length - 1]
+      if (!fragment.mention && last && !last.mention) last.text += fragment.text
+      else runs.push({ ...fragment })
     }
     return (
       <div className="md-body selectable">
-        {parts.map((part, i) =>
-          part.mention ? (
+        {runs.map((run, i) =>
+          run.mention ? (
             <span key={i} className="text-signal font-medium">
-              {part.text}
+              {run.text}
             </span>
-          ) : part.text ? (
+          ) : run.text ? (
             <span key={i}>
-              <Markdown>{part.text}</Markdown>
+              <Markdown>{run.text}</Markdown>
             </span>
           ) : null,
         )}
