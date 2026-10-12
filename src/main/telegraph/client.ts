@@ -44,18 +44,29 @@ export async function quoteAsk(opts: { network: TelegraphNetworkConfig; minerId?
   })
   const header = res.headers.get('payment-required') ?? res.headers.get('PAYMENT-REQUIRED')
   if (res.status === 402 && header) {
+    // A 402 whose challenge cannot be decoded must NOT degrade to a $0.00
+    // quote: the approval card and the daily budget would then vet a fake
+    // zero price while the paid call settles the REAL (unknown) amount.
+    let challenge: { accepts?: Array<{ network?: string; amount?: string; payTo?: string }> }
     try {
-      const challenge = JSON.parse(Buffer.from(header, 'base64').toString('utf8')) as {
-        accepts?: Array<{ network?: string; amount?: string; payTo?: string }>
-      }
-      const accept = challenge.accepts?.find((a) => a.network?.startsWith('eip155')) ?? challenge.accepts?.[0]
-      return {
-        amountUsd: accept ? Number(BigInt(accept.amount ?? 0)) / 1e6 : 0,
-        payTo: accept?.payTo ?? '',
-        network: accept?.network ?? opts.network.caip2,
-      }
+      challenge = JSON.parse(Buffer.from(header, 'base64').toString('utf8')) as { accepts?: Array<{ network?: string; amount?: string; payTo?: string }> }
     } catch {
-      /* fall through */
+      throw new TelegraphError('Unparseable 402 payment challenge — refusing to quote a price blind.', 'engine')
+    }
+    const accept = challenge.accepts?.find((a) => a.network?.startsWith('eip155')) ?? challenge.accepts?.[0]
+    if (!accept || accept.amount === undefined) {
+      throw new TelegraphError('402 challenge carries no payable accept entry — refusing to quote a price blind.', 'engine')
+    }
+    let amountUsd: number
+    try {
+      amountUsd = Number(BigInt(accept.amount)) / 1e6
+    } catch {
+      throw new TelegraphError(`402 challenge amount "${accept.amount}" is not an integer base unit — refusing to quote a price blind.`, 'engine')
+    }
+    return {
+      amountUsd,
+      payTo: accept.payTo ?? '',
+      network: accept.network ?? opts.network.caip2,
     }
   }
   if (res.ok) {

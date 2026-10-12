@@ -10,6 +10,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { StringDecoder } from 'node:string_decoder'
 import { existsSync } from 'node:fs'
 import { SHELL_OUTPUT_CAP, SHELL_TIMEOUT_MS } from '../sandbox'
+import { scrubbedEnv } from '../util/child-env'
 import type { ToolContext, ToolDef, ToolResult } from './index'
 
 /** pwsh 7 → Windows PowerShell 5.1 → cmd fallback (deepseek-harness resolve chain). */
@@ -27,25 +28,17 @@ function resolveWindowsShell(): { shell: string; preamble: string; args: (comman
   return { shell: process.env.ComSpec ?? 'cmd.exe', kind: 'cmd', preamble: '', args: (command) => ['/d', '/s', '/c', command] }
 }
 
-/** Credential-shaped names must not leak into children (deepseek-harness scrub). */
-const SENSITIVE_ENV = /KEY|PASSWORD|SECRET|TOKEN|PASSWD|PRIVATE/i
-
 function childEnv(ctx: ToolContext): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const [key, value] of Object.entries(process.env)) {
-    if (value === undefined) continue
-    if (SENSITIVE_ENV.test(key) && !key.startsWith('HALIS_')) continue
-    out[key] = value
-  }
-  out.NO_COLOR = '1'
-  out.FORCE_COLOR = '0'
-  out.TERM = 'dumb'
-  out.PAGER = 'cat'
-  out.GIT_PAGER = 'cat'
-  out.AGENT = 'HALIS'
-  out.HALIS_AGENT = ctx.agentName
-  out.HALIS_SESSION = ctx.sessionId
-  return out
+  return scrubbedEnv({
+    NO_COLOR: '1',
+    FORCE_COLOR: '0',
+    TERM: 'dumb',
+    PAGER: 'cat',
+    GIT_PAGER: 'cat',
+    AGENT: 'HALIS',
+    HALIS_AGENT: ctx.agentName,
+    HALIS_SESSION: ctx.sessionId,
+  })
 }
 
 interface RunOutcome {
@@ -73,7 +66,17 @@ function killTree(child: ChildProcess): void {
   if (!child.pid) return
   if (process.platform === 'win32') {
     try {
-      spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true })
+      // Spawn failures arrive ASYNCHRONOUSLY via the 'error' event — with no
+      // listener Node raises an uncaught exception and kills the main
+      // process. Attach a no-op and fall back to a direct kill.
+      const killer = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true })
+      killer.on('error', () => {
+        try {
+          child.kill('SIGKILL')
+        } catch {
+          /* already gone */
+        }
+      })
     } catch {
       child.kill('SIGKILL')
     }

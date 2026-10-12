@@ -125,13 +125,29 @@ export const grepTool: ToolDef = {
     }
     const results: string[] = []
     const fileLimit = 400
+    // statSync once: the single-file case must not run candidates through
+    // join() + safePath (the walked list is relative to the workspace only
+    // in the directory case).
+    const subIsDir = statSync(sub).isDirectory()
+    // Silent caps breed confident false negatives: "No matches" over a
+    // partially scanned tree must say so, or the model asserts the absence
+    // to the user (reviewer verified this on a 5000-file repo).
+    const scanWasPartial = files.length > fileLimit || files.length >= MAX_GLOB_RESULTS * 5
     for (const file of files.slice(0, fileLimit)) {
       if (BINARY_EXT.test(file)) continue
       if (includeRe && !includeRe.test(file.split('/').pop()!)) continue
       let content: string
       try {
         const full = join(sub, file)
-        const target = statSync(sub).isDirectory() ? full : sub
+        // Re-jail every walked candidate: walk() lists symlinks, and a repo
+        // cloned from an untrusted source can carry `creds -> ~/.ssh/id_rsa`.
+        // read_file blocks this via safePath's realpath check; grep must not
+        // be the hole in the jail (it runs with NO approval card).
+        // `full` is already absolute and in-jail — feeding it through
+        // relative()+safePath breaks on depth-changing workspace symlinks
+        // (macOS /var → /private/var): the relative hops out of the lexical
+        // root and every file is silently skipped.
+        const target = subIsDir ? ctx.sandbox.safePath(full) : sub
         const st = statSync(target)
         // Only regular files up to 8 MB — the same cap read_file enforces.
         // A 2 GB log loaded synchronously freezes the main process; a FIFO
@@ -153,8 +169,10 @@ export const grepTool: ToolDef = {
       }
       if (results.length >= MAX_GREP_RESULTS) break
     }
+    const noMatch = `No matches for /${pattern}/.`
+    const partialNote = scanWasPartial ? ` (Searched only the first ${Math.min(files.length, fileLimit)} of ${files.length} walked files — narrow with path/include.)` : ''
     return {
-      output: results.length ? results.join('\n') + (results.length >= MAX_GREP_RESULTS ? '\n… (result list truncated)' : '') : `No matches for /${pattern}/.`,
+      output: results.length ? results.join('\n') + (results.length >= MAX_GREP_RESULTS ? '\n… (result list truncated)' : '') : noMatch + partialNote,
       data: { count: results.length },
     }
   },

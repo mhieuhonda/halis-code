@@ -9,6 +9,8 @@ import type {
   BoardTask,
   CatalogSnapshot,
   ChatMode,
+  McpServerConfig,
+  QuestionAnswer,
   Session,
   SessionMeta,
   SwarmConfig,
@@ -112,7 +114,7 @@ export interface IpcApi {
   }): { conflict: boolean; agentName?: string; message: string }
 
   sessionList(): SessionMeta[]
-  sessionNew(mode: ChatMode, title?: string): Session
+  sessionNew(mode: ChatMode, title?: string, modelId?: string): Session
   sessionGet(sessionId: string): Session | null
   sessionDelete(sessionId: string): void
   sessionRename(sessionId: string, title: string): void
@@ -130,19 +132,28 @@ export interface IpcApi {
   swarmValidate(config: SwarmConfig): { ok: boolean; errors: string[]; warnings: string[] }
   swarmRoles(): { roles: unknown[] }
 
-  approvalRespond(requestId: string, response: 'allow' | 'always' | 'reject'): void
+  approvalRespond(requestId: string, response: 'allow' | 'always' | 'reject', answers?: QuestionAnswer[]): void
   approvalList(): ApprovalRequest[]
+
+  mcpStatuses(): Array<{ name: string; connected: boolean; toolCount: number; error?: string }>
+  mcpSetServers(configs: McpServerConfig[]): { ok: boolean; error?: string }
+  mcpTest(config: McpServerConfig): { ok: boolean; error?: string; toolCount?: number }
+
+  scheduleList(): Array<{ id: string; sessionId: string; title: string; prompt: string; nextFireAt: number; selector: unknown }>
+  scheduleDelete(id: string): boolean
+
+  jobList(): Array<unknown>
 
   taskBoardGet(): BoardTask[]
   taskBoardCreate(title: string, description?: string): BoardTask
   taskBoardUpdate(taskId: string, patch: Partial<BoardTask>): BoardTask
-  taskBoardClaim(taskId: string, agentId: string): { ok: boolean; error?: string }
+  taskBoardClaim(taskId: string, agentId: string, agentName?: string): { ok: boolean; error?: string }
 
   locksList(): Array<{ path: string; holderAgentId: string; holderName: string; mode: string; acquiredAt: number }>
   locksRelease(path: string): void
 
   tgStatus(): Promise<TelegraphStatus>
-  tgCreateWallet(): Promise<{ address: string; privateKey: string }>
+  tgCreateWallet(): Promise<{ address: string }>
   tgImportWallet(privateKey: string): Promise<{ address: string }>
   tgExportWallet(): Promise<{ privateKey: string } | null>
   tgMiners(): Promise<TelegraphMiner[]>

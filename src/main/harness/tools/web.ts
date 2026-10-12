@@ -6,12 +6,35 @@
  * proper API backend.
  */
 import type { ToolContext, ToolDef, ToolResult } from './index'
+import { lookup } from 'node:dns/promises'
 import { htmlToMarkdown, extractTextFromHtml } from '../util/html-markdown'
 
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 const USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36 HalisCode/0.3'
 
 const TEXTUAL_MIME = /^(text\/|application\/(json|xml|javascript|xhtml\+html)|image\/svg\+xml|\w+\+json|\w+\+xml)/i
+
+/** Private/loopback/ULA check on a RESOLVED address — covers IPv4 ranges,
+ * IPv6 ULA (fc00::/7), link-local (fe80::/10) and IPv4-mapped IPv6. */
+function isPrivateAddress(ip: string): boolean {
+  if (ip.includes(':')) {
+    const v6 = ip.toLowerCase().replace(/^\[|\]$/g, '')
+    if (v6 === '::1' || v6 === '::') return true
+    if (/^f[cd][0-9a-f]{2}:/.test(v6)) return true
+    if (/^fe[89ab][0-9a-f]:/.test(v6)) return true
+    const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(v6)
+    if (mapped) return isPrivateAddress(mapped[1]!)
+    return false
+  }
+  const parts = ip.split('.').map(Number)
+  const [a = 0, b = 0] = parts
+  if (parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return true
+  if (a === 0 || a === 10 || a === 127) return true
+  if (a === 192 && b === 168) return true
+  if (a === 169 && b === 254) return true
+  if (a === 172 && b >= 16 && b <= 31) return true
+  return false
+}
 
 function assertHttpUrl(raw: string): URL {
   let url: URL
@@ -22,20 +45,46 @@ function assertHttpUrl(raw: string): URL {
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error(`Only http(s) URLs are supported, got ${url.protocol}`)
   // Block obvious SSRF targets (agents run on user machines). localhost is
-  // allowed — local dev servers are a normal agent target.
-  const host = url.hostname.toLowerCase()
-  const isLocalhost = host === 'localhost' || host.endsWith('.localhost') || host === '::1' || host === '[::1]'
-  const isPrivate =
-    host === '0.0.0.0' ||
-    /^127\./.test(host) ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^169\.254\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+  // allowed — local dev servers are a normal agent target. The literal check
+  // only applies to IP hosts: isPrivateAddress on a DOMAIN fail-closes
+  // ("example.com" → [NaN,NaN]) and would refuse every normal URL.
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '')
+  const isLocalhost = host === 'localhost' || host.endsWith('.localhost') || host === '::1'
+  const isLiteralIp = /^\d+\.\d+\.\d+\.\d+$/.test(host) || host.includes(':')
+  const isPrivate = isLiteralIp && isPrivateAddress(host)
   if (!isLocalhost && isPrivate) {
     throw new Error(`Refusing to fetch a private/loopback address: ${host}`)
   }
   return url
+}
+
+/**
+ * DNS-level SSRF guard: the lexical check above passes hostnames like
+ * `metadata.google.internal` (or any attacker domain with an A record in
+ * 10/8 or 169.254/16) — the hostname only has to RESOLVE to a private IP for
+ * cloud metadata / LAN admin panels to become readable. Resolve and verify
+ * every address before the request goes out. Localhost names stay allowed.
+ */
+async function assertResolvesPublic(url: URL): Promise<void> {
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '')
+  if (host === 'localhost' || host.endsWith('.localhost') || host === '::1') return
+  // Literal IPs were already validated lexically in assertHttpUrl — only
+  // skip them here. A DOMAIN must still go through DNS (isPrivateAddress on
+  // a domain fail-closes as "private", which would silently skip the check
+  // this whole function exists for).
+  const isLiteralIp = /^\d+\.\d+\.\d+\.\d+$/.test(host) || host.includes(':')
+  if (isLiteralIp && isPrivateAddress(host)) return
+  let addresses: Array<{ address: string }>
+  try {
+    addresses = await lookup(host, { all: true })
+  } catch (err) {
+    throw new Error(`Could not resolve host: ${host} (${err instanceof Error ? err.message : String(err)})`)
+  }
+  for (const { address } of addresses) {
+    if (isPrivateAddress(address)) {
+      throw new Error(`Refusing to fetch ${host}: it resolves to a private address (${address}).`)
+    }
+  }
 }
 
 /** Collect the body with a hard byte cap — never buffers beyond 5 MB. */
@@ -48,6 +97,8 @@ async function fetchBounded(url: URL, headers: Record<string, string>, timeoutMs
     // must run again on EVERY hop.
     let current = url
     for (let hop = 0; hop < 6; hop++) {
+      // Lexical SSRF check (redirect targets are re-validated per hop) ...
+      if (hop === 0) await assertResolvesPublic(current)
       const res = await fetch(current, { headers, redirect: 'manual', signal: controller.signal })
       if (res.status >= 300 && res.status < 400) {
         const location = res.headers.get('location')
@@ -58,6 +109,9 @@ async function fetchBounded(url: URL, headers: Record<string, string>, timeoutMs
         }
         if (!location) return { status: res.status, contentType: res.headers.get('content-type') ?? '', body: '', finalUrl: current.toString() }
         current = assertHttpUrl(new URL(location, current).toString())
+        // ... plus the DNS-level check on every hop: a public-looking host
+        // that resolves into the LAN must not become readable via redirect.
+        await assertResolvesPublic(current)
         continue
       }
       const contentType = res.headers.get('content-type') ?? ''
@@ -256,8 +310,15 @@ function parseDuckduckgo(html: string): SearchHit[] {
     const url = decodeDuckUrl(match[1]!)
     const title = match[2]!.replace(/<[^>]+>/g, '').trim()
     if (!url) continue
-    const rest = html.slice(match.index)
-    const snippetMatch = snippetRe.exec(rest.slice(0, 4000))
+    // Bound the snippet search to THIS result's own span (up to the next
+    // result link): a fixed 4000-char window grabbed the NEXT result's
+    // snippet when this one had none, silently misattributing quotes.
+    // NOTE: `search` with a non-global regex keeps no state — reusing the
+    // global linkRe here would corrupt the outer iteration.
+    const after = html.slice(match.index + match[0].length)
+    const nextIdx = after.search(/class="[^"]*result__a[^"]*"/)
+    const window = nextIdx >= 0 ? after.slice(0, nextIdx) : after.slice(0, 4000)
+    const snippetMatch = snippetRe.exec(window)
     const snippet = snippetMatch ? snippetMatch[1]!.replace(/<[^>]+>/g, '').trim() : ''
     hits.push({ title, url, snippet: snippet.slice(0, 220) })
   }

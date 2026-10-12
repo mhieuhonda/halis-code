@@ -3,8 +3,8 @@
  * with the OS keychain via Electron safeStorage when available, with a
  * plain-file fallback (0600) otherwise. Nothing ever leaves the machine.
  */
-import { existsSync, readFileSync, statSync, writeFileSync, chmodSync, mkdirSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { existsSync, readFileSync, renameSync, statSync, writeFileSync, chmodSync, mkdirSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
 export interface SafeCodec {
   isEncryptionAvailable(): boolean
@@ -57,13 +57,19 @@ export class KeyVault {
   private persist(): void {
     const dir = dirname(this.file)
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    // Atomic write (tmp + rename): a crash mid-writeFileSync would leave a
+    // truncated keys.bin, the next start would parse-fail into "starting
+    // empty", and the FIRST set() would persist over the wreckage — silently
+    // erasing every stored provider key and the Telegraph wallet key.
+    const tmp = join(dir, `${Math.random().toString(36).slice(2)}.tmp`)
     if (this.codec?.isEncryptionAvailable()) {
       const enc: Record<string, string> = {}
       for (const [k, v] of Object.entries(this.keys)) enc[k] = this.codec.encrypt(v).toString('base64')
-      writeFileSync(this.file, JSON.stringify({ v: 1, enc: true, keys: enc }, null, 2))
+      writeFileSync(tmp, JSON.stringify({ v: 1, enc: true, keys: enc }, null, 2))
     } else {
-      writeFileSync(this.file, JSON.stringify({ v: 1, enc: false, keys: this.keys }, null, 2))
+      writeFileSync(tmp, JSON.stringify({ v: 1, enc: false, keys: this.keys }, null, 2))
     }
+    renameSync(tmp, this.file)
     try {
       chmodSync(this.file, 0o600)
     } catch {

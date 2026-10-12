@@ -13,7 +13,6 @@ import { createSandbox } from './harness/sandbox'
 import { testMcpConfig } from './harness/mcp'
 import { importWallet, createBurnerWallet } from './telegraph/wallet'
 import { listMiners, listIntents, verifySignal } from './telegraph/client'
-import { getSettings } from './config/app-settings'
 
 export function registerIpc(app: HalisApp, getWindow: () => BrowserWindow | null): void {
   const send = (channel: string, payload: unknown) => {
@@ -154,9 +153,11 @@ export function registerIpc(app: HalisApp, getWindow: () => BrowserWindow | null
     requireTelegraph()
     const wallet = createBurnerWallet()
     // The key lives in the OS-keychain-encrypted vault — settings.json never
-    // holds wallet secrets.
+    // holds wallet secrets. Only the ADDRESS crosses to the renderer: the
+    // renderer heap renders untrusted model output, and the import handler
+    // deliberately returns {address} only for the same reason.
     app.walletKeySet(wallet.privateKey)
-    return wallet
+    return { address: wallet.address }
   })
   ipcMain.handle(IPC.tgImportWallet, (_e, privateKey: string) => {
     requireTelegraph()

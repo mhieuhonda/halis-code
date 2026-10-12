@@ -4,6 +4,7 @@
  * shell approval flow so the user sees exactly what will happen.
  */
 import { execFile } from 'node:child_process'
+import { scrubbedEnv } from '../util/child-env'
 import type { ToolContext, ToolDef, ToolResult } from './index'
 
 const GIT_CAP = 60_000
@@ -13,14 +14,16 @@ function git(ctx: ToolContext, args: string[], timeoutMs = 20_000): Promise<{ ok
     execFile(
       'git',
       ['-C', ctx.sandbox.workspace, '-c', 'core.pager=cat', ...args],
-      { timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024, windowsHide: true, env: { ...process.env, GIT_PAGER: 'cat', PAGER: 'cat' } },
+      // Same credential scrub as the shell tool: git runs repo hooks
+      // (.git/hooks/*) with the inherited environment — a hook planted via
+      // an approved patch must not inherit provider API keys.
+      { timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024, windowsHide: true, env: scrubbedEnv({ GIT_PAGER: 'cat', PAGER: 'cat' }) },
       (err, stdout, stderr) => {
         resolve({ ok: !err, stdout: stdout || '', stderr: (stderr || (err ? err.message : '')) || '' })
       },
     )
   })
 }
-
 function clip(s: string): string {
   return s.length > GIT_CAP ? `${s.slice(0, GIT_CAP)}\n… (output truncated)` : s
 }
@@ -56,6 +59,14 @@ export const gitDiffTool: ToolDef = {
     if (args.stat) diffArgs.push('--stat')
     if (args.staged) diffArgs.push('--cached')
     const paths = Array.isArray(args.paths) ? args.paths.map(String).filter(Boolean) : []
+    // Reject git pathspec magic (":(top)/…", ":/", ":(glob)…"): it looks like a
+    // literal directory to the path jail but git resolves it against the REPO
+    // root — when the workspace is a subdirectory of a bigger repo, `:(top)`
+    // stages or diffs files the sandbox never approved.
+    const magic = paths.find((p) => p.startsWith(':'))
+    if (magic) {
+      return { output: `Refusing git pathspec magic ("${magic.slice(0, 60)}"): paths must be plain workspace-relative paths.` }
+    }
     // '--' ends option parsing: a model-supplied "path" like
     // --output=/etc/x would otherwise be a writable-file option on a
     // read-only, no-approval tool.
@@ -104,6 +115,12 @@ export const gitCommitTool: ToolDef = {
     const message = String(args.message ?? '').trim()
     if (!message) return { output: 'A commit message is required.' }
     const paths = Array.isArray(args.paths) ? args.paths.map(String).filter(Boolean) : []
+    // Same pathspec-magic rejection as git_diff — `git add ':(top)/x'` would
+    // stage files outside the workspace from the parent repo.
+    const magic = paths.find((p) => p.startsWith(':'))
+    if (magic) {
+      return { output: `Refusing git pathspec magic ("${magic.slice(0, 60)}"): paths must be plain workspace-relative paths.` }
+    }
     for (const p of paths) {
       try {
         ctx.sandbox.safePath(p)

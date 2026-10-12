@@ -84,7 +84,8 @@ export interface HalisBridge {
 
   /* telegraph */
   tgStatus(): Promise<TelegraphStatus>
-  tgCreateWallet(): Promise<{ address: string; privateKey: string }>
+  /** Only the address crosses to the renderer — the key stays in the vault. */
+  tgCreateWallet(): Promise<{ address: string }>
   tgImportWallet(privateKey: string): Promise<{ address: string }>
   tgExportWallet(): Promise<{ privateKey: string } | null>
   tgMiners(): Promise<TelegraphMiner[]>

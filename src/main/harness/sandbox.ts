@@ -14,8 +14,10 @@ export class SandboxError extends Error {
 }
 
 const BLOCKED_PATTERNS: Array<{ pattern: RegExp; why: string }> = [
-  { pattern: /\brm\s+(-[a-z]*\s+)*-?[rf]{0,2}\s*(--no-preserve-root\s+)?\/(\s|$)/i, why: 'recursive delete targeting the filesystem root' },
-  { pattern: /\brm\s+-[rf]+\s+~(\s|\/|$)/, why: 'recursive delete targeting the home directory' },
+  // `/*` globs every top-level entry — same blast radius as `rm -rf /` itself.
+  { pattern: /\brm\s+(-[a-z]*\s+)*-?[rf]{0,2}\s*(--no-preserve-root\s+)?\/(\*|\s|$)/i, why: 'recursive delete targeting the filesystem root' },
+  // $HOME is just as destructive as ~ and does not match the sigil form.
+  { pattern: /\brm\s+-[rf]+\s+(~|\$\{?HOME\}?)(\s|\/|$)/, why: 'recursive delete targeting the home directory' },
   { pattern: /\bmkfs\b/i, why: 'filesystem formatting' },
   { pattern: /\bdd\b[^|]*\bof=\/dev\//i, why: 'raw device writes' },
   { pattern: /\bsudo\b/i, why: 'privilege escalation' },
@@ -53,11 +55,18 @@ export function createSandbox(workspace: string): Sandbox {
   function safePath(input: string): string {
     if (!input || typeof input !== 'string') throw new SandboxError('A file path is required.')
     const cleaned = input.trim().replace(/^~(?=\/|$)/, '')
-    const base = isAbsolute(cleaned) ? resolve(cleaned) : resolve(root, cleaned)
+    // Relative paths resolve against the REAL root: with a symlinked
+    // workspace (macOS /tmp → /private/tmp, ~/projects on another volume)
+    // `resolve(root, …)` keeps the lexical prefix, fails the realpath jail
+    // below, and bricks EVERY relative file operation with a misleading
+    // "resolves outside the workspace" error.
+    const base = isAbsolute(cleaned) ? resolve(cleaned) : resolve(realRoot, cleaned)
     const normalized = normalize(base)
 
-    // Jail check on the lexical path first.
-    const inside = (p: string) => p === realRoot || p.startsWith(realRoot + sep)
+    // Jail check on the lexical path first — accept both the configured root
+    // and its realpath form (absolute paths typed through the symlinked root
+    // are still inside the workspace).
+    const inside = (p: string) => p === realRoot || p.startsWith(realRoot + sep) || p === root || p.startsWith(root + sep)
     if (!inside(normalized)) {
       throw new SandboxError(
         `Access denied: "${input}" resolves outside the workspace (${root}). Agents can only touch files inside the workspace.`,
@@ -69,7 +78,7 @@ export function createSandbox(workspace: string): Sandbox {
     // miss `symlink-outside/newfile` where the leaf does not exist yet — the
     // write would land outside the workspace through the symlinked parent.
     let probe = normalized
-    while (probe.startsWith(root + sep) && !existsSync(probe)) probe = dirname(probe)
+    while ((probe.startsWith(root + sep) || probe.startsWith(realRoot + sep)) && !existsSync(probe)) probe = dirname(probe)
     if (existsSync(probe)) {
       let real: string
       try {
@@ -97,9 +106,17 @@ export function createSandbox(workspace: string): Sandbox {
         throw new SandboxError('Interactive terminal programs are not supported. Use non-interactive commands.')
       }
     }
-    // cd outside the workspace + something afterwards is a common escape.
-    const cdEscape = /\bcd\s+(\/|~|\.\.)\s*$|\bcd\s+\/(etc|var|usr|bin|sbin|opt|root|proc|sys|dev)\b/.test(cmd)
-    if (cdEscape) {
+    // `cd` outside the workspace (.. / ~ / any absolute dir that is not the
+    // workspace) is a common escape — with or without a command chained after
+    // it. Commands run with cwd = workspace, so any of these leaves the
+    // sandboxed directory; the old trailing-only anchor caught the harmless
+    // bare `cd /` while `cd .. && cat ../../x` sailed through.
+    const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const cdOutside =
+      /\bcd\s+["']?(~|\.\.)(\s|\/|$)/.test(cmd) ||
+      /\bcd\s+["']?\/(\s|$|\*)/.test(cmd) ||
+      (/\bcd\s+["']?\//.test(cmd) && !new RegExp(`\\bcd\\s+["']?(?:${esc(root)}|${esc(realRoot)})(?:\\s|/|$)`).test(cmd))
+    if (cdOutside) {
       throw new SandboxError('Commands must stay inside the workspace directory.')
     }
   }
