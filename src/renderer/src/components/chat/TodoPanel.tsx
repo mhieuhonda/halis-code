@@ -1,12 +1,13 @@
-/** Live agent checklist — the todo_write tool rendered as a checklist. */
+/** Live agent checklist — the todo_write tool rendered as a quiet card
+ *  in the composer seat. */
 import { Check, Circle, CircleDot, ListTodo } from 'lucide-react'
 import type { TodoItem } from '@shared/types'
 import { useT } from '../../i18n'
 
 const STATUS_ICON = {
-  pending: <Circle size={12} className="text-faint" />,
-  in_progress: <CircleDot size={12} className="text-cyan spark-pulse inline-flex" />,
-  completed: <Check size={12} className="text-good" />,
+  pending: <Circle size={12} className="text-[color:var(--dsw-alias-label-dimmed)]" />,
+  in_progress: <CircleDot size={12} className="text-[color:var(--dsw-alias-state-business-primary)] pending-dot inline-flex" />,
+  completed: <Check size={12} className="text-[color:var(--dsw-alias-state-success-primary)]" />,
 }
 
 export function TodoPanel({ todos }: { todos: TodoItem[] }) {
@@ -14,24 +15,32 @@ export function TodoPanel({ todos }: { todos: TodoItem[] }) {
   if (!todos.length) return null
   const done = todos.filter((x) => x.status === 'completed').length
   return (
-    <div className="px-5 pb-1">
-      <div className="max-w-[780px] mx-auto">
-        <div className="rounded-xl border border-line bg-panel2/60 backdrop-blur px-3.5 py-2.5">
-          <div className="flex items-center gap-2 mb-1.5">
-            <ListTodo size={13} className="text-signal" />
-            <span className="text-[11.5px] font-semibold tracking-tight text-muted">{t('todo_title')}</span>
-            <span className="ml-auto text-[10.5px] text-faint font-mono">
-              {done}/{todos.length}
-            </span>
-          </div>
-          <div className="space-y-1">
-            {todos.map((todo, i) => (
-              <div key={`${todo.content}-${i}`} className="flex items-start gap-2 text-[12.5px]">
-                <span className="mt-[3px] shrink-0">{STATUS_ICON[todo.status]}</span>
-                <span className={todo.status === 'completed' ? 'text-faint line-through' : todo.status === 'in_progress' ? 'text-ink' : 'text-muted'}>{todo.content}</span>
-              </div>
-            ))}
-          </div>
+    <div className="px-4 pb-1.5">
+      <div className="rounded-lg border-[0.5px] border-[color:var(--dsw-alias-border-l2)] px-3.5 py-2.5" style={{ background: 'var(--dsw-specific-input-major)' }}>
+        <div className="flex items-center gap-2 mb-1.5">
+          <ListTodo size={13} className="text-[color:var(--dsw-alias-state-business-primary)]" />
+          <span className="text-[12px] font-medium text-[color:var(--dsw-alias-label-secondary)]">{t('todo_title')}</span>
+          <span className="ml-auto text-[10.5px] text-[color:var(--dsw-alias-label-caption)] font-mono">
+            {done}/{todos.length}
+          </span>
+        </div>
+        <div className="space-y-1">
+          {todos.map((todo, i) => (
+            <div key={`${todo.content}-${i}`} className="flex items-start gap-2 text-[12.5px] leading-5">
+              <span className="mt-[2px] shrink-0">{STATUS_ICON[todo.status]}</span>
+              <span
+                className={
+                  todo.status === 'completed'
+                    ? 'text-[color:var(--dsw-alias-label-tertiary)] line-through'
+                    : todo.status === 'in_progress'
+                      ? 'text-ink'
+                      : 'text-[color:var(--dsw-alias-label-secondary)]'
+                }
+              >
+                {todo.content}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
     </div>

@@ -104,7 +104,7 @@ export function TaskBoardView() {
             <Lock size={13} className="text-amber" />
             <span className="text-[12px] text-amber/90 font-medium">{t('lock_title')}:</span>
             {locks.map((l) => (
-              <Badge key={`${l.path}-${l.holderAgentId}`} color="#FBBF24">
+              <Badge key={`${l.path}-${l.holderAgentId}`} color="#f59e0b">
                 {l.path.split(/[\\/]/).pop()} — {t('lock_holder')} {l.holderName} ({l.mode})
               </Badge>
             ))}
@@ -168,7 +168,7 @@ function RemindersSection({ schedules, onDelete }: { schedules: ScheduleView[]; 
           <div key={s.id} className="flex items-center gap-2 text-[12px]">
             <span className="text-ink">{s.title}</span>
             <span className="text-faint truncate max-w-[360px]">{s.prompt}</span>
-            <Badge color="#45C4FF">{new Date(s.nextFireAt).toLocaleString()}</Badge>
+            <Badge color="#3b82f6">{new Date(s.nextFireAt).toLocaleString()}</Badge>
             <span className="text-[10.5px] text-faint">{s.fireCount}×</span>
             <button className="ml-auto text-faint hover:text-red cursor-pointer" onClick={() => onDelete(s.id)} title={t('reject')}>
               <Trash2 size={12} />

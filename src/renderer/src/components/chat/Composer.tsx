@@ -1,8 +1,9 @@
-/** Composer: textarea + send/stop + model picker (agent mode) + mentions (swarm). */
+/** Composer — DSH InputBar card: 28px-radius surface, blue caret,
+ *  chip selects, round blue send button, mention popup as menu surface. */
 import { useEffect, useRef, useState } from 'react'
-import { ArrowUp, Square, AtSign } from 'lucide-react'
+import { ArrowUp, Square, AtSign, X } from 'lucide-react'
 import { useT } from '../../i18n'
-import { Badge, Select, Spinner } from '../ui'
+import { Badge, ChipSelect, Spinner } from '../ui'
 import { useAppStore } from '../../stores/app'
 import { useChatStore } from '../../stores/chat'
 import { useSwarmStore } from '../../stores/swarm'
@@ -33,15 +34,15 @@ export function ModelPicker({ value, onChange }: { value: string; onChange: (id:
   if (current && !listed.some((m) => m.id === current.id)) listed.unshift(current)
 
   return (
-    <div className="flex items-center gap-1.5 min-w-0">
-      <Select value={group} onChange={(e) => setGroup(e.target.value)} className="!w-auto !py-1 !text-[11px] !px-2 !rounded-lg">
+    <div className="flex items-center gap-1 min-w-0">
+      <ChipSelect value={group} onChange={(e) => setGroup(e.target.value)} aria-label="model group">
         {groups.map((g) => (
           <option key={g.id} value={g.id}>
             {g.label}
           </option>
         ))}
-      </Select>
-      <Select value={value} onChange={(e) => onChange(e.target.value)} className="!w-auto !py-1 !text-[11px] !px-2 max-w-[240px] !rounded-lg" title={value}>
+      </ChipSelect>
+      <ChipSelect value={value} onChange={(e) => onChange(e.target.value)} title={value} className="max-w-[240px]">
         {listed.map((m) => (
           <option key={m.id} value={m.id}>
             {m.providerId !== 'pollinations' ? `${catalog.providers.find((p) => p.id === m.providerId)?.name ?? m.providerId} · ` : ''}
@@ -49,8 +50,8 @@ export function ModelPicker({ value, onChange }: { value: string; onChange: (id:
             {m.free ? ' ✦' : ''}
           </option>
         ))}
-      </Select>
-      {current?.free ? <Badge color="#3ED598">free</Badge> : null}
+      </ChipSelect>
+      {current?.free ? <Badge color="#22c55e">free</Badge> : null}
     </div>
   )
 }
@@ -73,7 +74,7 @@ export function Composer() {
     const ta = taRef.current
     if (!ta) return
     ta.style.height = 'auto'
-    ta.style.height = `${Math.min(ta.scrollHeight, 180)}px`
+    ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`
   }, [text])
 
   const submit = () => {
@@ -98,54 +99,53 @@ export function Composer() {
   const isAgent = chat.activeMode === 'agent'
 
   return (
-    <div className="px-5 pb-4 pt-1.5">
+    <div className="px-4 pb-3 pt-2">
       {/* typing indicators (swarm) */}
-      <div className="h-5 flex items-center gap-3 mb-1.5 px-1">
+      <div className="h-5 flex items-center gap-3 mb-1 px-2">
         {Object.entries(chat.typing).map(([id, info]) => (
-          <span key={id} className="inline-flex items-center gap-1.5 text-[11px] text-cyan fade-in">
-            <span className="typing-dot w-1 h-1 rounded-full bg-cyan inline-block" />
+          <span key={id} className="inline-flex items-center gap-1.5 text-[11px] text-[color:var(--dsw-alias-label-secondary)] fade-in">
+            <span className="typing-dot w-1 h-1 rounded-full bg-[color:var(--dsw-alias-state-business-primary)] inline-block" />
             {info.name} {t('typing')}
           </span>
         ))}
         {chat.swarmRound ? (
-          <span className="text-[11px] text-faint ml-auto font-mono">
+          <span className="text-[11px] text-[color:var(--dsw-alias-label-tertiary)] ml-auto font-mono">
             {t('round_label')} {chat.swarmRound.round}/{chat.swarmRound.maxRounds}
           </span>
         ) : null}
       </div>
 
-      {/* the composer — gradient ring on focus */}
+      {/* the card — DSH radius-panel surface */}
       <div
-        className={`rounded-2xl border bg-panel2/90 backdrop-blur transition-all duration-200 shadow-[0_12px_44px_-12px_rgba(0,0,0,0.6)] ${
-          focused ? 'border-transparent shadow-[0_0_0_1px_rgba(69,165,255,0.35),0_0_28px_-6px_rgba(69,165,255,0.25),0_12px_44px_-12px_rgba(0,0,0,0.6)]' : 'border-line'
-        }`}
+        className="relative flex flex-col gap-2 pt-2"
+        style={{
+          borderRadius: 'var(--dsw-radius-panel)',
+          background: 'var(--dsw-specific-input-major)',
+          boxShadow: focused ? 'var(--dsw-elevation-prominent)' : 'var(--dsw-elevation-soft)',
+          transition: 'box-shadow 150ms ease',
+        }}
       >
-        <div className="flex items-center gap-2 px-3 pt-2.5 pb-2 border-b border-line/70">
-          {isAgent ? (
-            <ModelPicker value={modelId || settings?.defaultModelId || 'pollinations/openai-fast'} onChange={(id) => { setModelId(id); void loadSettings() }} />
-          ) : (
-            <span className="inline-flex items-center gap-1.5 text-[11px] text-muted">
-              <AtSign size={12} className="text-signal" />
-              {swarmConfig.agents.length} agents
-              {swarmConfig.plannerCoordination ? <Badge color="#8D7FFF">planner</Badge> : null}
-            </span>
-          )}
-          {chat.running ? (
-            <button
-              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-red/30 bg-red/10 px-2.5 py-1 text-[11.5px] text-red hover:bg-red/20 transition-colors cursor-pointer"
-              onClick={() => void chat.stop()}
+        {/* input row */}
+        <div className="relative">
+          {text ? null : (
+            <div
+              className="absolute left-[22px] right-4 top-[10px] text-[color:var(--dsw-alias-label-caption)] pointer-events-none truncate"
+              style={{ fontSize: 'var(--dsh-content-font-size, 14px)', lineHeight: 'calc(24px + var(--dsh-content-font-delta, 0px))' }}
             >
-              <Square size={10} /> {t('stop_turn')}
-            </button>
-          ) : null}
-        </div>
-        <div className="flex items-end gap-3 px-3.5 py-3 relative">
-          <span className="absolute left-0 top-3 bottom-3 w-[2px] rounded-full bg-gradient-to-b from-ember to-signal opacity-40" />
+              {isAgent ? t('placeholder_agent') : t('placeholder_swarm')}
+            </div>
+          )}
           <textarea
             ref={taRef}
             value={text}
-            placeholder={isAgent ? t('placeholder_agent') : t('placeholder_swarm')}
-            className="flex-1 bg-transparent outline-none resize-none text-[13.5px] leading-relaxed placeholder:text-faint max-h-[180px] selectable pl-2"
+            aria-label={isAgent ? t('placeholder_agent') : t('placeholder_swarm')}
+            className="block w-full bg-transparent outline-none border-none resize-none selectable min-h-[36px] max-h-[200px] px-[14px] pt-[6px] pb-0 text-ink"
+            style={{
+              fontFamily: 'var(--dsw-font-family)',
+              fontSize: 'var(--dsh-content-font-size, 14px)',
+              lineHeight: 'calc(24px + var(--dsh-content-font-delta, 0px))',
+              caretColor: 'var(--dsw-alias-state-business-primary)',
+            }}
             rows={1}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
@@ -157,45 +157,84 @@ export function Composer() {
               }
             }}
           />
-          <button
-            onClick={submit}
-            disabled={!text.trim() || chat.running}
-            className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 cursor-pointer disabled:cursor-not-allowed ${
-              text.trim() && !chat.running
-                ? 'bg-gradient-to-br from-ember to-signal text-white shadow-[0_4px_16px_-2px_rgba(69,165,255,0.5)] hover:brightness-110 active:scale-95'
-                : 'bg-panel3 text-faint border border-line'
-            }`}
-          >
-            {chat.running ? <Spinner size={13} className="text-muted" /> : <ArrowUp size={15} />}
-          </button>
-
-          {suggestions.length > 0 && mentionStart !== null ? (
-            <div className="absolute bottom-[calc(100%+6px)] left-2 rounded-xl border border-line2 bg-panel shadow-[0_16px_50px_-10px_rgba(0,0,0,0.8)] overflow-hidden pop z-10">
-              {suggestions.map((a) => (
-                <button key={a.id} className="flex items-center gap-2 px-3 py-2 hover:bg-panel3 w-full text-left cursor-pointer transition-colors" onMouseDown={(e) => { e.preventDefault(); applyMention(a.name) }}>
-                  <span>{a.avatar}</span>
-                  <span className="text-[13px]">{a.name}</span>
-                  <span className="text-[11px] text-faint">{a.roleId}</span>
-                </button>
-              ))}
-            </div>
-          ) : null}
         </div>
+
+        {/* tools row */}
+        <div className="flex items-center gap-3 px-2 pb-2 min-w-0">
+          {isAgent ? (
+            <ModelPicker value={modelId || settings?.defaultModelId || 'pollinations/openai-fast'} onChange={(id) => { setModelId(id); void loadSettings() }} />
+          ) : (
+            <span className="inline-flex items-center gap-1.5 h-7 px-2 rounded-sm text-[12px] font-medium text-[color:var(--dsw-alias-label-secondary)] hover:bg-[var(--dsw-alias-interactive-bg-hover)] cursor-default transition-colors duration-100">
+              <AtSign size={12} className="text-[color:var(--dsw-alias-state-business-primary)]" />
+              {swarmConfig.agents.length} agents
+              {swarmConfig.plannerCoordination ? <Badge color="#8d7fff">planner</Badge> : null}
+            </span>
+          )}
+          <div className="ml-auto flex items-center gap-2">
+            {chat.running ? (
+              <button
+                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] text-[color:var(--dsw-alias-state-error-secondary)] hover:bg-[var(--dsw-alias-interactive-bg-hover-danger)] cursor-pointer bg-transparent border-none transition-colors duration-100"
+                onClick={() => void chat.stop()}
+              >
+                <Square size={10} /> {t('stop_turn')}
+              </button>
+            ) : null}
+            <button
+              onClick={chat.running ? () => void chat.stop() : submit}
+              disabled={!chat.running && !text.trim()}
+              className="shrink-0 w-[34px] h-[34px] rounded-full flex items-center justify-center cursor-pointer border-none text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-100"
+              style={{ background: 'var(--dsw-alias-button-info-fill)' }}
+              onMouseEnter={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.background = 'var(--dsw-alias-button-info-hover)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--dsw-alias-button-info-fill)' }}
+              aria-label={chat.running ? t('stop_turn') : t('send')}
+            >
+              {chat.running ? <Spinner size={14} className="text-white" /> : <ArrowUp size={16} />}
+            </button>
+          </div>
+        </div>
+
+        {/* @mention popup — DSH menu surface */}
+        {suggestions.length > 0 && mentionStart !== null ? (
+          <div
+            className="dsh-menu-surface absolute bottom-[calc(100%+6px)] left-2 rounded-lg overflow-hidden z-10 p-1 pop"
+            style={{ boxShadow: 'var(--dsw-elevation-prominent)' }}
+          >
+            {suggestions.map((a) => (
+              <button
+                key={a.id}
+                className="flex items-center gap-2 min-h-[34px] px-2.5 rounded-md hover:bg-[var(--dsw-alias-interactive-bg-hover)] w-full text-left cursor-pointer bg-transparent border-none transition-colors duration-100"
+                onMouseDown={(e) => { e.preventDefault(); applyMention(a.name) }}
+              >
+                <span className="w-5 h-5 rounded-sm flex items-center justify-center text-[11px] shrink-0" style={{ background: `${a.color}14`, color: a.color }}>
+                  {a.avatar}
+                </span>
+                <span className="text-[13px] text-ink">{a.name}</span>
+                <span className="text-[11px] text-[color:var(--dsw-alias-label-tertiary)]">{a.roleId}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
+
       {chat.sendError ? (
-        <div className="mt-1.5 mx-1 rounded-lg border border-red/40 bg-red/10 px-3 py-1.5 text-[11.5px] text-red flex items-center gap-2">
-          <span className="flex-1">⚠ {t('send_failed')} — {chat.sendError}</span>
-          <button className="text-red/70 hover:text-red cursor-pointer" onClick={() => useChatStore.setState({ sendError: null })}>
-            ✕
+        <div className="mt-1.5 mx-1 rounded-md border-[0.5px] border-[color:var(--dsw-alias-state-error-secondary)] px-3 py-1.5 text-[12px] text-[color:var(--dsw-alias-state-error-secondary)] flex items-center gap-2" style={{ background: 'var(--dsw-alias-interactive-bg-hover-danger)' }}>
+          <span className="flex-1">{t('send_failed')} — {chat.sendError}</span>
+          <button
+            className="text-[color:var(--dsw-alias-label-tertiary)] hover:text-ink cursor-pointer bg-transparent border-none p-0 transition-colors duration-100"
+            onClick={() => useChatStore.setState({ sendError: null })}
+          >
+            <X size={12} />
           </button>
         </div>
       ) : null}
-      <div className="px-1.5 mt-1.5 text-[10.5px] text-faint flex items-center gap-2">
+
+      <div className="px-2 mt-1.5 text-[10.5px] text-[color:var(--dsw-alias-label-caption)] flex items-center gap-2">
         <span>Enter ↵ {t('send')}</span>
-        <span className="text-line2">·</span>
+        <span>·</span>
         <span>Shift+Enter ⏎</span>
         <span className="ml-auto inline-flex items-center gap-1">
-          <kbd className="font-mono border border-line rounded px-1 py-px text-[9.5px]">Ctrl K</kbd>
+          <span className="dsh-kbd">Ctrl</span>
+          <span className="dsh-kbd">K</span>
           {t('palette_open')}
         </span>
       </div>

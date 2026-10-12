@@ -80,9 +80,9 @@ function AgentCard({ agent, index }: { agent: AgentConfig; index: number }) {
           <div className="flex items-center gap-1.5 px-1 flex-wrap">
             <Badge color={agent.color}>{role ? (language === 'vi' ? role.nameVi : role.name) : agent.roleId}</Badge>
             <span className="text-[10.5px] text-faint font-mono truncate">{agent.modelId.split('/').pop()?.replace(/"/g, '')}</span>
-            {needsKey && !agent.apiKey && !vaultHasKey ? <Badge color="#FBBF24">{t('key_needed')}</Badge> : null}
-            {needsKey && agent.apiKey ? <Badge color="#4ADE80">{t('key_saved')}</Badge> : null}
-            {needsKey && !agent.apiKey && vaultHasKey ? <Badge color="#38BDF8">✓ key</Badge> : null}
+            {needsKey && !agent.apiKey && !vaultHasKey ? <Badge color="#f59e0b">{t('key_needed')}</Badge> : null}
+            {needsKey && agent.apiKey ? <Badge color="#22c55e">{t('key_saved')}</Badge> : null}
+            {needsKey && !agent.apiKey && vaultHasKey ? <Badge color="#3b82f6">✓ key</Badge> : null}
           </div>
         </div>
         <Toggle checked={agent.enabled} onChange={(v) => updateAgent(agent.id, { enabled: v })} />
@@ -117,7 +117,7 @@ function AgentCard({ agent, index }: { agent: AgentConfig; index: number }) {
             <div>
               <div className="text-[11px] text-faint mb-1.5">{t('agent_color')}</div>
               <div className="flex flex-wrap gap-1.5">
-                {['#7C6CFF', '#4ADE80', '#38BDF8', '#F472B6', '#FBBF24', '#2DD4BF', '#F97316', '#A78BFA', '#EF4444', '#84CC16'].map((c) => (
+                {['#8b5cf6', '#22c55e', '#3b82f6', '#F472B6', '#f59e0b', '#2DD4BF', '#F97316', '#A78BFA', '#EF4444', '#84CC16'].map((c) => (
                   <button
                     key={c}
                     onClick={() => updateAgent(agent.id, { color: c })}

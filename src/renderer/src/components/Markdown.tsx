@@ -33,11 +33,11 @@ const CodeBlock = memo(function CodeBlock({ code, lang }: { code: string; lang?:
     html = escapeHtml(code)
   }
   return (
-    <div className="group relative">
-      <div className="flex items-center justify-between px-3.5 py-1.5 border-b border-line bg-[#10151f]">
-        <span className="text-[10.5px] font-mono uppercase tracking-wider text-faint">{lang || 'code'}</span>
+    <div className="code-block group relative my-4">
+      <div className="flex items-center justify-between px-3.5 py-[7px] bg-[var(--dsw-alias-markdown-code-block-banner)]">
+        <span className="text-[11px] leading-[18px] font-mono uppercase text-[color:var(--dsw-alias-label-tertiary)]">{lang || 'code'}</span>
         <button
-          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted hover:text-ink cursor-pointer flex items-center gap-1 text-[11px]"
+          className="opacity-0 group-hover:opacity-100 transition-opacity duration-100 text-[color:var(--dsw-alias-label-tertiary)] hover:text-ink cursor-pointer flex items-center gap-1 text-[11px] bg-transparent border-none p-0"
           onClick={() => {
             void navigator.clipboard.writeText(code)
             setCopied(true)

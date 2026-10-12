@@ -1,4 +1,5 @@
-/** Tool run row: one quiet line while closed, full detail when expanded. */
+/** Tool run row — DSH disclosure row: 24px header, chevron, status dot,
+ *  summary; expanded IN/OUT cards on the markdown-code-block surface. */
 import { useState } from 'react'
 import {
   ChevronRight,
@@ -27,47 +28,47 @@ import {
 } from 'lucide-react'
 import type { ToolRun } from '@shared/types'
 import { useT } from '../../i18n'
-import { Badge, Spinner } from '../ui'
+import { Spinner } from '../ui'
 import { DiffView, diffForTool } from './DiffView'
 
 const TOOL_ICONS: Record<string, React.ReactNode> = {
-  read_file: <FileText size={12} />,
-  list_dir: <FolderOpen size={12} />,
-  write_file: <FilePen size={12} />,
-  edit_file: <FilePen size={12} />,
-  multi_edit: <FilePen size={12} />,
-  delete_file: <FilePen size={12} />,
-  read_image: <FileText size={12} />,
-  apply_patch: <FilePen size={12} />,
-  glob: <Search size={12} />,
-  grep: <Search size={12} />,
-  run_command: <TerminalSquare size={12} />,
-  telegraph_ask: <Zap size={12} />,
-  telegraph_miners: <Zap size={12} />,
-  telegraph_intents: <Zap size={12} />,
-  telegraph_verify: <Zap size={12} />,
-  send_message: <MessageSquare size={12} />,
-  task_board_list: <ListChecks size={12} />,
-  task_board_create: <ListChecks size={12} />,
-  task_board_claim: <ListChecks size={12} />,
-  task_board_update: <ListChecks size={12} />,
+  read_file: <FileText size={13} />,
+  list_dir: <FolderOpen size={13} />,
+  write_file: <FilePen size={13} />,
+  edit_file: <FilePen size={13} />,
+  multi_edit: <FilePen size={13} />,
+  delete_file: <FilePen size={13} />,
+  read_image: <FileText size={13} />,
+  apply_patch: <FilePen size={13} />,
+  glob: <Search size={13} />,
+  grep: <Search size={13} />,
+  run_command: <TerminalSquare size={13} />,
+  telegraph_ask: <Zap size={13} />,
+  telegraph_miners: <Zap size={13} />,
+  telegraph_intents: <Zap size={13} />,
+  telegraph_verify: <Zap size={13} />,
+  send_message: <MessageSquare size={13} />,
+  task_board_list: <ListChecks size={13} />,
+  task_board_create: <ListChecks size={13} />,
+  task_board_claim: <ListChecks size={13} />,
+  task_board_update: <ListChecks size={13} />,
   /* ported harness tools */
-  web_fetch: <Globe size={12} />,
-  web_search: <Search size={12} />,
-  todo_write: <ListTodo size={12} />,
-  ask_user: <MessageCircleQuestion size={12} />,
-  job_list: <SquareActivity size={12} />,
-  job_output: <SquareActivity size={12} />,
-  job_kill: <SquareX size={12} />,
-  schedule_create: <AlarmClock size={12} />,
-  schedule_list: <AlarmClock size={12} />,
-  schedule_delete: <AlarmClockOff size={12} />,
-  git_status: <GitBranch size={12} />,
-  git_diff: <GitCompare size={12} />,
-  git_log: <History size={12} />,
-  git_commit: <GitCommitHorizontal size={12} />,
-  delegate_task: <Split size={12} />,
-  skill: <BookOpen size={12} />,
+  web_fetch: <Globe size={13} />,
+  web_search: <Search size={13} />,
+  todo_write: <ListTodo size={13} />,
+  ask_user: <MessageCircleQuestion size={13} />,
+  job_list: <SquareActivity size={13} />,
+  job_output: <SquareActivity size={13} />,
+  job_kill: <SquareX size={13} />,
+  schedule_create: <AlarmClock size={13} />,
+  schedule_list: <AlarmClock size={13} />,
+  schedule_delete: <AlarmClockOff size={13} />,
+  git_status: <GitBranch size={13} />,
+  git_diff: <GitCompare size={13} />,
+  git_log: <History size={13} />,
+  git_commit: <GitCommitHorizontal size={13} />,
+  delegate_task: <Split size={13} />,
+  skill: <BookOpen size={13} />,
 }
 
 const TOOL_VERBS: Record<string, string> = {
@@ -189,54 +190,91 @@ function scheduleSelectorLabel(args: Record<string, unknown>): string {
   return ''
 }
 
-const STATE_ICON: Record<ToolRun['state'], string> = {
-  pending: 'text-faint',
-  running: 'text-cyan',
-  'awaiting-approval': 'text-amber',
-  completed: 'text-good',
-  error: 'text-red',
-  rejected: 'text-faint',
+/** 2×2 status dot colors (DSH tool rows) */
+const STATE_DOT: Record<ToolRun['state'], string> = {
+  pending: 'var(--dsw-alias-label-dimmed)',
+  running: 'var(--dsw-alias-state-business-primary)',
+  'awaiting-approval': 'var(--dsw-alias-state-warn-primary)',
+  completed: 'var(--dsw-alias-state-success-primary)',
+  error: 'var(--dsw-alias-state-error-primary)',
+  rejected: 'var(--dsw-alias-label-dimmed)',
 }
 
 export function ToolCard({ run }: { run: ToolRun }) {
   const t = useT()
   const [open, setOpen] = useState(false)
-  const icon = TOOL_ICONS[run.tool] ?? <ShieldQuestion size={12} />
+  const icon = TOOL_ICONS[run.tool] ?? <ShieldQuestion size={13} />
   const verb = TOOL_VERBS[run.tool]
   const result = typeof run.result === 'string' ? run.result : JSON.stringify(run.result ?? '')
   const diff = open ? diffForTool(run.tool, run.args) : null
   const duration = run.endedAt && run.startedAt ? ((run.endedAt - run.startedAt) / 1000).toFixed(1) : null
 
   return (
-    <div className={`rounded-xl border overflow-hidden transition-colors duration-200 ${open ? 'border-line2 bg-panel2/80' : 'border-line bg-panel2/50 hover:bg-panel2/80'}`}>
-      <button className="flex items-center gap-2 px-3 py-[7px] w-full text-left cursor-pointer group" onClick={() => setOpen(!open)}>
-        <ChevronRight size={11} className={`text-faint transition-transform duration-200 shrink-0 ${open ? 'rotate-90' : ''}`} />
-        <span className={`shrink-0 ${STATE_ICON[run.state]}`}>{icon}</span>
-        {verb ? <span className="text-[11.5px] text-muted shrink-0">{verb}</span> : <span className="font-mono text-[11.5px] text-muted shrink-0">{run.tool}</span>}
-        <span className="text-[12px] text-ink/75 truncate flex-1 font-mono">{summarizeArgs(run.tool, run.args)}</span>
-        {run.state === 'running' ? <Spinner size={11} className="text-cyan shrink-0" /> : null}
-        {run.state === 'awaiting-approval' ? <Badge color="#FFB454">{t('approval_title')}</Badge> : null}
-        {run.state === 'rejected' ? <Badge color="#59637a">{t('reject')}</Badge> : null}
-        {run.state === 'error' ? <Badge color="#FF6B7A">error</Badge> : null}
-        {run.state === 'completed' && duration ? <span className="text-[10px] text-faint font-mono shrink-0">{duration}s</span> : null}
+    <div className="w-full">
+      <button
+        className="group flex items-center gap-2 min-h-6 w-full py-0.5 text-left cursor-pointer bg-transparent border-none rounded-sm hover:bg-[var(--dsw-alias-interactive-bg-hover)] transition-colors duration-100 px-1 -mx-1"
+        onClick={() => setOpen(!open)}
+      >
+        <ChevronRight
+          size={12}
+          className={`shrink-0 text-[color:var(--dsw-alias-label-tertiary)] transition-transform duration-100 ${open ? 'rotate-90' : ''}`}
+        />
+        <span className="shrink-0 text-[color:var(--dsw-alias-label-tertiary)]">{icon}</span>
+        {verb ? (
+          <span className="text-[13px] leading-6 text-ink shrink-0">{verb}</span>
+        ) : (
+          <span className="font-mono text-[12px] text-ink shrink-0">{run.tool}</span>
+        )}
+        <span className="text-[13px] leading-6 text-[color:var(--dsw-alias-label-tertiary)] group-hover:text-[color:var(--dsw-alias-label-secondary)] truncate flex-1 transition-colors duration-100">
+          {summarizeArgs(run.tool, run.args)}
+        </span>
+        {run.state === 'running' ? <Spinner size={11} className="shrink-0 text-[color:var(--dsw-alias-state-business-primary)]" /> : null}
+        {run.state === 'awaiting-approval' ? <span className="text-[11px] text-[color:var(--dsw-alias-state-warn-label)] shrink-0">{t('approval_title')}</span> : null}
+        {run.state === 'rejected' ? <span className="text-[11px] text-[color:var(--dsw-alias-label-tertiary)] shrink-0">{t('reject')}</span> : null}
+        {run.state === 'error' ? <span className="text-[11px] text-[color:var(--dsw-alias-state-error-secondary)] shrink-0">error</span> : null}
+        {run.state === 'completed' && duration ? <span className="text-[10px] text-[color:var(--dsw-alias-label-caption)] font-mono shrink-0">{duration}s</span> : null}
+        {/* status dot */}
+        {run.state !== 'running' ? (
+          <span
+            className="shrink-0 w-[5px] h-[5px] rounded-full"
+            style={{ background: STATE_DOT[run.state], opacity: run.state === 'pending' || run.state === 'rejected' ? 0.6 : 1 }}
+          />
+        ) : null}
       </button>
       {open ? (
-        <div className="border-t border-line px-3.5 py-2.5 text-[12px] fade-in">
+        <div className="ml-4 mt-1 mb-1.5 flex flex-col gap-1.5 fade-in" style={{ maxHeight: 280, overflowY: 'auto' }}>
           {diff ? <DiffView diff={diff} /> : null}
-          <details className="mt-1">
-            <summary className="font-mono text-[10.5px] text-faint cursor-pointer hover:text-muted select-none">arguments</summary>
-            <pre className="font-mono text-[11px] text-muted whitespace-pre-wrap break-all mt-1.5 mb-2 selectable">{JSON.stringify(run.args, null, 2).slice(0, 4000)}</pre>
-          </details>
+          <div
+            className="rounded-lg border-[0.5px] border-[color:var(--dsw-alias-border-l1)] overflow-hidden"
+            style={{ background: 'var(--dsw-alias-markdown-code-block)' }}
+          >
+            <div className="flex items-center px-3 pt-2 pb-1 text-[11px] font-mono text-[color:var(--dsw-alias-label-caption)]">input</div>
+            <pre className="px-3 pb-2.5 font-mono text-[11px] leading-[16px] text-[color:var(--dsw-alias-label-secondary)] whitespace-pre-wrap break-all selectable m-0">
+              {JSON.stringify(run.args, null, 2).slice(0, 4000)}
+            </pre>
+          </div>
           {run.error ? (
-            <>
-              <div className="font-mono text-[11px] text-red mb-1">error</div>
-              <pre className="font-mono text-[11px] text-red/80 whitespace-pre-wrap break-all selectable">{run.error.slice(0, 2000)}</pre>
-            </>
+            <div
+              className="rounded-lg border-[0.5px] border-[color:var(--dsw-alias-border-l1)] overflow-hidden"
+              style={{ background: 'var(--dsw-alias-markdown-code-block)' }}
+            >
+              <div className="flex items-center px-3 pt-2 pb-1 text-[11px] font-mono text-[color:var(--dsw-alias-state-error-secondary)]">error</div>
+              <pre className="px-3 pb-2.5 font-mono text-[11px] leading-[16px] text-[color:var(--dsw-alias-state-error-secondary)] whitespace-pre-wrap break-all selectable m-0">
+                {run.error.slice(0, 2000)}
+              </pre>
+            </div>
           ) : result ? (
-            <>
-              <div className="font-mono text-[11px] text-faint mb-1 mt-1">{run.state === 'completed' ? 'output' : 'result'}</div>
-              <pre className="font-mono text-[11px] text-muted whitespace-pre-wrap break-all max-h-72 overflow-y-auto selectable">{result.slice(0, 6000)}</pre>
-            </>
+            <div
+              className="rounded-lg border-[0.5px] border-[color:var(--dsw-alias-border-l1)] overflow-hidden"
+              style={{ background: 'var(--dsw-alias-markdown-code-block)' }}
+            >
+              <div className="flex items-center px-3 pt-2 pb-1 text-[11px] font-mono text-[color:var(--dsw-alias-label-caption)]">
+                {run.state === 'completed' ? 'output' : 'result'}
+              </div>
+              <pre className="px-3 pb-2.5 font-mono text-[11px] leading-[16px] text-[color:var(--dsw-alias-label-secondary)] whitespace-pre-wrap break-all selectable m-0">
+                {result.slice(0, 6000)}
+              </pre>
+            </div>
           ) : null}
         </div>
       ) : null}

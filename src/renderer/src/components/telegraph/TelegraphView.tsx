@@ -93,7 +93,7 @@ export function TelegraphView() {
             <div className="flex items-center gap-2 mb-3">
               <KeyRound size={14} className="text-signal" />
               <span className="text-[13.5px] font-semibold">{t('tg_wallet')}</span>
-              {status?.walletFunded ? <Badge color="#4ADE80">funded</Badge> : status?.walletAddress ? <Badge color="#FBBF24">no funds</Badge> : null}
+              {status?.walletFunded ? <Badge color="#22c55e">funded</Badge> : status?.walletAddress ? <Badge color="#f59e0b">no funds</Badge> : null}
             </div>
             {status?.walletAddress ? (
               <div className="space-y-3">
@@ -157,7 +157,7 @@ export function TelegraphView() {
             <div className="flex items-center gap-2 mb-3">
               <Zap size={14} className="text-cyan" />
               <span className="text-[13.5px] font-semibold">{t('tg_network')}</span>
-              <Badge color={status?.nodeReachable === false ? '#F87171' : '#4ADE80'}>{status?.nodeReachable === false ? t('tg_offline') : network}</Badge>
+              <Badge color={status?.nodeReachable === false ? '#F87171' : '#22c55e'}>{status?.nodeReachable === false ? t('tg_offline') : network}</Badge>
             </div>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-[12.5px]">
               <dt className="text-faint">{t('tg_miners')}</dt>
@@ -220,9 +220,9 @@ export function TelegraphView() {
               ) : (
                 <>
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <Badge color="#22D3EE">miner {tg.lastAsk.minerName}</Badge>
+                    <Badge color="#0ea5e9">miner {tg.lastAsk.minerName}</Badge>
                     {tg.lastAsk.intent ? <Badge>{tg.lastAsk.intent}</Badge> : null}
-                    <Badge color="#4ADE80">${tg.lastAsk.costUsd.toFixed(2)}</Badge>
+                    <Badge color="#22c55e">${tg.lastAsk.costUsd.toFixed(2)}</Badge>
                     {tg.lastAsk.receipt?.txHash ? (
                       <a
                         className="inline-flex items-center gap-1 text-[11px] text-cyan hover:underline cursor-pointer"
@@ -289,7 +289,7 @@ export function TelegraphView() {
                     <tr key={r.receiptHash} className="hover:bg-panel2/50">
                       <td className="px-3.5 py-2 text-muted font-mono">{new Date(r.timestamp * 1000).toLocaleTimeString()}</td>
                       <td className="px-3.5 py-2">
-                        <Badge color="#7C6CFF">{r.intent || '—'}</Badge>
+                        <Badge color="#8b5cf6">{r.intent || '—'}</Badge>
                       </td>
                       <td className="px-3.5 py-2 font-mono text-muted">{r.miner || '—'}</td>
                       <td className="px-3.5 py-2 text-right font-mono text-amber">${r.amountUsd.toFixed(2)}</td>

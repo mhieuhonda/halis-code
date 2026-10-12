@@ -1,9 +1,10 @@
 /**
  * Command palette (Ctrl+K) — routes, sessions, quick model switch.
- * Inspired by opencode's searchable dialog-select.
+ * Skinned as a DSH frosted popup-select: menu surface material, 34px rows,
+ * sticky group headers, shortcut chips.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Cpu, ListChecks, MessageSquarePlus, Search, Settings, Sparkles, Star, Users, Zap } from 'lucide-react'
+import { Bot, Cpu, ListChecks, MessageSquarePlus, Search, Settings, Star, Users, Zap } from 'lucide-react'
 import { useT } from '../../i18n'
 import { useAppStore } from '../../stores/app'
 import { useChatStore } from '../../stores/chat'
@@ -39,7 +40,7 @@ export function CommandPalette({ open, onClose, setRoute }: { open: boolean; onC
 
   const commands = useMemo<Command[]>(() => {
     const nav: Array<{ id: Route; icon: React.ReactNode; label: string }> = [
-      { id: 'chat', icon: <Sparkles size={14} />, label: t('nav_chat') },
+      { id: 'chat', icon: <Bot size={14} />, label: t('nav_chat') },
       { id: 'swarm-setup', icon: <Users size={14} />, label: t('nav_swarm_setup') },
       { id: 'models', icon: <Cpu size={14} />, label: t('nav_models') },
       { id: 'telegraph', icon: <Zap size={14} />, label: t('nav_telegraph') },
@@ -52,7 +53,7 @@ export function CommandPalette({ open, onClose, setRoute }: { open: boolean; onC
       id: 'new-agent-session',
       label: t('new_chat'),
       hint: 'Ctrl+N',
-      icon: <MessageSquarePlus size={14} className="text-ember" />,
+      icon: <MessageSquarePlus size={14} className="text-[color:var(--dsw-alias-state-business-primary)]" />,
       group: t('sessions'),
       run: () => {
         void chat.newSession('agent')
@@ -62,7 +63,7 @@ export function CommandPalette({ open, onClose, setRoute }: { open: boolean; onC
     out.push({
       id: 'new-swarm-session',
       label: t('new_swarm_session'),
-      icon: <Users size={14} className="text-signal" />,
+      icon: <Users size={14} className="text-[color:var(--dsw-alias-state-business-primary)]" />,
       group: t('sessions'),
       run: () => {
         void chat.newSession('swarm')
@@ -73,7 +74,7 @@ export function CommandPalette({ open, onClose, setRoute }: { open: boolean; onC
       out.push({
         id: `go-${item.id}`,
         label: item.label,
-        icon: <span className="text-muted">{item.icon}</span>,
+        icon: <span className="text-[color:var(--dsw-alias-label-tertiary)]">{item.icon}</span>,
         group: t('nav_go'),
         run: () => setRoute(item.id),
       })
@@ -82,8 +83,8 @@ export function CommandPalette({ open, onClose, setRoute }: { open: boolean; onC
       out.push({
         id: `session-${s.id}`,
         label: s.title,
-        hint: s.mode === 'swarm' ? '🐝' : '✦',
-        icon: <span className="text-faint text-[11px]">{s.mode === 'swarm' ? '🐝' : '✦'}</span>,
+        hint: s.mode === 'swarm' ? t('mode_swarm') : t('mode_agent'),
+        icon: <span className="text-[color:var(--dsw-alias-label-tertiary)]">{s.mode === 'swarm' ? <Users size={13} /> : <Bot size={13} />}</span>,
         group: t('sessions'),
         run: () => {
           void chat.openSession(s.id)
@@ -98,7 +99,7 @@ export function CommandPalette({ open, onClose, setRoute }: { open: boolean; onC
           id: `model-${m.id}`,
           label: m.name,
           hint: catalog.providers.find((p) => p.id === m.providerId)?.name ?? m.providerId,
-          icon: <Star size={13} className="text-amber" />,
+          icon: <Star size={13} className="text-[color:var(--dsw-alias-state-warn-primary)]" />,
           group: t('settings_default_model'),
           run: () => {
             void setSettings({ defaultModelId: m.id })
@@ -134,9 +135,10 @@ export function CommandPalette({ open, onClose, setRoute }: { open: boolean; onC
   })
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-start justify-center pt-[14vh] bg-black/60 backdrop-blur-[3px] fade-in" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[70] flex items-start justify-center pt-[14vh] bg-[var(--dsw-alias-bg-mask-2)] modal-enter" onMouseDown={onClose}>
       <div
-        className="w-full max-w-lg rounded-2xl border border-line2 bg-panel shadow-[0_32px_90px_-16px_rgba(0,0,0,0.85)] overflow-hidden pop"
+        className="dsh-menu-surface w-full max-w-[520px] rounded-lg overflow-hidden"
+        style={{ boxShadow: 'var(--dsw-elevation-prominent)' }}
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === 'ArrowDown') {
@@ -158,30 +160,30 @@ export function CommandPalette({ open, onClose, setRoute }: { open: boolean; onC
           }
         }}
       >
-        <div className="flex items-center gap-2.5 px-4 py-3 border-b border-line">
-          <Search size={14} className="text-faint shrink-0" />
+        <div className="flex items-center gap-2.5 px-4 h-12 border-b-[0.5px] border-[color:var(--dsw-alias-border-l2)]">
+          <Search size={14} className="text-[color:var(--dsw-alias-label-tertiary)] shrink-0" />
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t('palette_placeholder')}
-            className="flex-1 bg-transparent outline-none text-[13.5px] text-ink placeholder:text-faint"
+            className="flex-1 bg-transparent outline-none border-none text-[14px] text-ink placeholder:text-[color:var(--dsw-alias-label-dimmed)]"
           />
-          <kbd className="text-[10px] font-mono text-faint border border-line rounded px-1.5 py-0.5">esc</kbd>
+          <span className="dsh-kbd">esc</span>
         </div>
-        <div ref={listRef} className="max-h-[320px] overflow-y-auto py-1.5">
+        <div ref={listRef} className="max-h-[340px] overflow-y-auto p-1">
           {filtered.length === 0 ? (
-            <div className="px-4 py-6 text-center text-[12.5px] text-faint">{t('no_results')}</div>
+            <div className="px-4 py-6 text-center text-[13px] text-[color:var(--dsw-alias-label-tertiary)]">{t('no_results')}</div>
           ) : (
             grouped.map((g) => (
               <div key={`${g.group}-${g.items[0]!.idx}`}>
-                <div className="px-4 pt-2 pb-1 text-[10px] uppercase tracking-wider text-faint font-medium">{g.group}</div>
+                <div className="px-2.5 pt-2 pb-1 text-[11px] leading-4 font-medium text-[color:var(--dsw-alias-label-tertiary)]">{g.group}</div>
                 {g.items.map(({ cmd, idx }) => (
                   <button
                     key={cmd.id}
                     data-idx={idx}
-                    className={`w-full flex items-center gap-2.5 px-4 py-2 text-left cursor-pointer transition-colors ${
-                      idx === selected ? 'bg-panel3' : 'hover:bg-panel2'
+                    className={`w-full flex items-center gap-2.5 min-h-[34px] px-2.5 rounded-md text-left cursor-pointer bg-transparent border-none transition-colors duration-100 ${
+                      idx === selected ? 'bg-[var(--dsw-alias-interactive-bg-hover)]' : ''
                     }`}
                     onMouseEnter={() => setSelected(idx)}
                     onClick={() => {
@@ -191,17 +193,20 @@ export function CommandPalette({ open, onClose, setRoute }: { open: boolean; onC
                   >
                     <span className="shrink-0">{cmd.icon}</span>
                     <span className="text-[13px] text-ink truncate flex-1">{cmd.label}</span>
-                    {cmd.hint ? <span className="text-[10.5px] text-faint font-mono shrink-0">{cmd.hint}</span> : null}
+                    {cmd.hint ? <span className="text-[11px] text-[color:var(--dsw-alias-label-caption)] font-mono shrink-0">{cmd.hint}</span> : null}
                   </button>
                 ))}
               </div>
             ))
           )}
         </div>
-        <div className="flex items-center gap-3 px-4 py-2 border-t border-line text-[10.5px] text-faint">
+        <div className="flex items-center gap-3 px-4 py-2 border-t-[0.5px] border-[color:var(--dsw-alias-border-l2)] text-[11px] text-[color:var(--dsw-alias-label-tertiary)]">
           <span>↑↓ {t('palette_navigate')}</span>
           <span>↵ {t('palette_run')}</span>
-          <span className="ml-auto font-mono">Halis</span>
+          <span className="ml-auto flex items-center gap-1">
+            <span className="dsh-kbd">Ctrl</span>
+            <span className="dsh-kbd">K</span>
+          </span>
         </div>
       </div>
     </div>

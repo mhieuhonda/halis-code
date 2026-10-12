@@ -117,10 +117,10 @@ function ModelRow({ model, isDefault, onSetDefault }: { model: ModelInfo; isDefa
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-[13px] font-medium truncate">{model.name}</span>
-          {model.free ? <Badge color="#4ADE80">free</Badge> : null}
+          {model.free ? <Badge color="#22c55e">free</Badge> : null}
           {model.reasoning ? <Badge>reasoning</Badge> : null}
-          {model.toolCall ? null : <Badge color="#FBBF24">no tools</Badge>}
-          {isDefault ? <Badge color="#7C6CFF">{t('default_badge')}</Badge> : null}
+          {model.toolCall ? null : <Badge color="#f59e0b">no tools</Badge>}
+          {isDefault ? <Badge color="#8b5cf6">{t('default_badge')}</Badge> : null}
         </div>
         <div className="text-[11px] text-faint font-mono truncate">{model.id}</div>
         {testState !== 'idle' && testState !== 'testing' ? (
@@ -237,7 +237,7 @@ export function ModelsView() {
                 <div className="flex items-center gap-2">
                   <KeyRound size={13} className="text-faint" />
                   <span className="text-[13px] font-medium">{p.name}</span>
-                  {p.freeKey ? <Badge color="#4ADE80">free key</Badge> : null}
+                  {p.freeKey ? <Badge color="#22c55e">free key</Badge> : null}
                   {p.note ? <span className="text-[11px] text-faint truncate">{p.note}</span> : null}
                 </div>
                 <KeyBox provider={p} />

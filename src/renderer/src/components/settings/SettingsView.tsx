@@ -59,7 +59,7 @@ export function SettingsView() {
           <div className="flex items-center gap-2 mb-2">
             <FolderOpen size={14} className="text-signal" />
             <span className="text-[13.5px] font-semibold">{t('settings_workspace')}</span>
-            {app.workspace.isGit ? <Badge color="#4ADE80">git</Badge> : null}
+            {app.workspace.isGit ? <Badge color="#22c55e">git</Badge> : null}
           </div>
           <p className="text-[12px] text-muted mb-3">{t('settings_workspace_hint')}</p>
           <div className="flex gap-2">
@@ -72,7 +72,7 @@ export function SettingsView() {
         <section className="rounded-2xl border border-line bg-panel2 p-4">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-[13.5px] font-semibold">{t('settings_default_model')}</span>
-            <Badge color="#FF7A3E">{settings.defaultModelId.split('/').pop()}</Badge>
+            <Badge color="#f59e0b">{settings.defaultModelId?.split('/').pop()}</Badge>
           </div>
           <ModelPicker value={settings.defaultModelId} onChange={(id) => void app.setSettings({ defaultModelId: id })} />
         </section>
@@ -111,7 +111,7 @@ export function SettingsView() {
           <div className="flex items-center gap-2 mb-2">
             <Scissors size={14} className={settings.ponytailEnabled ? 'text-signal' : 'text-muted'} />
             <span className="text-[13.5px] font-semibold">{t('settings_ponytail')}</span>
-            <Badge color={settings.ponytailEnabled ? '#3ED598' : '#59637a'}>{settings.ponytailEnabled ? 'on' : 'off'}</Badge>
+            <Badge color={settings.ponytailEnabled ? '#3ED598' : '#81858c'}>{settings.ponytailEnabled ? 'on' : 'off'}</Badge>
           </div>
           <p className="text-[12px] text-muted mb-3 leading-relaxed">{t('settings_ponytail_hint')}</p>
           <Toggle checked={settings.ponytailEnabled === true} onChange={(v) => void app.setSettings({ ponytailEnabled: v })} label={t('settings_ponytail')} />
@@ -123,7 +123,7 @@ export function SettingsView() {
           <div className="flex items-center gap-2 mb-2">
             {settings.telegraphEnabled === false ? <ZapOff size={14} className="text-amber" /> : <Zap size={14} className="text-cyan" />}
             <span className="text-[13.5px] font-semibold">{t('settings_telegraph_toggle')}</span>
-            <Badge color={settings.telegraphEnabled === false ? '#FBBF24' : '#3ED598'}>{settings.telegraphEnabled === false ? 'off' : 'on'}</Badge>
+            <Badge color={settings.telegraphEnabled === false ? '#f59e0b' : '#3ED598'}>{settings.telegraphEnabled === false ? 'off' : 'on'}</Badge>
           </div>
           <p className="text-[12px] text-muted mb-3 leading-relaxed">{t('settings_telegraph_toggle_hint')}</p>
           <Toggle
@@ -194,7 +194,7 @@ function McpSection({ configs, statuses, onChange }: { configs: McpServerConfig[
       <div className="flex items-center gap-2 mb-2">
         <Plug size={14} className="text-signal" />
         <span className="text-[13.5px] font-semibold">{t('mcp_title')}</span>
-        <Badge color="#59637a">MCP</Badge>
+        <Badge color="#81858c">MCP</Badge>
         <Button
           size="sm"
           variant="ghost"
