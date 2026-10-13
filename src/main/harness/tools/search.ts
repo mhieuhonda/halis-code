@@ -3,7 +3,7 @@
  * natively (no ripgrep dependency) and jailed to the workspace.
  */
 import { readdirSync, readFileSync, statSync, type Dirent } from 'node:fs'
-import { join, relative } from 'node:path'
+import { join, relative, sep } from 'node:path'
 import type { ToolContext, ToolDef, ToolResult } from './index'
 
 const MAX_GLOB_RESULTS = 200
@@ -129,6 +129,11 @@ export const grepTool: ToolDef = {
     // join() + safePath (the walked list is relative to the workspace only
     // in the directory case).
     const subIsDir = statSync(sub).isDirectory()
+    // Report paths relative to the WORKSPACE — what read_file/edit_file
+    // resolve against — not relative to the searched sub-path. Without this,
+    // `grep path:"src"` prints `utils/x.ts:12` and the follow-up read_file
+    // fails with "File not found" (the real path is `src/utils/x.ts`).
+    const displayPrefix = subIsDir ? relative(ctx.workspace, sub).split(sep).join('/') : ''
     // Silent caps breed confident false negatives: "No matches" over a
     // partially scanned tree must say so, or the model asserts the absence
     // to the user (reviewer verified this on a 5000-file repo).
@@ -164,7 +169,8 @@ export const grepTool: ToolDef = {
         // a minified 60 KB line freezes the whole main process for minutes
         // (this tool runs synchronously, up to 400 files per call).
         if (re.test(line.length > 8192 ? line.slice(0, 8192) : line)) {
-          results.push(`${file}:${i + 1}: ${line.trim().slice(0, 240)}`)
+          const shown = displayPrefix ? `${displayPrefix}/${file}` : file
+          results.push(`${shown}:${i + 1}: ${line.trim().slice(0, 240)}`)
         }
       }
       if (results.length >= MAX_GREP_RESULTS) break

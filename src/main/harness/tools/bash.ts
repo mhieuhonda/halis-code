@@ -14,7 +14,7 @@ import { scrubbedEnv } from '../util/child-env'
 import type { ToolContext, ToolDef, ToolResult } from './index'
 import type { JobStatus } from '../jobs'
 
-/** pwsh 7 → Windows PowerShell 5.1 → cmd fallback (deepseek-harness resolve chain). */
+/** pwsh 7 → Windows PowerShell 5.1 → cmd fallback chain. */
 function resolveWindowsShell(): { shell: string; preamble: string; args: (command: string) => string[]; kind: 'pwsh' | 'powershell' | 'cmd' } {
   const pf = process.env['ProgramFiles'] ?? 'C:\\Program Files'
   const pwsh7 = `${pf}\\PowerShell\\7\\pwsh.exe`
@@ -92,7 +92,7 @@ function killTree(child: ChildProcess): void {
   }
 }
 
-function runShellProcess(command: string, ctx: ToolContext, env: Record<string, string>, timeoutMs: number | null, onOutput: (chunk: string) => void): RunHandle {
+function runShellProcess(command: string, ctx: ToolContext, env: Record<string, string>, timeoutMs: number | null, onOutput: (chunk: string) => void, honorTurnAbort = true): RunHandle {
   const isWin = process.platform === 'win32'
   let shell: string
   let shellArgs: string[]
@@ -141,9 +141,11 @@ function runShellProcess(command: string, ctx: ToolContext, env: Record<string, 
   if (timer && typeof timer.unref === 'function') timer.unref()
 
   // A foreground Stop press must kill the running command, not leave the
-  // turn parked until the command finishes or times out on its own.
+  // turn parked until the command finishes or times out on its own. Background
+  // jobs opt out: they outlive the turn on purpose and only job_kill (or the
+  // output cap) stops them.
   const onAbort = () => killTree(child)
-  ctx.signal?.addEventListener('abort', onAbort, { once: true })
+  if (honorTurnAbort) ctx.signal?.addEventListener('abort', onAbort, { once: true })
 
   const outcome = new Promise<RunOutcome>((resolve) => {
     const finish = (patch: RunOutcome) => {
@@ -224,7 +226,7 @@ export const runCommandTool: ToolDef = {
         run: async (controls) => {
           // Background jobs outlive the turn on purpose (dev servers, long
           // builds) — no timeout. Output cap and job_kill still stop them.
-          handle = runShellProcess(command, ctx, env, null, (chunk) => controls.setOutput(chunk))
+          handle = runShellProcess(command, ctx, env, null, (chunk) => controls.setOutput(chunk), false)
           const outcome = await handle.outcome
           const endLabel = outcome.spawnError
             ? 'failed to start'

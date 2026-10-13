@@ -83,7 +83,12 @@ export const taskBoardUpdateTool: ToolDef = {
     try {
       const task = ctx.taskBoard.update(
         String(args.task ?? ''),
-        { status: status as 'todo' | 'in_progress' | 'blocked' | 'done' | undefined, blockedReason: args.blocked_reason ? String(args.blocked_reason) : undefined },
+        {
+          status: status as 'todo' | 'in_progress' | 'blocked' | 'done' | undefined,
+          // Absent stays undefined; an explicit '' must reach the board so
+          // clearing the reason un-blocks the task (board semantics).
+          blockedReason: args.blocked_reason === undefined ? undefined : String(args.blocked_reason),
+        },
         ctx.agentId,
         ctx.agentName,
       )

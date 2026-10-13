@@ -1,6 +1,6 @@
 /**
- * Model catalog registry: bundled snapshot + live refresh from opencode's
- * catalog (the exact source opencode ships) + local Ollama auto-detection.
+ * Model catalog registry: bundled snapshot + live refresh from the
+ * upstream catalog source + local Ollama auto-detection.
  */
 import type { CatalogSnapshot, ModelInfo, ProviderInfo } from '@shared/types'
 import { BUNDLED_MODELS, BUNDLED_PROVIDERS } from './catalog-data'
@@ -81,8 +81,8 @@ export class ModelCatalog {
     return models
   }
 
-  /** Models grouped by provider, opencode-style: provider sections in
-   *  bundled order (opencode's popular list first), free models first. */
+  /** Models grouped by provider: sections in bundled order (popular
+   *  providers first), free models first. */
   byProvider(): Array<{ provider: ProviderInfo; models: ModelInfo[] }> {
     return this.snapshot.providers
       .map((provider) => ({
@@ -134,6 +134,12 @@ export class ModelCatalog {
       this.snapshot = { providers, models, updatedAt: Date.now(), source }
       this.onUpdated?.(this.snapshot)
       return this.snapshot
+    } catch (err) {
+      // A degenerate upstream payload (or any merge failure) must not escape
+      // as an unhandled rejection from `void this.refresh()` — keep serving
+      // the last good snapshot and log instead.
+      console.warn('[halis] catalog refresh failed, keeping current snapshot:', err)
+      return this.snapshot
     } finally {
       // A throw anywhere above (bad payload shape from models.dev, …) must
       // not wedge this flag — refresh would silently die until restart.
@@ -145,7 +151,11 @@ export class ModelCatalog {
     try {
       const res = await fetch(MODELS_DEV_URL, { signal: AbortSignal.timeout(15_000) })
       if (!res.ok) return null
-      return (await res.json()) as Record<string, ModelsDevProvider>
+      // The endpoint is expected to return an object keyed by provider id;
+      // anything else (null, array, scalar) would break the merge below.
+      const data: unknown = await res.json()
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return null
+      return data as Record<string, ModelsDevProvider>
     } catch {
       return null
     }

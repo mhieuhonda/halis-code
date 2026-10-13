@@ -620,8 +620,9 @@ export class HalisApp {
           ? undefined
           : async (task) => {
               const subController = new AbortController()
+              const abortSub = () => subController.abort()
               if (input.signal?.aborted) subController.abort()
-              else input.signal?.addEventListener('abort', () => subController.abort(), { once: true })
+              else input.signal?.addEventListener('abort', abortSub, { once: true })
               this.running.set(`${session.id}:sub`, subController)
               try {
                 const subSession: Session = { ...session, messages: [] }
@@ -660,6 +661,10 @@ export class HalisApp {
                 return { output: result.text || '(sub-agent finished with no output)' }
               } finally {
                 this.running.delete(`${session.id}:sub`)
+                // Detach from the shared turn signal — a delegation that
+                // finished normally must not pin its sub-controller on the
+                // signal for the rest of the turn.
+                input.signal?.removeEventListener('abort', abortSub)
                 // Sub turns run under `${session.id}:sub` — cleanup scoped to
                 // the plain id never touches their pending approval cards.
                 // Without this, an aborted delegation leaves ghost cards that
