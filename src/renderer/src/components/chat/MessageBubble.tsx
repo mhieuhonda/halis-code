@@ -5,7 +5,7 @@
  * - system  → quiet centered pill
  */
 import { useMemo, useState } from 'react'
-import { ArrowRight, Bot, Check, Copy } from 'lucide-react'
+import { ArrowRight, Check, Copy } from 'lucide-react'
 import type { ChatMessage, ReceiptRef, ToolRun } from '@shared/types'
 import { useT } from '../../i18n'
 import { ShimmerText } from '../ui'
@@ -132,11 +132,19 @@ export function MessageBubble({ message, swarm, nameOf }: { message: ChatMessage
       {swarm ? (
         <div className="flex items-center gap-2 mb-1 flex-wrap">
           <span
-            className="w-6 h-6 rounded-md flex items-center justify-center text-[13px] shrink-0 border-[0.5px]"
+            className="w-6 h-6 rounded-md flex items-center justify-center text-[13px] shrink-0 border-[0.5px] overflow-hidden"
             style={{ backgroundColor: `${color}14`, borderColor: `${color}30` }}
             title={message.fromName}
           >
-            {message.agentAvatar ? <span>{message.agentAvatar}</span> : <Bot size={13} style={{ color }} />}
+            {message.agentAvatar?.startsWith('data:image/') ? (
+              <img src={message.agentAvatar} alt="" className="w-full h-full object-cover" draggable={false} />
+            ) : message.agentAvatar ? (
+              <span>{message.agentAvatar}</span>
+            ) : (
+              <span className="text-[11px] font-semibold" style={{ color }}>
+                {(message.fromName || '?').charAt(0).toUpperCase()}
+              </span>
+            )}
           </span>
           <span className="text-[13px] font-medium text-ink">{message.fromName}</span>
           {message.agentRole ? (

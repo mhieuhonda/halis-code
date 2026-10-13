@@ -10,6 +10,7 @@ import { MessageBubble } from '../chat/MessageBubble'
 import { ApprovalCard } from '../chat/ApprovalCard'
 import { TodoPanel } from '../chat/TodoPanel'
 import { Composer } from '../chat/Composer'
+import { AgentAvatar } from '../ui'
 import logoUrl from '../../assets/logo.png'
 import nameUrl from '../../assets/name.png'
 
@@ -78,11 +79,11 @@ export function ChatView({ mode }: { mode: 'agent' | 'swarm' }) {
             {enabledSwarmAgents.slice(0, 6).map((a) => (
               <span
                 key={a.id}
-                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] border-2 border-[var(--dsw-alias-bg-base)]"
+                className="w-5 h-5 rounded-full overflow-hidden border-2 border-[var(--dsw-alias-bg-base)]"
                 style={{ backgroundColor: `${a.color}22`, color: a.color }}
                 title={a.name}
               >
-                {a.avatar}
+                <AgentAvatar agent={a} size={20} className="rounded-full" />
               </span>
             ))}
             {enabledSwarmAgents.length > 6 ? (

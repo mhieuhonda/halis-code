@@ -161,6 +161,9 @@ export interface AgentConfig {
   id: string
   name: string
   avatar: string
+  /** User-uploaded avatar (data URL). Empty = no picture; the UI falls back
+   *  to the agent's initial. Preset avatars are never offered. */
+  avatarImage?: string
   color: string
   roleId: string
   modelId: string

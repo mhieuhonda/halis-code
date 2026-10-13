@@ -6,7 +6,7 @@ import { useT } from '../../i18n'
 import { useChatStore } from '../../stores/chat'
 import { useSwarmStore } from '../../stores/swarm'
 import { bridge } from '../../lib/ipc'
-import { Badge, Button, Input, Modal, SectionTitle, Textarea } from '../ui'
+import { AgentAvatar, Badge, Button, Input, Modal, SectionTitle, Textarea } from '../ui'
 
 const COLUMNS: Array<{ status: TaskStatus; labelKey: 'status_todo' | 'status_in_progress' | 'status_blocked' | 'status_done' }> = [
   { status: 'todo', labelKey: 'status_todo' },
@@ -27,7 +27,7 @@ function TaskCard({ task }: { task: BoardTask }) {
       <div className="flex items-center gap-1.5 flex-wrap">
         {agent ? (
           <span className="inline-flex items-center gap-1 text-[11px]" style={{ color: agent.color }}>
-            {agent.avatar} {agent.name}
+            <AgentAvatar agent={agent} size={14} className="rounded-[4px]" /> {agent.name}
           </span>
         ) : (
           <span className="text-[11px] text-faint">{t('unassigned')}</span>

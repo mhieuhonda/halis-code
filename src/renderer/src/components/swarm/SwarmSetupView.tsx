@@ -1,12 +1,41 @@
-/** Swarm Setup — build the team: name, avatar, role, model, key, permissions, prompt. */
-import { useEffect, useState } from 'react'
-import { AlertTriangle, Check, ChevronDown, KeyRound, Plus, RefreshCw, Trash2, Wand2 } from 'lucide-react'
+/** Swarm Setup — build the team: name, avatar upload, role, model, key, permissions, prompt. */
+import { useEffect, useRef, useState } from 'react'
+import { AlertTriangle, Check, ChevronDown, ImagePlus, KeyRound, Plus, RefreshCw, Trash2, Wand2 } from 'lucide-react'
 import type { AgentConfig } from '@shared/types'
 import { useT } from '../../i18n'
 import { useAppStore } from '../../stores/app'
 import { useSwarmStore } from '../../stores/swarm'
-import { Badge, Button, Input, Modal, Select, SectionTitle, Textarea, Toggle } from '../ui'
+import { AgentAvatar, Badge, Button, Input, Modal, Select, SectionTitle, Textarea, Toggle } from '../ui'
 import { ModelPicker } from '../chat/Composer'
+
+/** Downscale any picked image to a small square data URL so swarm configs
+ *  stay lightweight (a raw photo would bloat swarm.json). */
+function readImageFile(file: File, size = 128): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('read failed'))
+    reader.onload = () => {
+      const img = new Image()
+      img.onerror = () => reject(new Error('decode failed'))
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = size
+        canvas.height = size
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          reject(new Error('canvas unavailable'))
+          return
+        }
+        // Cover-crop to a square, centered.
+        const side = Math.min(img.width, img.height)
+        ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size)
+        resolve(canvas.toDataURL('image/jpeg', 0.85))
+      }
+      img.src = reader.result as string
+    }
+    reader.readAsDataURL(file)
+  })
+}
 
 function AgentCard({ agent, index }: { agent: AgentConfig; index: number }) {
   const t = useT()
@@ -17,11 +46,22 @@ function AgentCard({ agent, index }: { agent: AgentConfig; index: number }) {
   const [keyDraft, setKeyDraft] = useState(agent.apiKey ?? '')
   const [dupWarn, setDupWarn] = useState<{ agentName: string; message: string } | null>(null)
   const [keyState, setKeyState] = useState<'idle' | 'testing' | 'ok' | 'bad'>('idle')
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const onPickAvatar = async (file: File | undefined) => {
+    if (!file || !file.type.startsWith('image/')) return
+    try {
+      const dataUrl = await readImageFile(file)
+      updateAgent(agent.id, { avatarImage: dataUrl })
+    } catch {
+      // A bad image must not corrupt the agent — just ignore the pick.
+    }
+  }
 
   const model = catalog?.models.find((m) => m.id === agent.modelId)
   const provider = catalog?.providers.find((p) => p.id === model?.providerId)
   const needsKey = !!provider && !provider.keyless
-  // A provider key saved in Models & Keys covers this agent until a
+  // A provider key saved in Settings → Models & API keys covers this agent until a
   // per-agent key is entered — no forced re-entry in the swarm setup.
   const vaultHasKey = !!provider && !!(keyStatus[provider.id] ?? false)
   const role = roles.find((r) => r.id === agent.roleId)
@@ -62,12 +102,12 @@ function AgentCard({ agent, index }: { agent: AgentConfig; index: number }) {
       {/* header row */}
       <div className="flex items-center gap-3 px-4 py-3">
         <button
-          className="w-10 h-10 rounded-xl flex items-center justify-center text-[20px] border cursor-pointer shrink-0"
+          className="w-10 h-10 rounded-xl overflow-hidden border cursor-pointer shrink-0"
           style={{ backgroundColor: `${agent.color}1a`, borderColor: `${agent.color}45` }}
           onClick={() => setExpanded(!expanded)}
           title={agent.name}
         >
-          {agent.avatar}
+          <AgentAvatar agent={agent} size={40} className="rounded-xl" />
         </button>
         <div className="flex-1 min-w-0">
           <Input
@@ -100,18 +140,32 @@ function AgentCard({ agent, index }: { agent: AgentConfig; index: number }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <div className="text-[11px] text-faint mb-1.5">{t('agent_avatar')}</div>
-              <div className="flex flex-wrap gap-1">
-                {['🤖', '🧭', '📐', '⌨️', '🔍', '🛡️', '🧪', '⚙️', '📚', '📝', '🦾', '🧠', '🐙', '🦊', '🐝', '⚡', '🌙', '🔥'].map((emoji) => (
-                  <button
-                    key={emoji}
-                    onClick={() => updateAgent(agent.id, { avatar: emoji })}
-                    className={`w-7 h-7 rounded-lg text-[15px] flex items-center justify-center border cursor-pointer transition-colors ${
-                      agent.avatar === emoji ? 'border-signal/60 bg-signal/15' : 'border-transparent hover:border-line bg-panel3/50'
-                    }`}
-                  >
-                    {emoji}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2.5">
+                <span className="w-11 h-11 rounded-xl overflow-hidden border border-line bg-panel3/50 shrink-0">
+                  <AgentAvatar agent={agent} size={44} className="rounded-xl" />
+                </span>
+                <div className="flex flex-col gap-1.5">
+                  <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()}>
+                    <ImagePlus size={13} /> {agent.avatarImage ? t('avatar_replace') : t('avatar_upload')}
+                  </Button>
+                  {agent.avatarImage ? (
+                    <Button size="sm" variant="ghost" onClick={() => updateAgent(agent.id, { avatarImage: undefined })}>
+                      <Trash2 size={12} /> {t('avatar_remove')}
+                    </Button>
+                  ) : (
+                    <span className="text-[10.5px] text-faint">{t('avatar_hint')}</span>
+                  )}
+                </div>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    void onPickAvatar(e.target.files?.[0])
+                    e.target.value = ''
+                  }}
+                />
               </div>
             </div>
             <div>
@@ -161,6 +215,8 @@ function AgentCard({ agent, index }: { agent: AgentConfig; index: number }) {
               <div className="text-[11px] text-faint mb-1.5">{t('agent_model')}</div>
               <ModelPicker
                 value={agent.modelId}
+                direction="down"
+                className="max-w-full [&>button]:max-w-full"
                 // No apiKey here: updateAgent's provider check decides whether
                 // the saved key survives (switching models WITHIN one provider
                 // must keep it — the store already implements exactly that).
