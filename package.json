@@ -3,7 +3,7 @@
   "productName": "Halis Code",
   "version": "0.3.0",
   "description": "Desktop coding agent with a coordinated 20-agent swarm, wired into the Telegraph intelligence network.",
-  "author": "mhieuhonda",
+  "author": "mhieuhonda <mhieuhonda@users.noreply.github.com>",
   "license": "MIT",
   "private": true,
   "main": "./out/main/index.js",
