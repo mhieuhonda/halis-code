@@ -1,6 +1,6 @@
 /**
- * Background job tools — job_list / job_output / job_kill, ported from
- * deepseek-harness's tool-jobs. Shell commands started with
+ * Background job tools — job_list / job_output / job_kill. Shell commands
+ * started with
  * run_in_background register here; the model inspects and stops them
  * through these three tools.
  */

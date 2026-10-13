@@ -1,5 +1,5 @@
 /**
- * Global tool-output truncation — modeled on opencode's tool-output.ts.
+ * Global tool-output truncation.
  * Every tool result passes through here: text beyond the caps is clipped
  * and the full output is spilled to a file the model can re-read with
  * read_file. Applies a uniform context budget across all tools.

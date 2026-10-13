@@ -1,5 +1,5 @@
 /**
- * Auto-compaction — ported from opencode's session compaction design.
+ * Auto-compaction.
  * When the estimated context size crosses ~70% of the model window, older
  * messages are folded into a structured summary (Objective / Requirements /
  * Decisions / Work State / Next Move / Relevant Files / Important Context)
@@ -23,7 +23,7 @@ export function contextWindowOf(model?: ModelInfo): number {
   return model?.contextWindow ?? 128_000
 }
 
-/** The compaction ceiling from opencode: window minus max(10%, 16k). */
+/** Compaction ceiling: window minus max(10%, 16k). */
 export function compactionCeiling(windowTokens: number): number {
   return windowTokens - Math.max(Math.floor(windowTokens * 0.1), windowTokens >= 2 * 16_000 ? 16_000 : 0)
 }

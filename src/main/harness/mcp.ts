@@ -1,7 +1,6 @@
 /**
- * MCP (Model Context Protocol) client manager — the flagship integration
- * both opencode and deepseek-harness ship. Servers are configured in app
- * settings (stdio command or HTTP url); their tools are registered into the
+ * MCP (Model Context Protocol) client manager. Servers are configured in
+ * app settings (stdio command or HTTP url); their tools are registered into the
  * harness ToolRegistry with `mcp_<server>_<tool>` names so every agent can
  * call them. Tool schemas come straight from the server (JSON Schema);
  * mutating tools default to requiring approval.

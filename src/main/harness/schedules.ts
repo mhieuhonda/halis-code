@@ -1,6 +1,5 @@
 /**
- * Reminders / scheduled prompts — modeled on deepseek-harness's schedule
- * subsystem. An agent (or the user) registers a prompt to be delivered back
+ * Reminders / scheduled prompts. An agent (or the user) registers a prompt to be delivered back
  * into the session later: after N seconds, at an absolute time, every N
  * seconds, daily/weekly at a local time, or on a 5-field cron. The store is
  * persisted under .halis/schedules.json and a timer loop fires due

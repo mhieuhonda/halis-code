@@ -52,7 +52,7 @@ const TOOL_ICONS: Record<string, React.ReactNode> = {
   task_board_create: <ListChecks size={13} />,
   task_board_claim: <ListChecks size={13} />,
   task_board_update: <ListChecks size={13} />,
-  /* ported harness tools */
+  /* extended tools */
   web_fetch: <Globe size={13} />,
   web_search: <Search size={13} />,
   todo_write: <ListTodo size={13} />,
@@ -192,12 +192,12 @@ function scheduleSelectorLabel(args: Record<string, unknown>): string {
 
 /** 2×2 status dot colors (DSH tool rows) */
 const STATE_DOT: Record<ToolRun['state'], string> = {
-  pending: 'var(--dsw-alias-label-dimmed)',
-  running: 'var(--dsw-alias-state-business-primary)',
-  'awaiting-approval': 'var(--dsw-alias-state-warn-primary)',
-  completed: 'var(--dsw-alias-state-success-primary)',
-  error: 'var(--dsw-alias-state-error-primary)',
-  rejected: 'var(--dsw-alias-label-dimmed)',
+  pending: 'var(--hal-alias-label-dimmed)',
+  running: 'var(--hal-alias-state-business-primary)',
+  'awaiting-approval': 'var(--hal-alias-state-warn-primary)',
+  completed: 'var(--hal-alias-state-success-primary)',
+  error: 'var(--hal-alias-state-error-primary)',
+  rejected: 'var(--hal-alias-label-dimmed)',
 }
 
 export function ToolCard({ run }: { run: ToolRun }) {
@@ -212,27 +212,27 @@ export function ToolCard({ run }: { run: ToolRun }) {
   return (
     <div className="w-full">
       <button
-        className="group flex items-center gap-2 min-h-6 w-full py-0.5 text-left cursor-pointer bg-transparent border-none rounded-sm hover:bg-[var(--dsw-alias-interactive-bg-hover)] transition-colors duration-100 px-1 -mx-1"
+        className="group flex items-center gap-2 min-h-6 w-full py-0.5 text-left cursor-pointer bg-transparent border-none rounded-sm hover:bg-[var(--hal-alias-interactive-bg-hover)] transition-colors duration-100 px-1 -mx-1"
         onClick={() => setOpen(!open)}
       >
         <ChevronRight
           size={12}
-          className={`shrink-0 text-[color:var(--dsw-alias-label-tertiary)] transition-transform duration-100 ${open ? 'rotate-90' : ''}`}
+          className={`shrink-0 text-[color:var(--hal-alias-label-tertiary)] transition-transform duration-100 ${open ? 'rotate-90' : ''}`}
         />
-        <span className="shrink-0 text-[color:var(--dsw-alias-label-tertiary)]">{icon}</span>
+        <span className="shrink-0 text-[color:var(--hal-alias-label-tertiary)]">{icon}</span>
         {verb ? (
           <span className="text-[13px] leading-6 text-ink shrink-0">{verb}</span>
         ) : (
           <span className="font-mono text-[12px] text-ink shrink-0">{run.tool}</span>
         )}
-        <span className="text-[13px] leading-6 text-[color:var(--dsw-alias-label-tertiary)] group-hover:text-[color:var(--dsw-alias-label-secondary)] truncate flex-1 transition-colors duration-100">
+        <span className="text-[13px] leading-6 text-[color:var(--hal-alias-label-tertiary)] group-hover:text-[color:var(--hal-alias-label-secondary)] truncate flex-1 transition-colors duration-100">
           {summarizeArgs(run.tool, run.args)}
         </span>
-        {run.state === 'running' ? <Spinner size={11} className="shrink-0 text-[color:var(--dsw-alias-state-business-primary)]" /> : null}
-        {run.state === 'awaiting-approval' ? <span className="text-[11px] text-[color:var(--dsw-alias-state-warn-label)] shrink-0">{t('approval_title')}</span> : null}
-        {run.state === 'rejected' ? <span className="text-[11px] text-[color:var(--dsw-alias-label-tertiary)] shrink-0">{t('reject')}</span> : null}
-        {run.state === 'error' ? <span className="text-[11px] text-[color:var(--dsw-alias-state-error-secondary)] shrink-0">error</span> : null}
-        {run.state === 'completed' && duration ? <span className="text-[10px] text-[color:var(--dsw-alias-label-caption)] font-mono shrink-0">{duration}s</span> : null}
+        {run.state === 'running' ? <Spinner size={11} className="shrink-0 text-[color:var(--hal-alias-state-business-primary)]" /> : null}
+        {run.state === 'awaiting-approval' ? <span className="text-[11px] text-[color:var(--hal-alias-state-warn-label)] shrink-0">{t('approval_title')}</span> : null}
+        {run.state === 'rejected' ? <span className="text-[11px] text-[color:var(--hal-alias-label-tertiary)] shrink-0">{t('reject')}</span> : null}
+        {run.state === 'error' ? <span className="text-[11px] text-[color:var(--hal-alias-state-error-secondary)] shrink-0">error</span> : null}
+        {run.state === 'completed' && duration ? <span className="text-[10px] text-[color:var(--hal-alias-label-caption)] font-mono shrink-0">{duration}s</span> : null}
         {/* status dot */}
         {run.state !== 'running' ? (
           <span
@@ -245,33 +245,33 @@ export function ToolCard({ run }: { run: ToolRun }) {
         <div className="ml-4 mt-1 mb-1.5 flex flex-col gap-1.5 fade-in" style={{ maxHeight: 280, overflowY: 'auto' }}>
           {diff ? <DiffView diff={diff} /> : null}
           <div
-            className="rounded-lg border-[0.5px] border-[color:var(--dsw-alias-border-l1)] overflow-hidden"
-            style={{ background: 'var(--dsw-alias-markdown-code-block)' }}
+            className="rounded-lg border-[0.5px] border-[color:var(--hal-alias-border-l1)] overflow-hidden"
+            style={{ background: 'var(--hal-alias-markdown-code-block)' }}
           >
-            <div className="flex items-center px-3 pt-2 pb-1 text-[11px] font-mono text-[color:var(--dsw-alias-label-caption)]">input</div>
-            <pre className="px-3 pb-2.5 font-mono text-[11px] leading-[16px] text-[color:var(--dsw-alias-label-secondary)] whitespace-pre-wrap break-all selectable m-0">
+            <div className="flex items-center px-3 pt-2 pb-1 text-[11px] font-mono text-[color:var(--hal-alias-label-caption)]">input</div>
+            <pre className="px-3 pb-2.5 font-mono text-[11px] leading-[16px] text-[color:var(--hal-alias-label-secondary)] whitespace-pre-wrap break-all selectable m-0">
               {JSON.stringify(run.args, null, 2).slice(0, 4000)}
             </pre>
           </div>
           {run.error ? (
             <div
-              className="rounded-lg border-[0.5px] border-[color:var(--dsw-alias-border-l1)] overflow-hidden"
-              style={{ background: 'var(--dsw-alias-markdown-code-block)' }}
+              className="rounded-lg border-[0.5px] border-[color:var(--hal-alias-border-l1)] overflow-hidden"
+              style={{ background: 'var(--hal-alias-markdown-code-block)' }}
             >
-              <div className="flex items-center px-3 pt-2 pb-1 text-[11px] font-mono text-[color:var(--dsw-alias-state-error-secondary)]">error</div>
-              <pre className="px-3 pb-2.5 font-mono text-[11px] leading-[16px] text-[color:var(--dsw-alias-state-error-secondary)] whitespace-pre-wrap break-all selectable m-0">
+              <div className="flex items-center px-3 pt-2 pb-1 text-[11px] font-mono text-[color:var(--hal-alias-state-error-secondary)]">error</div>
+              <pre className="px-3 pb-2.5 font-mono text-[11px] leading-[16px] text-[color:var(--hal-alias-state-error-secondary)] whitespace-pre-wrap break-all selectable m-0">
                 {run.error.slice(0, 2000)}
               </pre>
             </div>
           ) : result ? (
             <div
-              className="rounded-lg border-[0.5px] border-[color:var(--dsw-alias-border-l1)] overflow-hidden"
-              style={{ background: 'var(--dsw-alias-markdown-code-block)' }}
+              className="rounded-lg border-[0.5px] border-[color:var(--hal-alias-border-l1)] overflow-hidden"
+              style={{ background: 'var(--hal-alias-markdown-code-block)' }}
             >
-              <div className="flex items-center px-3 pt-2 pb-1 text-[11px] font-mono text-[color:var(--dsw-alias-label-caption)]">
+              <div className="flex items-center px-3 pt-2 pb-1 text-[11px] font-mono text-[color:var(--hal-alias-label-caption)]">
                 {run.state === 'completed' ? 'output' : 'result'}
               </div>
-              <pre className="px-3 pb-2.5 font-mono text-[11px] leading-[16px] text-[color:var(--dsw-alias-label-secondary)] whitespace-pre-wrap break-all selectable m-0">
+              <pre className="px-3 pb-2.5 font-mono text-[11px] leading-[16px] text-[color:var(--hal-alias-label-secondary)] whitespace-pre-wrap break-all selectable m-0">
                 {result.slice(0, 6000)}
               </pre>
             </div>

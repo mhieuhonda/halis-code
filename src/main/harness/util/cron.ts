@@ -1,6 +1,5 @@
 /**
- * Vixie-style 5-field cron parser — modeled on deepseek-harness's
- * schedule domain. Supports star, values, ranges (a-b), steps (star over n
+ * Vixie-style 5-field cron parser. Supports star, values, ranges (a-b), steps (star over n
  * and a-b over n), lists, DOW 0-7 (7 folds to 0) and the standard DOM/DOW
  * OR rule when both are restricted. next(date) scans forward for the
  * next match.
@@ -78,7 +77,7 @@ export function cronNext(expression: string, after: Date): { at: Date } | { erro
   const d = new Date(after.getTime())
   d.setSeconds(0, 0)
   d.setMinutes(d.getMinutes() + 1)
-  // Search horizon: 2 years is plenty for any sane schedule; deepseek uses 400.
+  // Search horizon: 2 years is plenty for any sane schedule.
   const horizon = after.getTime() + 2 * 366 * 24 * 3600 * 1000
   while (d.getTime() < horizon) {
     // parseField stores month v at index v-1 (min=1); getMonth() is 0-based,

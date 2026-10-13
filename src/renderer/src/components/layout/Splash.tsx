@@ -21,17 +21,17 @@ export function Splash({ ready }: { ready: boolean }) {
   if (!visible) return null
 
   return (
-    <div className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[var(--dsw-alias-bg-base)] ${leaving ? 'splash-done' : ''}`}>
+    <div className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[var(--hal-alias-bg-base)] ${leaving ? 'splash-done' : ''}`}>
       <div className="flex flex-col items-center">
         <img src={logoUrl} alt="Halis Code" className="splash-logo brand-img w-20 h-20" draggable={false} />
         <img src={nameUrl} alt="" className="splash-logo brand-img h-7 w-auto mt-5" draggable={false} style={{ animationDelay: '0.12s' }} />
         <div className="mt-4 flex items-center gap-1.5" style={{ animationDelay: '0.2s' }}>
-          <span className="typing-dot w-1 h-1 rounded-full bg-[color:var(--dsw-alias-state-business-primary)] inline-block" />
-          <span className="typing-dot w-1 h-1 rounded-full bg-[color:var(--dsw-alias-state-business-primary)] inline-block" style={{ animationDelay: '0.2s' }} />
-          <span className="typing-dot w-1 h-1 rounded-full bg-[color:var(--dsw-alias-state-business-primary)] inline-block" style={{ animationDelay: '0.4s' }} />
+          <span className="typing-dot w-1 h-1 rounded-full bg-[color:var(--hal-alias-state-business-primary)] inline-block" />
+          <span className="typing-dot w-1 h-1 rounded-full bg-[color:var(--hal-alias-state-business-primary)] inline-block" style={{ animationDelay: '0.2s' }} />
+          <span className="typing-dot w-1 h-1 rounded-full bg-[color:var(--hal-alias-state-business-primary)] inline-block" style={{ animationDelay: '0.4s' }} />
         </div>
       </div>
-      <div className="absolute bottom-8 text-[10.5px] text-[color:var(--dsw-alias-label-caption)] tracking-wide font-mono">
+      <div className="absolute bottom-8 text-[10.5px] text-[color:var(--hal-alias-label-caption)] tracking-wide font-mono">
         local-first · swarm-ready · telegraph-native
       </div>
     </div>

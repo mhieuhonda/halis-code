@@ -61,7 +61,7 @@ export const en = {
   no_workspace: 'No workspace selected — agents run in a default folder. Pick one in Settings.',
 
   /* models */
-  models_subtitle: 'Pick models from the catalog opencode ships. Keys are stored locally on this machine only.',
+  models_subtitle: 'Pick models from the built-in catalog. Keys are stored locally on this machine only.',
   key_saved: 'Key saved',
   key_needed: 'API key required',
   key_optional: 'No key needed',

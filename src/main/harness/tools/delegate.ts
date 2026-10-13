@@ -1,7 +1,6 @@
 /**
  * delegate_task — spawn a fresh sub-agent for a self-contained task
- * (opencode subagent + deepseek tool-subagent, depth-limited to 1 in Halis
- * Code). The sub-agent runs its own loop with the same tools minus
+ * (depth-limited to 1 in Halis Code). The sub-agent runs its own loop with the same tools minus
  * delegation itself; its final message is the tool result. The parent
  * should include everything the child needs in the prompt.
  */

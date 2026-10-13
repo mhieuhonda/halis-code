@@ -1,5 +1,5 @@
 /**
- * apply_patch — opencode-style multi-file patch tool. One call can add,
+ * apply_patch — multi-file patch tool. One call can add,
  * update, move or delete several files using the V4A patch format with
  * 4-tier fuzzy context matching. OpenAI models in particular are trained
  * on this format.

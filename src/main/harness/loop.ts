@@ -306,7 +306,7 @@ export class AgentRunner {
     ctx.toolCallId = call.id
     try {
       const result = await tool.execute(args, ctx)
-      // Global output budget (opencode tool-output pattern): clip long results
+      // Global output budget: clip long results
       // and spill the full text to a file the model can re-read.
       const truncated = truncateToolOutput(result.output, call.id)
       const output = truncated.text

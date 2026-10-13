@@ -102,11 +102,11 @@ export function SettingsView() {
                 onClick={() => setSection(s.id)}
                 className={`flex items-center gap-2.5 min-h-9 px-3 rounded-md text-[13px] text-left cursor-pointer bg-transparent border-none transition-colors duration-100 ${
                   section === s.id
-                    ? 'text-ink bg-[var(--dsw-specific-sidebar-nav-item-active)] font-medium'
-                    : 'text-muted hover:text-ink hover:bg-[var(--dsw-specific-sidebar-nav-item-hover)]'
+                    ? 'text-ink bg-[var(--hal-specific-sidebar-nav-item-active)] font-medium'
+                    : 'text-muted hover:text-ink hover:bg-[var(--hal-specific-sidebar-nav-item-hover)]'
                 }`}
               >
-                <span className={section === s.id ? 'text-[color:var(--dsw-alias-state-business-primary)]' : 'text-[color:var(--dsw-alias-label-tertiary)]'}>{s.icon}</span>
+                <span className={section === s.id ? 'text-[color:var(--hal-alias-state-business-primary)]' : 'text-[color:var(--hal-alias-label-tertiary)]'}>{s.icon}</span>
                 <span className="truncate">{s.label}</span>
               </button>
             ))}

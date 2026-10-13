@@ -1,6 +1,5 @@
 /**
- * Retry policy — ported from opencode's session retry schedule:
- * exponential with jitter (≈2s → 4s → 8s, capped 10s), honors Retry-After
+ * Retry policy: exponential backoff with jitter (≈2s → 4s → 8s, capped 10s), honors Retry-After
  * (≤ 15 min), retries only transient failures (408/429/5xx, network),
  * caps timeout retries at 3.
  */

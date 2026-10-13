@@ -1,5 +1,5 @@
 /**
- * Skill discovery — opencode-style SKILL.md packs. A skill is a folder
+ * Skill discovery — SKILL.md packs. A skill is a folder
  * containing SKILL.md (frontmatter name + instructions); optional scripts/
  * and reference/ files ride along. Skills are read-only context the agent
  * loads on demand with the `skill` tool.

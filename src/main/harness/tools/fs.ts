@@ -1,7 +1,7 @@
 /**
  * File tools: read, write, edit, multi_edit, list, read_image — all
  * path-jailed to the workspace and coordinated through the file-lock
- * manager. The edit matching is opencode's 3-tier fuzzy scheme (exact →
+ * manager. Edit matching is a 3-tier fuzzy scheme (exact →
  * unicode-normalized → line-based with trailing-whitespace + CRLF
  * tolerance).
  */

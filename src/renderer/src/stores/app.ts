@@ -3,10 +3,10 @@ import { create } from 'zustand'
 import type { AppSettings, AppTheme, CatalogSnapshot, ProviderInfo } from '@shared/types'
 import { bridge } from '../lib/ipc'
 
-/** Paint the saved theme onto the document (dark = body[data-ds-dark-theme]). */
+/** Paint the saved theme onto the document (dark = body[data-dark-theme]). */
 export function applyTheme(theme: AppTheme | undefined): void {
-  if (theme === 'dark') document.body.setAttribute('data-ds-dark-theme', '')
-  else document.body.removeAttribute('data-ds-dark-theme')
+  if (theme === 'dark') document.body.setAttribute('data-dark-theme', '')
+  else document.body.removeAttribute('data-dark-theme')
 }
 
 interface AppState {

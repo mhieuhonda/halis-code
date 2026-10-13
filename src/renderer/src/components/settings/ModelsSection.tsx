@@ -1,5 +1,5 @@
 /** Models & API keys — settings section. Provider keys, default model,
- *  and a searchable catalog browser (opencode's catalog). */
+ *  and a searchable catalog browser. */
 import { useEffect, useMemo, useState } from 'react'
 import { Check, Eye, EyeOff, KeyRound, RefreshCw, Search, Star, Zap } from 'lucide-react'
 import type { ModelInfo, ProviderInfo } from '@shared/types'

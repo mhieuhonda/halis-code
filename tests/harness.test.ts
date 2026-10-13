@@ -139,7 +139,7 @@ describe('compaction planning', () => {
     expect(plan.older.length + plan.recent.length).toBe(messages.length)
   })
 
-  it('computes the opencode ceiling', () => {
+  it('computes the compaction ceiling', () => {
     expect(compactionCeiling(128_000)).toBe(112_000)
     expect(compactionCeiling(20_000)).toBe(18_000)
     expect(estimateTokens([{ content: 'a'.repeat(400) }])).toBe(100)

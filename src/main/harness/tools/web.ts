@@ -1,8 +1,8 @@
 /**
- * Web tools — modeled on opencode's webfetch (bounded body, content
- * negotiation, HTML→markdown) and deepseek-harness's web_search
- * (multi-query, dedupe, untrusted-content notice). Search runs keyless via
- * the DuckDuckGo HTML endpoint; a Tavily key (Settings) switches to a
+ * Web tools — web_fetch (bounded body, content negotiation,
+ * HTML→markdown) and web_search (multi-query, dedupe,
+ * untrusted-content notice). Search runs keyless via the DuckDuckGo HTML
+ * endpoint; a Tavily key (Settings) switches to a
  * proper API backend.
  */
 import type { ToolContext, ToolDef, ToolResult } from './index'

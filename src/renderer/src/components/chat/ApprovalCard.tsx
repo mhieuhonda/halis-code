@@ -29,11 +29,11 @@ export function ApprovalCard({
   }
   return (
     <div
-      className="rounded-xl overflow-hidden border border-[color:var(--dsw-alias-state-warn-secondary)] pop"
-      style={{ background: 'var(--dsw-specific-input-major)', boxShadow: 'var(--dsw-shadow-lv2)' }}
+      className="rounded-xl overflow-hidden border border-[color:var(--hal-alias-state-warn-secondary)] pop"
+      style={{ background: 'var(--hal-specific-input-major)', boxShadow: 'var(--hal-shadow-lv2)' }}
     >
       {/* warning strip */}
-      <div className="flex items-center gap-2 px-4 py-2.5 bg-[var(--dsw-alias-state-warn-tertiary)] text-[13px] text-[color:var(--dsw-alias-state-warn-label)]">
+      <div className="flex items-center gap-2 px-4 py-2.5 bg-[var(--hal-alias-state-warn-tertiary)] text-[13px] text-[color:var(--hal-alias-state-warn-label)]">
         <span className="inline-flex pending-dot">
           {request.kind === 'usdc-spend' ? <Zap size={14} /> : <ShieldAlert size={14} />}
         </span>
@@ -42,7 +42,7 @@ export function ApprovalCard({
         {request.amountUsd !== undefined ? (
           <span
             className="rounded-md px-1.5 py-0.5 text-[10.5px] font-medium leading-none"
-            style={{ background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary) 12%, transparent)', color: 'var(--dsw-alias-state-warn-label)' }}
+            style={{ background: 'color-mix(in srgb, var(--hal-alias-state-warn-primary) 12%, transparent)', color: 'var(--hal-alias-state-warn-label)' }}
           >
             ${request.amountUsd.toFixed(2)} USDC
           </span>
@@ -55,8 +55,8 @@ export function ApprovalCard({
         <div className="text-[13px] text-ink mb-1">{request.title}</div>
         {request.detail && request.detail !== request.title ? (
           <pre
-            className="font-mono text-[11px] leading-5 text-[color:var(--dsw-alias-label-secondary)] whitespace-pre-wrap break-all mb-3 max-h-32 overflow-y-auto selectable rounded-md m-0 px-3 py-2"
-            style={{ background: 'var(--dsw-alias-markdown-code-block)' }}
+            className="font-mono text-[11px] leading-5 text-[color:var(--hal-alias-label-secondary)] whitespace-pre-wrap break-all mb-3 max-h-32 overflow-y-auto selectable rounded-md m-0 px-3 py-2"
+            style={{ background: 'var(--hal-alias-markdown-code-block)' }}
           >
             {request.detail.slice(0, 1500)}
           </pre>
@@ -75,8 +75,8 @@ export function ApprovalCard({
             <span
               className="rounded-md px-1.5 py-0.5 text-[10.5px] font-medium leading-none ml-auto"
               style={{
-                background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary) 10%, transparent)',
-                color: request.risk === 'high' ? 'var(--dsw-alias-state-error-secondary)' : 'var(--dsw-alias-state-warn-label)',
+                background: 'color-mix(in srgb, var(--hal-alias-state-warn-primary) 10%, transparent)',
+                color: request.risk === 'high' ? 'var(--hal-alias-state-error-secondary)' : 'var(--hal-alias-state-warn-label)',
               }}
             >
               {t(`risk_${request.risk}` as 'risk_low')}
@@ -117,26 +117,26 @@ function QuestionCard({ request, onAnswer, onDismiss }: { request: ApprovalReque
 
   return (
     <div
-      className="rounded-xl border border-[color:var(--dsw-alias-state-business-primary)] overflow-hidden pop"
-      style={{ background: 'var(--dsw-specific-input-major)', boxShadow: 'var(--dsw-shadow-lv2)' }}
+      className="rounded-xl border border-[color:var(--hal-alias-state-business-primary)] overflow-hidden pop"
+      style={{ background: 'var(--hal-specific-input-major)', boxShadow: 'var(--hal-shadow-lv2)' }}
     >
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b-[0.5px] border-[color:var(--dsw-alias-border-l1)]">
-        <span className="text-[color:var(--dsw-alias-state-business-primary)] inline-flex">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b-[0.5px] border-[color:var(--hal-alias-border-l1)]">
+        <span className="text-[color:var(--hal-alias-state-business-primary)] inline-flex">
           <HelpCircle size={14} />
         </span>
         <span className="text-[13px] font-medium text-ink">{t('question_title')}</span>
-        <span className="ml-auto text-[11px] text-[color:var(--dsw-alias-label-tertiary)]">
+        <span className="ml-auto text-[11px] text-[color:var(--hal-alias-label-tertiary)]">
           {request.agentName} · <span className="font-mono">ask_user</span>
         </span>
       </div>
       <div className="px-4 py-3 space-y-3">
         {questions.map((q) => (
-          <div key={q.id} className="rounded-lg border-[0.5px] border-[color:var(--dsw-alias-border-l2)] p-3" style={{ background: 'var(--dsw-alias-bg-layer-1)' }}>
+          <div key={q.id} className="rounded-lg border-[0.5px] border-[color:var(--hal-alias-border-l2)] p-3" style={{ background: 'var(--hal-alias-bg-layer-1)' }}>
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               {q.header ? (
                 <span
                   className="rounded-md px-1.5 py-0.5 text-[10.5px] font-medium leading-none"
-                  style={{ background: 'var(--dsw-alias-state-business-tertiary)', color: 'var(--dsw-alias-state-business-primary)' }}
+                  style={{ background: 'var(--hal-alias-state-business-tertiary)', color: 'var(--hal-alias-state-business-primary)' }}
                 >
                   {q.header}
                 </span>
@@ -153,13 +153,13 @@ function QuestionCard({ request, onAnswer, onDismiss }: { request: ApprovalReque
                       onClick={() => toggle(q.id, option.label, !!q.multiSelect)}
                       className={`text-left rounded-md border px-2.5 py-1.5 transition-colors duration-100 cursor-pointer ${
                         selected
-                          ? 'border-[color:var(--dsw-alias-state-business-primary)] bg-[var(--dsw-alias-state-business-tertiary)]'
-                          : 'border-[color:var(--dsw-alias-border-l3)] hover:bg-[var(--dsw-alias-interactive-bg-hover)]'
+                          ? 'border-[color:var(--hal-alias-state-business-primary)] bg-[var(--hal-alias-state-business-tertiary)]'
+                          : 'border-[color:var(--hal-alias-border-l3)] hover:bg-[var(--hal-alias-interactive-bg-hover)]'
                       }`}
-                      style={{ background: selected ? undefined : 'var(--dsw-specific-input-major)' }}
+                      style={{ background: selected ? undefined : 'var(--hal-specific-input-major)' }}
                     >
                       <div className="text-[12.5px] text-ink">{option.label}</div>
-                      {option.description ? <div className="text-[11px] text-[color:var(--dsw-alias-label-tertiary)] leading-snug">{option.description}</div> : null}
+                      {option.description ? <div className="text-[11px] text-[color:var(--hal-alias-label-tertiary)] leading-snug">{option.description}</div> : null}
                     </button>
                   )
                 })}
@@ -169,8 +169,8 @@ function QuestionCard({ request, onAnswer, onDismiss }: { request: ApprovalReque
               value={customs[q.id] ?? ''}
               onChange={(e) => setCustoms((prev) => ({ ...prev, [q.id]: e.target.value }))}
               placeholder={t('question_custom')}
-              className="mt-2 w-full h-8 rounded-md border-[0.5px] border-[color:var(--dsw-alias-border-l4)] px-2.5 text-[12.5px] text-ink placeholder:text-[color:var(--dsw-alias-label-dimmed)] outline-none focus:border-[color:var(--dsw-alias-state-business-primary)] transition-colors duration-100"
-              style={{ background: 'var(--dsw-alias-bg-layer-1)' }}
+              className="mt-2 w-full h-8 rounded-md border-[0.5px] border-[color:var(--hal-alias-border-l4)] px-2.5 text-[12.5px] text-ink placeholder:text-[color:var(--hal-alias-label-dimmed)] outline-none focus:border-[color:var(--hal-alias-state-business-primary)] transition-colors duration-100"
+              style={{ background: 'var(--hal-alias-bg-layer-1)' }}
             />
           </div>
         ))}

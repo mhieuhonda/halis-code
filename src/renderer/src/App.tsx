@@ -80,7 +80,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [paletteOpen])
 
-  // Keep the document title in sync with the open session (opencode-style).
+  // Keep the document title in sync with the open session.
   useEffect(() => {
     const active = chat.sessions.find((s) => s.id === chat.activeSessionId)
     document.title = active ? `Halis Code — ${active.title.slice(0, 42)}` : 'Halis Code'

@@ -40,7 +40,7 @@ function makeCtx(workspace: string): ToolContext {
 }
 
 describe('tool registry end to end', () => {
-  it('registers the full ported toolset', () => {
+  it('registers the full toolset', () => {
     const registry = createToolRegistry()
     const names = registry.listFor(false).map((t) => t.name)
     for (const expected of ['read_file', 'write_file', 'edit_file', 'multi_edit', 'delete_file', 'read_image', 'apply_patch', 'glob', 'grep', 'run_command', 'web_fetch', 'web_search', 'todo_write', 'ask_user', 'job_list', 'job_output', 'job_kill', 'schedule_create', 'schedule_list', 'schedule_delete', 'git_status', 'git_diff', 'git_log', 'git_commit', 'delegate_task', 'skill', 'task_board_create', 'telegraph_ask']) {

@@ -63,7 +63,7 @@ export const vi: Dict = {
   no_workspace: 'Chưa chọn thư mục làm việc — agent chạy trong thư mục mặc định. Chọn trong Cài đặt.',
 
   /* models */
-  models_subtitle: 'Chọn model từ chính danh mục mà opencode dùng. API key chỉ lưu trên máy bạn.',
+  models_subtitle: 'Chọn model từ danh mục tích hợp sẵn. API key chỉ lưu trên máy bạn.',
   key_saved: 'Đã lưu key',
   key_needed: 'Cần API key',
   key_optional: 'Không cần key',

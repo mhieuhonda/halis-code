@@ -47,7 +47,7 @@ export interface ToolContext {
   emit: (event: HarnessEvent) => void
   /** Swarm mode: relay a message from this agent to another agent. */
   sendMessage?: (to: string[], content: string) => void
-  /* --- extended harness surfaces (opencode/deepseek-style) --- */
+  /* --- extended harness surfaces --- */
   /** Background job registry (bash run_in_background + job_* tools). */
   jobs: JobRegistry
   /** Reminder store (schedule_* tools). */
@@ -74,7 +74,7 @@ export interface ToolContext {
   delegate?: (input: { description: string; prompt: string }) => Promise<{ output: string; error?: string }>
 }
 
-/** Session-scoped todo list with whole-list replacement (deepseek-harness style). */
+/** Session-scoped todo list with whole-list replacement. */
 export class TodoStore {
   private todos: Array<{ content: string; status: 'pending' | 'in_progress' | 'completed' }> = []
   constructor(

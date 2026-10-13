@@ -58,7 +58,7 @@ describe('live: swarm turn on free models', () => {
       const ws = mkdtempSync(join(tmpdir(), 'halis-swarm-'))
       try {
         const catalog = new ModelCatalog()
-        // Live model ids come from the opencode catalog refresh.
+        // Live model ids come from the catalog refresh.
         await catalog.refresh()
         const dispatcher = new LlmDispatcher(() => catalog.get(), () => undefined)
         const registry = createToolRegistry()

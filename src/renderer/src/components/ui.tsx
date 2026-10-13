@@ -1,4 +1,4 @@
-/** Shared UI primitives — DeepSeek Harness desktop look. */
+/** Shared UI primitives. */
 import {
   createContext,
   useCallback,
@@ -32,11 +32,11 @@ export function Button({
   const sizes = size === 'sm' ? 'h-7 px-2.5 text-xs' : 'h-9 px-3.5 text-[13px]'
   const variants = {
     default: 'bg-panel2 text-ink border border-line hover:bg-panel4',
-    primary: 'text-[var(--dsw-alias-brand-primary-inverted)] bg-[var(--dsw-alias-button-primary-fill)] hover:bg-[var(--dsw-alias-button-primary-hover)] border border-transparent',
-    ghost: 'text-muted hover:text-ink hover:bg-[var(--dsw-alias-interactive-bg-hover)]',
-    outline: 'text-ink border-[0.5px] border-[color:var(--dsw-alias-border-l3)] hover:bg-[var(--dsw-alias-interactive-bg-hover)]',
-    danger: 'text-red border-[0.5px] border-red/25 hover:bg-[var(--dsw-alias-interactive-bg-hover-danger)]',
-    good: 'text-good border-[0.5px] border-good/25 hover:bg-[color-mix(in_srgb,var(--dsw-alias-state-success-primary)_10%,transparent)]',
+    primary: 'text-[var(--hal-alias-brand-primary-inverted)] bg-[var(--hal-alias-button-primary-fill)] hover:bg-[var(--hal-alias-button-primary-hover)] border border-transparent',
+    ghost: 'text-muted hover:text-ink hover:bg-[var(--hal-alias-interactive-bg-hover)]',
+    outline: 'text-ink border-[0.5px] border-[color:var(--hal-alias-border-l3)] hover:bg-[var(--hal-alias-interactive-bg-hover)]',
+    danger: 'text-red border-[0.5px] border-red/25 hover:bg-[var(--hal-alias-interactive-bg-hover-danger)]',
+    good: 'text-good border-[0.5px] border-good/25 hover:bg-[color-mix(in_srgb,var(--hal-alias-state-success-primary)_10%,transparent)]',
   }
   return (
     <button className={`${base} ${sizes} ${variants[variant]} ${className}`} {...props}>
@@ -54,7 +54,7 @@ export function Badge({ children, color, className = '' }: { children: ReactNode
       style={
         color
           ? { backgroundColor: `${color}14`, color, border: `0.5px solid ${color}2e` }
-          : { backgroundColor: 'var(--dsw-alias-bg-skeleton)', color: 'var(--dsw-alias-label-secondary)', border: '0.5px solid var(--dsw-alias-border-l2)' }
+          : { backgroundColor: 'var(--hal-alias-bg-skeleton)', color: 'var(--hal-alias-label-secondary)', border: '0.5px solid var(--hal-alias-border-l2)' }
       }
     >
       {children}
@@ -65,7 +65,7 @@ export function Badge({ children, color, className = '' }: { children: ReactNode
 /* ------------------------------- Inputs ------------------------------ */
 
 const fieldCls =
-  'w-full h-8 rounded-md bg-[var(--dsw-alias-bg-layer-1)] border-[0.5px] border-[color:var(--dsw-alias-border-l4)] px-2.5 text-[13px] text-ink placeholder:text-[color:var(--dsw-alias-label-dimmed)] outline-none transition-colors duration-100 focus:border-[color:var(--dsw-alias-state-business-primary)] focus:bg-[var(--dsw-alias-bg-layer-1)]'
+  'w-full h-8 rounded-md bg-[var(--hal-alias-bg-layer-1)] border-[0.5px] border-[color:var(--hal-alias-border-l4)] px-2.5 text-[13px] text-ink placeholder:text-[color:var(--hal-alias-label-dimmed)] outline-none transition-colors duration-100 focus:border-[color:var(--hal-alias-state-business-primary)] focus:bg-[var(--hal-alias-bg-layer-1)]'
 
 export function Input({ className = '', ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={`${fieldCls} ${className}`} {...props} />
@@ -81,7 +81,7 @@ const selectChevron =
 export function Select({ className = '', children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
-      className={`w-full h-8 appearance-none rounded-md bg-[var(--dsw-alias-bg-layer-1)] border-[0.5px] border-[color:var(--dsw-alias-border-l4)] pl-2.5 pr-7 text-[13px] text-ink outline-none cursor-pointer transition-colors duration-100 focus:border-[color:var(--dsw-alias-state-business-primary)] ${className}`}
+      className={`w-full h-8 appearance-none rounded-md bg-[var(--hal-alias-bg-layer-1)] border-[0.5px] border-[color:var(--hal-alias-border-l4)] pl-2.5 pr-7 text-[13px] text-ink outline-none cursor-pointer transition-colors duration-100 focus:border-[color:var(--hal-alias-state-business-primary)] ${className}`}
       style={{
         backgroundImage: selectChevron,
         backgroundRepeat: 'no-repeat',
@@ -99,7 +99,7 @@ export function Select({ className = '', children, ...props }: SelectHTMLAttribu
 export function ChipSelect({ className = '', children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
-      className={`h-7 max-w-[220px] appearance-none rounded-sm bg-transparent pl-2 pr-5 text-[13px] font-medium text-muted outline-none cursor-pointer hover:bg-[var(--dsw-alias-interactive-bg-hover)] ${className}`}
+      className={`h-7 max-w-[220px] appearance-none rounded-sm bg-transparent pl-2 pr-5 text-[13px] font-medium text-muted outline-none cursor-pointer hover:bg-[var(--hal-alias-interactive-bg-hover)] ${className}`}
       style={{
         backgroundImage: selectChevron,
         backgroundRepeat: 'no-repeat',
@@ -121,13 +121,13 @@ export function Toggle({ checked, onChange, label }: { checked: boolean; onChang
       <span
         className={`relative inline-flex h-5 w-9 shrink-0 rounded-full p-0.5 transition-colors duration-100 box-content border ${
           checked
-            ? 'bg-[var(--dsw-alias-brand-primary)] border-transparent'
-            : 'bg-transparent border-[color:var(--dsw-alias-border-l3)]'
+            ? 'bg-[var(--hal-alias-brand-primary)] border-transparent'
+            : 'bg-transparent border-[color:var(--hal-alias-border-l3)]'
         }`}
       >
         <span
           className={`h-4 w-4 rounded-full transition-transform duration-100 ease-linear ${
-            checked ? 'translate-x-4 bg-[var(--dsw-alias-brand-primary-inverted)]' : 'translate-x-0 bg-[var(--dsw-alias-switch-thumb)]'
+            checked ? 'translate-x-4 bg-[var(--hal-alias-brand-primary-inverted)]' : 'translate-x-0 bg-[var(--hal-alias-switch-thumb)]'
           }`}
         />
       </span>
@@ -193,7 +193,7 @@ export function Spinner({ size = 14, className = '' }: { size?: number; classNam
       viewBox="0 0 24 24"
       fill="none"
       className={`shrink-0 ${className}`}
-      style={{ animation: 'dsh-state-dot-spin 1.5s linear infinite' }}
+      style={{ animation: 'hal-state-dot-spin 1.5s linear infinite' }}
     >
       <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" opacity="0.25" />
       <circle
@@ -204,7 +204,7 @@ export function Spinner({ size = 14, className = '' }: { size?: number; classNam
         strokeWidth="2.5"
         strokeLinecap="round"
         strokeDasharray="12 150"
-        style={{ animation: 'dsh-state-dot-spin 1.5s linear infinite, dsh-state-dot-dash 1.5s ease-in-out infinite' }}
+        style={{ animation: 'hal-state-dot-spin 1.5s linear infinite, hal-state-dot-dash 1.5s ease-in-out infinite' }}
       />
     </svg>
   )
@@ -217,7 +217,7 @@ export function ShimmerText({ text, className = '', highlight }: { text: string;
   return (
     <span
       className={`shimmer-text ${className}`}
-      style={highlight ? ({ ['--dsh-shimmer-highlight-color' as string]: highlight } as React.CSSProperties) : undefined}
+      style={highlight ? ({ ['--hal-shimmer-highlight-color' as string]: highlight } as React.CSSProperties) : undefined}
     >
       <span>{text}</span>
       <span className="shimmer-sweep" aria-hidden>
@@ -241,19 +241,19 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
   if (!open) return null
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--dsw-alias-bg-mask-1)] backdrop-blur-[2px] p-6 modal-enter"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--hal-alias-bg-mask-1)] backdrop-blur-[2px] p-6 modal-enter"
       onMouseDown={onClose}
     >
       <div
-        className={`bg-[var(--dsw-alias-bg-layer-2)] rounded-panel w-full max-w-[380px] max-h-[80vh] overflow-hidden flex flex-col modal-enter ${wide ? '!max-w-[488px]' : ''}`}
-        style={{ boxShadow: 'var(--dsw-elevation-prominent)' }}
+        className={`bg-[var(--hal-alias-bg-layer-2)] rounded-panel w-full max-w-[380px] max-h-[80vh] overflow-hidden flex flex-col modal-enter ${wide ? '!max-w-[488px]' : ''}`}
+        style={{ boxShadow: 'var(--hal-elevation-prominent)' }}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between pt-[22px] pb-3 pl-6 pr-4">
           <div className="text-base font-medium leading-6">{title}</div>
           <button
             onClick={onClose}
-            className="text-[color:var(--dsw-alias-label-tertiary)] hover:text-ink cursor-pointer p-1 rounded-sm hover:bg-[var(--dsw-alias-interactive-bg-hover)] transition-colors duration-100"
+            className="text-[color:var(--hal-alias-label-tertiary)] hover:text-ink cursor-pointer p-1 rounded-sm hover:bg-[var(--hal-alias-interactive-bg-hover)] transition-colors duration-100"
           >
             <X size={15} />
           </button>
@@ -270,7 +270,7 @@ export function SectionTitle({ children, hint }: { children: ReactNode; hint?: R
   return (
     <div className="flex items-baseline justify-between gap-3 mb-3">
       <h2 className="text-base font-medium leading-6">{children}</h2>
-      {hint ? <span className="text-xs text-[color:var(--dsw-alias-label-tertiary)]">{hint}</span> : null}
+      {hint ? <span className="text-xs text-[color:var(--hal-alias-label-tertiary)]">{hint}</span> : null}
     </div>
   )
 }
@@ -280,9 +280,9 @@ export function SectionTitle({ children, hint }: { children: ReactNode; hint?: R
 export function EmptyState({ icon, title, hint }: { icon?: ReactNode; title: ReactNode; hint?: ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-14 text-center">
-      {icon ? <div className="text-[color:var(--dsw-alias-label-tertiary)] mb-1">{icon}</div> : null}
+      {icon ? <div className="text-[color:var(--hal-alias-label-tertiary)] mb-1">{icon}</div> : null}
       <div className="text-muted text-sm">{title}</div>
-      {hint ? <div className="text-[color:var(--dsw-alias-label-caption)] text-xs max-w-sm leading-relaxed">{hint}</div> : null}
+      {hint ? <div className="text-[color:var(--hal-alias-label-caption)] text-xs max-w-sm leading-relaxed">{hint}</div> : null}
     </div>
   )
 }
@@ -320,9 +320,9 @@ export function ToastHost({ children }: { children: ReactNode }) {
     kind === 'success' ? (
       <Check size={13} className="text-good" />
     ) : kind === 'error' ? (
-      <TriangleAlert size={13} className="text-[color:var(--dsw-alias-state-error-secondary)]" />
+      <TriangleAlert size={13} className="text-[color:var(--hal-alias-state-error-secondary)]" />
     ) : (
-      <Info size={13} className="text-[color:var(--dsw-alias-link)]" />
+      <Info size={13} className="text-[color:var(--hal-alias-link)]" />
     )
 
   return (
@@ -332,8 +332,8 @@ export function ToastHost({ children }: { children: ReactNode }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className="toast-in pointer-events-auto flex items-center gap-2.5 rounded-lg px-4 py-3 min-w-[220px] max-w-[min(640px,100vw-48px)] text-[var(--dsw-alias-tooltip-text)]"
-            style={{ background: 'var(--dsw-alias-toast-bg)', boxShadow: 'var(--dsw-shadow-lv3)' }}
+            className="toast-in pointer-events-auto flex items-center gap-2.5 rounded-lg px-4 py-3 min-w-[220px] max-w-[min(640px,100vw-48px)] text-[var(--hal-alias-tooltip-text)]"
+            style={{ background: 'var(--hal-alias-toast-bg)', boxShadow: 'var(--hal-shadow-lv3)' }}
           >
             {iconFor(t.kind)}
             <span className="text-[13px] leading-5">{t.message}</span>

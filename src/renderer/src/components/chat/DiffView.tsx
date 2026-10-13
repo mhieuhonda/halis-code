@@ -114,11 +114,11 @@ export function DiffView({ diff }: { diff: string }) {
   const dels = lines.filter((l) => l.kind === 'del').length
 
   return (
-    <div className="rounded-lg border-[0.5px] border-[color:var(--dsw-alias-border-l2)] overflow-hidden my-0.5" style={{ background: 'var(--dsw-alias-file-diff-added-gutter)' }}>
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b-[0.5px] border-[color:var(--dsw-alias-border-l1)] bg-[var(--dsw-alias-bg-layer-1)]">
-        <span className="text-[11px] font-mono text-[color:var(--dsw-alias-file-diff-added-marker)]">+{adds}</span>
-        <span className="text-[11px] font-mono text-[color:var(--dsw-alias-file-diff-deleted-marker)]">−{dels}</span>
-        <span className="text-[10px] text-[color:var(--dsw-alias-label-caption)] font-mono uppercase tracking-wider ml-auto">diff</span>
+    <div className="rounded-lg border-[0.5px] border-[color:var(--hal-alias-border-l2)] overflow-hidden my-0.5" style={{ background: 'var(--hal-alias-file-diff-added-gutter)' }}>
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b-[0.5px] border-[color:var(--hal-alias-border-l1)] bg-[var(--hal-alias-bg-layer-1)]">
+        <span className="text-[11px] font-mono text-[color:var(--hal-alias-file-diff-added-marker)]">+{adds}</span>
+        <span className="text-[11px] font-mono text-[color:var(--hal-alias-file-diff-deleted-marker)]">−{dels}</span>
+        <span className="text-[10px] text-[color:var(--hal-alias-label-caption)] font-mono uppercase tracking-wider ml-auto">diff</span>
       </div>
       <div className="max-h-72 overflow-auto py-1">
         {lines.slice(0, 400).map((line, i) => (

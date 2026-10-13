@@ -1,6 +1,5 @@
 /**
- * ask_user — structured clarification questions (opencode question +
- * deepseek ask_user). The agent can present up to 4 questions with options;
+ * ask_user — structured clarification questions. The agent can present up to 4 questions with options;
  * the renderer shows an interactive card. The tool blocks until the user
  * answers or a 10-minute timeout returns a pending result the model can
  * act on.

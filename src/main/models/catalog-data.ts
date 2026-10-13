@@ -1,7 +1,7 @@
 /**
- * Bundled model catalog — generated from opencode's own catalog
- * (https://models.opencode.ai/api.json, the snapshot opencode ships with)
- * for the providers Halis Code can call, plus local Ollama.
+ * Bundled model catalog — snapshot of the upstream catalog at
+ * https://models.opencode.ai/api.json for the providers Halis Code can
+ * call, plus local Ollama.
  * At runtime the catalog is refreshed from the same source and local
  * Ollama models are auto-detected.
  *

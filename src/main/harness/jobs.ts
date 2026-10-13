@@ -1,6 +1,5 @@
 /**
- * Background job registry — modeled on deepseek-harness's jobs runtime.
- * Producers (the shell tool) register jobs; the model inspects them with
+ * Background job registry. Producers (the shell tool) register jobs; the model inspects them with
  * job_list / job_output / job_kill. Output is kept in a bounded ring per
  * job; a completion notice is queued so the harness can inject it into the
  * agent's next turn (no busy-polling).

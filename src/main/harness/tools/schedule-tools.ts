@@ -1,6 +1,6 @@
 /**
- * Reminder tools — schedule_create / schedule_list / schedule_delete,
- * ported from deepseek-harness's tool-schedule. A schedule delivers a
+ * Reminder tools — schedule_create / schedule_list / schedule_delete. A
+ * schedule delivers a
  * prompt back into the session later (once or recurring). Exactly one
  * selector is allowed per call.
  */

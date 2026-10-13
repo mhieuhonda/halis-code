@@ -27,9 +27,9 @@ Its differentiator is deep **Telegraph Protocol** integration: every agent can b
 
 ## Screenshots
 
-*Real runs at 2× resolution — agent turns, swarm coordination and the opencode-style model picker.*
+*Real runs at 2× resolution — agent turns, swarm coordination and the searchable model picker.*
 
-| Agent chat — live tool run | Model picker (opencode-style, searchable) |
+| Agent chat — live tool run | Model picker (searchable) |
 |---|---|
 | ![Agent chat](docs/screenshots/01-agent-chat.png) | ![Model picker](docs/screenshots/02-model-picker.png) |
 
@@ -85,17 +85,17 @@ Switch to Swarm and build a team first. Every agent gets:
 
 ## The harness
 
-The orchestration core, inspired by the harness designs of [opencode](https://github.com/anomalyco/opencode) and [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness):
+The orchestration core — self-contained, no agent framework dependencies:
 
 | Subsystem | What it does |
 |---|---|
-| **Agent loop** | Step-based loop (LLM call → tool calls → results → next step) with streaming, abort, transient-error retry (exponential backoff + `Retry-After`, opencode's schedule), and a wrap-up step at the cap |
+| **Agent loop** | Step-based loop (LLM call → tool calls → results → next step) with streaming, abort, transient-error retry (exponential backoff + `Retry-After`), and a wrap-up step at the cap |
 | **Permissions** | Read-only tools run automatically; writes, shell and USDC spends raise **approval cards** (Approve / Always allow / Reject). "Always" choices are remembered per agent and per kind |
 | **File locking** | Hard locks stop two agents editing the same file; state files (`.halis/*`) are always hard-locked; log files use advisory locks with warnings |
 | **Shared task board** | Kanban in `.halis/task-board.json`. Agents claim a task before starting; claims are atomic under the hard lock |
 | **Sandbox** | Agents are jailed to the workspace: path traversal and symlink escapes are rejected, shell commands run with `cwd = workspace` behind a danger screenlist with time and output caps |
-| **Background jobs** | Long commands run as background jobs (`run_in_background`), managed with `job_list` / `job_output` / `job_kill`; completion notices are injected into the agent's next turn — no polling (deepseek-harness pattern) |
-| **Auto-compaction** | Long sessions fold older messages into a structured summary (Objective / Requirements / Decisions / Work State / Next Move / Relevant Files) while recent turns stay verbatim — opencode's template and ceiling |
+| **Background jobs** | Long commands run as background jobs (`run_in_background`), managed with `job_list` / `job_output` / `job_kill`; completion notices are injected into the agent's next turn — no polling |
+| **Auto-compaction** | Long sessions fold older messages into a structured summary (Objective / Requirements / Decisions / Work State / Next Move / Relevant Files) while recent turns stay verbatim |
 | **Global output budget** | Every tool result is capped (2,000 lines / 50 KiB); the full text spills to a file the agent can re-read with `read_file` |
 | **MCP** | Model Context Protocol client (stdio + streamable HTTP): configured servers expose their tools to every agent as `mcp_<server>_<tool>` |
 
@@ -114,12 +114,12 @@ The orchestration core, inspired by the harness designs of [opencode](https://gi
 
 ## The toolset
 
-Ported and adapted from opencode and deepseek-harness (TypeScript 7, sandbox-jailed, approval-gated):
+The built-in toolset (TypeScript 7, sandbox-jailed, approval-gated):
 
 | Area | Tools |
 |---|---|
 | Files | `read_file` (numbered, offset/limit) · `write_file` (atomic tmp+rename) · `edit_file` (3-tier fuzzy: exact → unicode-normalized → line/CRLF) · `multi_edit` (atomic batch) · `delete_file` · `list_dir` · `read_image` (vision attach) |
-| Patching | `apply_patch` — opencode's V4A format: Add / Update / Move to / Delete with 4-tier fuzzy context matching and `*** End of File` anchor |
+| Patching | `apply_patch` — Add / Update / Move to / Delete with 4-tier fuzzy context matching and `*** End of File` anchor |
 | Search | `glob` · `grep` (native walkers, jailed) |
 | Shell | `run_command` — cross-platform (PowerShell 7 → 5.1 + UTF-8 preamble → cmd on Windows; bash → sh on POSIX), background jobs, credential-scrubbed env |
 | Jobs | `job_list` · `job_output` (wait mode) · `job_kill` |
@@ -133,10 +133,10 @@ Ported and adapted from opencode and deepseek-harness (TypeScript 7, sandbox-jai
 
 ## Models
 
-The catalog is opencode's: the bundled snapshot is generated from [models.opencode.ai](https://models.opencode.ai/api.json) (the exact catalog opencode ships) and refreshes live from the same source, plus locally-detected Ollama models. The model picker is a single searchable dialog with favorites and recents — no group tabs.
+The bundled catalog snapshot is generated from [models.opencode.ai](https://models.opencode.ai/api.json) and refreshes live from the same source, plus locally-detected Ollama models. The model picker is a single searchable dialog with favorites and recents — no group tabs.
 
 - **Free key** — OpenCode Zen (`ling-3.1-flash-free` is the default) with a free API key from [opencode.ai/zen](https://opencode.ai/zen)
-- **Bring your own key** — Anthropic, OpenAI, Google, OpenRouter, Vercel AI Gateway and the rest of opencode's popular provider list
+- **Bring your own key** — Anthropic, OpenAI, Google, OpenRouter, Vercel AI Gateway and the rest of the popular provider list
 - **Local** — Ollama models are auto-detected when the server is running
 
 Key rules (as configured in Swarm Setup):
@@ -194,9 +194,9 @@ src/
 │   │                skills, compaction, util (patch/cron/html-markdown/
 │   │                edit-match/truncate)
 │   ├── swarm/       roles, prompts, @mention router, orchestrator
-│   ├── models/      catalog (bundled from opencode's catalog + live refresh),
+│   ├── models/      catalog (bundled snapshot + live refresh),
 │   │                key vault, OpenAI-compatible + Anthropic streaming
-│   │                clients, retry policy (opencode schedule)
+│   │                clients, retry policy
 │   ├── telegraph/   engine client, x402 payments, wallet, receipts
 │   ├── sessions/    local session store
 │   └── ipc.ts       thin typed handlers
@@ -212,8 +212,7 @@ The LLM layer speaks the OpenAI-compatible dialect natively (streaming SSE, func
 
 ## Credits
 
-- Harness concepts studied from [opencode](https://github.com/anomalyco/opencode) (step loop, permission rules, model catalog + picker, patch format + fuzzy matching, html→markdown, tool-output spill, compaction template, retry schedule, snapshot concepts) and [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) (guarded tool pipeline, job registry, schedule/cron domain, read-before-write discipline, pwsh handling, session event log)
-- Model catalog from opencode ([models.opencode.ai](https://models.opencode.ai))
+- Model catalog data sourced from [models.opencode.ai](https://models.opencode.ai)
 - Payments over the [x402](https://x402.org) standard using the same client approach as the official [Telegraph MCP server](https://github.com/telegraphprotocol/Telegraph-MCP)
 
 ## License

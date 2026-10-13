@@ -1,6 +1,6 @@
 /**
- * HTML → Markdown/text conversion — modeled on opencode's html-markdown
- * but written against a dependency-free tolerant tokenizer. Handles
+ * HTML → Markdown/text conversion via a dependency-free tolerant
+ * tokenizer. Handles
  * headings, lists (ul/ol), blockquotes, fenced code, Markdown tables,
  * links, images and inline styling, with a parse-depth guard and an
  * output budget so hostile pages can't blow up the harness.

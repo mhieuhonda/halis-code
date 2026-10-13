@@ -1,5 +1,5 @@
 /**
- * skill — load a SKILL.md pack into context (opencode-style). Skills live
+ * skill — load a SKILL.md pack into context. Skills live
  * in <workspace>/.halis/skills/, .agents/skills/ or .claude/skills/. The
  * available skill list is injected into the system prompt; this tool loads
  * the full content on demand.

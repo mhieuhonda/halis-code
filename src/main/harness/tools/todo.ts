@@ -1,5 +1,5 @@
 /**
- * todo_write — the agent's own checklist (deepseek-harness style).
+ * todo_write — the agent's own checklist.
  * Whole-list replacement: every call replaces the entire list. The UI
  * renders the latest list as a live checklist; state also persists on the
  * session so it survives restarts.

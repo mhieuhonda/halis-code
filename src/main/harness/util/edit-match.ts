@@ -1,6 +1,5 @@
 /**
- * Fuzzy string replacement for edit tools — ported from opencode's edit
- * matching: literal → unicode-normalized → line-based (trailing whitespace
+ * Fuzzy string replacement for edit tools: literal → unicode-normalized → line-based (trailing whitespace
  * + CRLF tolerant). Also carries a small line-diff generator used for
  * approval previews and change summaries.
  */

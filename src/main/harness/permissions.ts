@@ -1,6 +1,5 @@
 /**
- * Permission model — inspired by opencode's rule engine, specialized for
- * what the user asked for:
+ * Permission model, specialized for what the user asked for:
  *  - read-only tools run automatically;
  *  - state-changing tools require an approval card;
  *  - USDC-spending tools always require an approval card unless the user
@@ -46,7 +45,7 @@ const READ_ONLY_TOOLS = new Set([
   'telegraph_signals',
   'send_message',
   'finish',
-  /* opencode / deepseek-harness ported tools */
+  /* extended tools */
   'web_fetch',
   'web_search',
   'todo_write',

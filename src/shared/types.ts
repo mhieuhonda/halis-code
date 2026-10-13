@@ -229,7 +229,7 @@ export interface AlwaysAllowRule {
 }
 
 /* ------------------------------------------------------------------ */
-/* Todos (agent-side checklist, deepseek-harness style)                */
+/* Todos (agent-side checklist)                                        */
 /* ------------------------------------------------------------------ */
 
 export type TodoStatus = 'pending' | 'in_progress' | 'completed'
@@ -484,7 +484,7 @@ export type AppTheme = 'light' | 'dark'
 
 export interface AppSettings {
   language: AppLanguage
-  /** Renderer theme; applied to body[data-ds-dark-theme]. */
+  /** Renderer theme; applied to body[data-dark-theme]. */
   theme: AppTheme
   workspace: string
   defaultModelId: string
@@ -502,7 +502,7 @@ export interface AppSettings {
    * (resources/ponytail/) verbatim into the agent system prompt.
    */
   ponytailEnabled: boolean
-  /** MCP servers the harness connects to (opencode/deepseek-style). */
+  /** MCP servers the harness connects to. */
   mcpServers: McpServerConfig[]
   /** Optional Tavily key; without it web_search uses the keyless DuckDuckGo backend. */
   tavilyApiKey?: string

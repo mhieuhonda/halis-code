@@ -81,7 +81,7 @@ export function MessageBubble({ message, swarm, nameOf }: { message: ChatMessage
       <div className="md-body selectable">
         {runs.map((run, i) =>
           run.mention ? (
-            <span key={i} className="text-[color:var(--dsw-alias-link)] font-medium">
+            <span key={i} className="text-[color:var(--hal-alias-link)] font-medium">
               {run.text}
             </span>
           ) : run.text ? (
@@ -102,7 +102,7 @@ export function MessageBubble({ message, swarm, nameOf }: { message: ChatMessage
     return (
       <div className="flex justify-center my-3 fade-in">
         <div
-          className="rounded-full bg-[var(--dsw-alias-interactive-bg-hover)] px-4 py-1.5 text-[12px] text-[color:var(--dsw-alias-label-secondary)] max-w-[640px] text-center selectable"
+          className="rounded-full bg-[var(--hal-alias-interactive-bg-hover)] px-4 py-1.5 text-[12px] text-[color:var(--hal-alias-label-secondary)] max-w-[640px] text-center selectable"
         >
           {message.content || message.error}
         </div>
@@ -116,7 +116,7 @@ export function MessageBubble({ message, swarm, nameOf }: { message: ChatMessage
       <div className="flex flex-col items-end mt-1.5 rise">
         <div
           className="w-fit max-w-[70%] rounded-xl px-4 py-2.5"
-          style={{ background: 'var(--dsw-specific-bubble)', fontSize: 'var(--dsh-content-font-size, 14px)', lineHeight: 'calc(22px + var(--dsh-content-font-delta, 0px))' }}
+          style={{ background: 'var(--hal-specific-bubble)', fontSize: 'var(--hal-content-font-size, 14px)', lineHeight: 'calc(22px + var(--hal-content-font-delta, 0px))' }}
         >
           <div className="md-body selectable whitespace-pre-wrap" style={{ margin: 0 }}>
             {message.content}
@@ -158,7 +158,7 @@ export function MessageBubble({ message, swarm, nameOf }: { message: ChatMessage
             </span>
           ) : null}
           {recipients.length > 0 || message.to.includes('user') ? (
-            <span className="inline-flex items-center gap-1 text-[11px] text-[color:var(--dsw-alias-label-tertiary)]">
+            <span className="inline-flex items-center gap-1 text-[11px] text-[color:var(--hal-alias-label-tertiary)]">
               <ArrowRight size={11} />
               {recipients.length ? recipients.map(nameOf).join(', ') : t('to_user')}
             </span>
@@ -167,7 +167,7 @@ export function MessageBubble({ message, swarm, nameOf }: { message: ChatMessage
           {!message.streaming && message.content ? (
             <span className="ml-auto flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-[80ms]">
               <button
-                className="inline-flex items-center gap-1 text-[11px] text-[color:var(--dsw-alias-label-tertiary)] hover:text-ink cursor-pointer bg-transparent border-none p-0 transition-colors duration-100"
+                className="inline-flex items-center gap-1 text-[11px] text-[color:var(--hal-alias-label-tertiary)] hover:text-ink cursor-pointer bg-transparent border-none p-0 transition-colors duration-100"
                 onClick={copyAll}
               >
                 {copied ? <Check size={11} className="text-good" /> : <Copy size={11} />}
@@ -182,7 +182,7 @@ export function MessageBubble({ message, swarm, nameOf }: { message: ChatMessage
           <div className="flex justify-end h-0 -mt-1 relative z-10">
             <span className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-[80ms]">
               <button
-                className="inline-flex items-center gap-1 text-[11px] text-[color:var(--dsw-alias-label-tertiary)] hover:text-ink cursor-pointer bg-transparent border-none p-0 transition-colors duration-100"
+                className="inline-flex items-center gap-1 text-[11px] text-[color:var(--hal-alias-label-tertiary)] hover:text-ink cursor-pointer bg-transparent border-none p-0 transition-colors duration-100"
                 onClick={copyAll}
               >
                 {copied ? <Check size={11} className="text-good" /> : <Copy size={11} />}
@@ -198,13 +198,13 @@ export function MessageBubble({ message, swarm, nameOf }: { message: ChatMessage
         <div className="flex items-center gap-1.5 py-0.5">
           <span
             className="inline-flex items-center justify-center w-[14px] h-[14px] shrink-0"
-            style={{ color: 'var(--dsw-alias-label-deep-diving)' }}
+            style={{ color: 'var(--hal-alias-label-deep-diving)' }}
           >
             <img src={logoUrl} alt="" className="brand-img w-3.5 h-3.5" draggable={false} />
           </span>
           <span
             className="text-[12px] font-medium"
-            style={{ color: 'var(--dsw-alias-label-deep-diving)' }}
+            style={{ color: 'var(--hal-alias-label-deep-diving)' }}
           >
             <ShimmerText text={`${t('thinking')}…`} />
           </span>
@@ -221,11 +221,11 @@ export function MessageBubble({ message, swarm, nameOf }: { message: ChatMessage
 
       {message.reasoning && !isUser ? (
         <details className="mt-1.5 w-full">
-          <summary className="inline-flex items-center gap-1.5 text-[11.5px] text-[color:var(--dsw-alias-label-tertiary)] cursor-pointer hover:text-[color:var(--dsw-alias-label-secondary)] select-none transition-colors duration-100 bg-transparent border-none p-0 list-none">
-            <span style={{ color: 'var(--dsw-alias-label-deep-diving)' }}>✦</span> {t('reasoning')}
+          <summary className="inline-flex items-center gap-1.5 text-[11.5px] text-[color:var(--hal-alias-label-tertiary)] cursor-pointer hover:text-[color:var(--hal-alias-label-secondary)] select-none transition-colors duration-100 bg-transparent border-none p-0 list-none">
+            <span style={{ color: 'var(--hal-alias-label-deep-diving)' }}>✦</span> {t('reasoning')}
           </summary>
           <div
-            className="mt-1 pl-[22px] pr-1 text-[12px] leading-5 text-[color:var(--dsw-alias-label-secondary)] whitespace-pre-wrap selectable"
+            className="mt-1 pl-[22px] pr-1 text-[12px] leading-5 text-[color:var(--hal-alias-label-secondary)] whitespace-pre-wrap selectable"
           >
             {message.reasoning}
           </div>
@@ -252,7 +252,7 @@ export function MessageBubble({ message, swarm, nameOf }: { message: ChatMessage
 
       {/* turn tail — token usage */}
       {usage && !message.streaming && (usage.inputTokens > 0 || usage.outputTokens > 0) ? (
-        <div className="mt-1.5 text-[10.5px] text-[color:var(--dsw-alias-label-caption)] font-mono flex items-center gap-2">
+        <div className="mt-1.5 text-[10.5px] text-[color:var(--hal-alias-label-caption)] font-mono flex items-center gap-2">
           <span>↑ {fmtTokens(usage.inputTokens)} tok</span>
           <span>·</span>
           <span>↓ {fmtTokens(usage.outputTokens)} tok</span>
@@ -260,7 +260,7 @@ export function MessageBubble({ message, swarm, nameOf }: { message: ChatMessage
       ) : null}
 
       {message.error ? (
-        <div className="mt-1.5 text-[12px] leading-5 text-[color:var(--dsw-alias-state-error-secondary)] max-w-[640px] selectable">
+        <div className="mt-1.5 text-[12px] leading-5 text-[color:var(--hal-alias-state-error-secondary)] max-w-[640px] selectable">
           {message.error}
         </div>
       ) : null}

@@ -1,6 +1,5 @@
 /**
- * apply_patch — ported from opencode's Patch (util/patch.ts) design:
- * parses the `*** Begin Patch` V4A-ish format, applies hunks to files with
+ * apply_patch: parses the `*** Begin Patch` V4A-ish format, applies hunks to files with
  * a 4-tier fuzzy context match (exact → rstrip → trim → unicode-normalized),
  * supports Add / Update / Delete File, `*** Move to:` renames and the
  * `*** End of File` anchor. Returns per-file results and never throws for

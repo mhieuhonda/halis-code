@@ -1,7 +1,6 @@
 /**
- * Unified LLM message/stream vocabulary — inspired by the message models of
- * opencode and deepseek-harness, normalized across OpenAI-compatible and
- * Anthropic wire formats.
+ * Unified LLM message/stream vocabulary, normalized across
+ * OpenAI-compatible and Anthropic wire formats.
  */
 
 export interface LlmToolDef {

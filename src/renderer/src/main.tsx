@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App'
 import './styles.css'
 
-// Theme bootstrap, DeepSeek Harness-style: dark lives on body[data-ds-dark-theme],
+// Theme bootstrap: dark lives on body[data-dark-theme],
 // platform on html[data-platform]. The renderer boots light; the saved theme
 // (Settings → Appearance) is applied as soon as settings arrive — see stores/app.ts.
 const ua = navigator.userAgent
