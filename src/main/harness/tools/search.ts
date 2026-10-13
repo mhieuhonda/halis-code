@@ -35,6 +35,10 @@ function walk(root: string, dir = '', out: string[] = [], depth = 0): string[] {
 }
 
 function globToRegExp(pattern: string): RegExp {
+  return new RegExp(`^${globToSource(pattern)}$`, 'i')
+}
+
+function globToSource(pattern: string): string {
   let re = ''
   let i = 0
   while (i < pattern.length) {
@@ -54,7 +58,14 @@ function globToRegExp(pattern: string): RegExp {
     } else if (c === '{') {
       const end = pattern.indexOf('}', i)
       if (end > 0) {
-        re += `(?:${pattern.slice(i + 1, end).split(',').join('|')})`
+        // Each alternative is a mini-glob and MUST go through the same
+        // conversion: `{*.ts,*.js}` used to emit `(?:*.ts|*.js)` — an
+        // invalid regex ("Nothing to repeat") that errored the whole tool.
+        re += `(?:${pattern
+          .slice(i + 1, end)
+          .split(',')
+          .map(globToSource)
+          .join('|')})`
         i = end + 1
       } else {
         re += '\\{'
@@ -65,7 +76,7 @@ function globToRegExp(pattern: string): RegExp {
       i++
     }
   }
-  return new RegExp(`^${re}$`, 'i')
+  return re
 }
 
 export const globTool: ToolDef = {

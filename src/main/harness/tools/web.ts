@@ -103,7 +103,11 @@ async function fetchBounded(url: URL, headers: Record<string, string>, timeoutMs
       if (res.status >= 300 && res.status < 400) {
         const location = res.headers.get('location')
         try {
-          await res.arrayBuffer() // release the socket
+          // Cancel the stream instead of buffering it: `arrayBuffer()` read
+          // the ENTIRE redirect body into memory uncapped — a hostile or
+          // broken server answering a 302 with a multi-GB body OOM'd the
+          // main process before any byte cap applied.
+          await res.body?.cancel()
         } catch {
           /* ignore */
         }
@@ -136,7 +140,11 @@ async function fetchBounded(url: URL, headers: Record<string, string>, timeoutMs
         chunks.push(value)
       }
       const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)))
-      return { status: res.status, contentType, body: buf.toString('utf8'), finalUrl: res.url || current.toString() }
+      // Decode only complete UTF-8 sequences: the 5 MB cut can land inside a
+      // multibyte char and the tail would turn into U+FFFD garbage.
+      let end = buf.length
+      while (end > 0 && ((buf[end] ?? 0) & 0xc0) === 0x80) end--
+      return { status: res.status, contentType, body: buf.subarray(0, end).toString('utf8'), finalUrl: res.url || current.toString() }
     }
     throw new Error('Too many redirects (6).')
   } finally {

@@ -24,7 +24,7 @@ export function readJson<T>(path: string, fallback: T): T {
 export function writeJson(path: string, value: unknown, opts: { mode?: number } = {}): void {
   const dir = dirname(path)
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  const tmp = `${path}.${process.pid}.tmp`
+  const tmp = `${path}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`
   writeFileSync(tmp, JSON.stringify(value, null, 2), { encoding: 'utf8', ...(opts.mode !== undefined ? { mode: opts.mode } : {}) })
   renameSync(tmp, path)
   if (opts.mode !== undefined) {

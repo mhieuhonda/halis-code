@@ -26,6 +26,14 @@ function toFiniteInt(value: unknown, fallback: number): number {
   return Number.isFinite(n) ? n : fallback
 }
 
+/** Unique tmp name for the atomic write: a fixed `.halis-tmp` suffix let two
+ *  concurrent advisory writes (log files) overwrite each other's tmp file —
+ *  the first rename then shipped the OTHER agent's content. */
+function tmpName(path: string, ctx: ToolContext): string {
+  return `${path}.${ctx.agentId.replace(/[^\w-]/g, '')}.${Date.now().toString(36)}${counter++}.halis-tmp`
+}
+let counter = 0
+
 function rel(ws: string, p: string): string {
   const r = relative(ws, p)
   return r && !r.startsWith('..') ? r : p
@@ -98,6 +106,11 @@ export const readFileTool: ToolDef = {
     const offset = Math.max(1, toFiniteInt(args.offset, 1))
     const limit = Math.min(toFiniteInt(args.limit, 2000), 2000)
     const slice = lines.slice(offset - 1, offset - 1 + limit)
+    if (!slice.length) {
+      // Offset past EOF used to return an EMPTY output with no explanation —
+      // the model would conclude the file is empty or the read silently failed.
+      return { output: `Offset ${offset} is beyond the end of the file (${lines.length} line${lines.length === 1 ? '' : 's'}). Read from offset 1.`, data: { path: rel(ctx.workspace, path), totalLines: lines.length } }
+    }
     const numbered = slice.map((line, i) => `${offset + i}: ${line}`).join('\n')
     return {
       output: truncate(numbered) + (offset + slice.length - 1 < lines.length ? `\n… (${lines.length - (offset + slice.length - 1)} more lines)` : ''),
@@ -171,7 +184,7 @@ export const writeFileTool: ToolDef = {
       // files (a synchronous multi-GB load would freeze the main process).
       const before = existed && statSync(path).size <= MAX_EDIT_BYTES ? readFileSync(path, 'utf8') : ''
       ensureWritableParent(path, ctx.workspace)
-      const tmp = `${path}.halis-tmp`
+      const tmp = tmpName(path, ctx)
       try {
         writeFileSync(tmp, content, 'utf8')
       } catch (err) {
@@ -239,7 +252,7 @@ export const editFileTool: ToolDef = {
           output: `Could not find old_string in ${rel(ctx.workspace, path)}. Read the file again and copy the exact text, including whitespace and indentation.`,
         }
       }
-      const tmp = `${path}.halis-tmp`
+      const tmp = tmpName(path, ctx)
       writeFileSync(tmp, match.content, 'utf8')
       renameSync(tmp, path)
       const strategyNote = match.strategy === 'exact' ? '' : ` (matched via ${match.strategy} fallback)`
@@ -309,7 +322,7 @@ export const multiEditTool: ToolDef = {
         content = match.content
         applied.push({ strategy: match.strategy, replacements: match.occurrences })
       }
-      const tmp = `${path}.halis-tmp`
+      const tmp = tmpName(path, ctx)
       writeFileSync(tmp, content, 'utf8')
       renameSync(tmp, path)
       const total = applied.reduce((sum, a) => sum + a.replacements, 0)

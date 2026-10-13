@@ -11,6 +11,9 @@ const BLOCK_TAGS = new Set(['p', 'div', 'section', 'article', 'header', 'footer'
 const VOID_TAGS = new Set(['br', 'hr', 'img', 'input', 'source', 'wbr', 'area', 'base', 'col', 'embed', 'track', 'meta', 'link'])
 const MAX_DEPTH = 512
 const MAX_OUTPUT_CHARS = 400_000
+/** A URL with NO scheme (relative path, anchor, query) — safe by definition,
+ *  it cannot smuggle a `javascript:`/`data:` payload past the allowlist. */
+const NO_SCHEME = /^[^:?#]*[/?#]/
 
 interface Token {
   kind: 'text' | 'open' | 'close' | 'void'
@@ -255,7 +258,10 @@ class MarkdownRenderer {
       case 'img': {
         const src = attrs['src'] ?? ''
         const alt = (attrs['alt'] ?? 'image').replace(/[\]()]/g, '')
-        if (src) this.emit(`![${alt}](${src})`)
+        // Scheme allowlist — block javascript:/data: but keep relative URLs:
+        // pages legitimately reference sibling images, and dropping them
+        // silently amputated the converted markdown.
+        if (src && (NO_SCHEME.test(src) || /^(https?:|data:image\/)/i.test(src))) this.emit(`![${alt}](${src})`)
         return
       }
       case 'strong':
@@ -361,7 +367,13 @@ class MarkdownRenderer {
           const href = this.href
           this.href = null
           this.linkText = ''
-          if (text) this.emit(`[${text}](${href})`)
+          // Scheme allowlist: `javascript:`/`data:` hrefs flowed straight
+          // into the markdown output — harmless in THIS app's renderer (the
+          // URL transform strips them) but live in every other consumer of
+          // the output (model-written files, other markdown viewers).
+          // Relative URLs ("docs/page.html", "#anchor", "/x") stay links.
+          if (text && (NO_SCHEME.test(href) || /^(https?:|mailto:|#|\/)/i.test(href))) this.emit(`[${text}](${href})`)
+          else if (text) this.emit(text)
           else if (href.startsWith('http')) this.emit(`<${href}>`)
         }
         return

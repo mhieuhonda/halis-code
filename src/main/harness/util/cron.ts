@@ -98,7 +98,16 @@ export function cronNext(expression: string, after: Date): { at: Date } | { erro
       continue
     }
     if (!fields.hour[d.getHours()]) {
-      d.setHours(d.getHours() + 1, 0, 0, 0)
+      const prev = d.getHours()
+      d.setHours(prev + 1, 0, 0, 0)
+      // DST spring-forward: the hour the mask wants may not exist locally —
+      // setHours normalizes 02:00 straight to 03:00 and the old `continue`
+      // skipped EVERY match for the whole day. Vixie cron fires at the
+      // normalized instant instead: if the mask wanted the skipped hour and
+      // we just landed inside the following one, fire now (minute permitting).
+      if (fields.hour[(prev + 1) % 24] && d.getHours() !== (prev + 1) % 24 && fields.minute[d.getMinutes()]) {
+        return { at: new Date(d.getTime()) }
+      }
       continue
     }
     if (!fields.minute[d.getMinutes()]) {

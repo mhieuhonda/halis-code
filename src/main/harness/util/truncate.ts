@@ -61,11 +61,13 @@ export function truncateToolOutput(output: string, toolCallId: string): Truncati
   let text = lines.slice(0, TOOL_OUTPUT_MAX_LINES).join('\n')
   if (Buffer.byteLength(text, 'utf8') > TOOL_OUTPUT_MAX_BYTES) {
     // Clip by bytes without splitting a UTF-8 sequence: back off from the
-    // cap to the last non-continuation byte, or the cut decodes to U+FFFD
-    // replacement characters at the tail.
+    // cap while byte[end] is a CONTINUATION byte, so the cut lands right
+    // before a character boundary. Checking byte[end-1] instead kept the
+    // orphaned lead byte of the split character — the tail decoded to
+    // U+FFFD garbage (and a boundary-exact cut backed off one char too far).
     const buf = Buffer.from(text, 'utf8')
     let end = TOOL_OUTPUT_MAX_BYTES
-    while (end > 0 && (buf[end - 1]! & 0b1100_0000) === 0b1000_0000) end--
+    while (end > 0 && (buf[end]! & 0b1100_0000) === 0b1000_0000) end--
     text = buf.subarray(0, end).toString('utf8')
   }
 

@@ -3,7 +3,7 @@
  * tokens, passwords) never reach spawned children — not even git, whose
  * hooks run arbitrary repo code with the inherited environment.
  */
-const SENSITIVE_ENV = /KEY|PASSWORD|SECRET|TOKEN|PASSWD|PRIVATE/i
+const SENSITIVE_ENV = /KEY|PASSWORD|SECRET|TOKEN|PASSWD|PRIVATE|CREDENTIALS|COOKIE/i
 
 export function scrubbedEnv(extra: Record<string, string> = {}): Record<string, string> {
   const out: Record<string, string> = {}

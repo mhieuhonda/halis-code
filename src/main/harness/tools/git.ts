@@ -67,6 +67,16 @@ export const gitDiffTool: ToolDef = {
     if (magic) {
       return { output: `Refusing git pathspec magic ("${magic.slice(0, 60)}"): paths must be plain workspace-relative paths.` }
     }
+    // Same jail as git_commit: a "path" like ../secrets.txt would otherwise
+    // diff files OUTSIDE the workspace on this read-only, no-approval tool
+    // whenever the workspace is a subdirectory of a bigger repo.
+    for (const p of paths) {
+      try {
+        ctx.sandbox.safePath(p)
+      } catch (err) {
+        return { output: `Refusing to diff "${p}": ${err instanceof Error ? err.message : String(err)}` }
+      }
+    }
     // '--' ends option parsing: a model-supplied "path" like
     // --output=/etc/x would otherwise be a writable-file option on a
     // read-only, no-approval tool.
@@ -90,7 +100,10 @@ export const gitLogTool: ToolDef = {
   kind: 'other',
   readOnly: true,
   async execute(args, ctx): Promise<ToolResult> {
-    const count = Math.min(Math.max(Number(args.count ?? 20), 1), 100)
+    const requested = Number(args.count ?? 20)
+    // NaN from "count": "twenty commits" would reach git as `-nNaN` and
+    // fail the whole call — fall back to the default like every other tool.
+    const count = Math.min(Math.max(Number.isFinite(requested) ? requested : 20, 1), 100)
     const result = await git(ctx, ['log', '--oneline', '--no-decorate', `-n${count}`])
     if (!result.ok) return { output: `git log failed: ${result.stderr.trim().slice(0, 200)}` }
     return { output: clip(result.stdout.trim() || '(no commits yet)') }

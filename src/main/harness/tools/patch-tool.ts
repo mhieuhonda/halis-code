@@ -118,7 +118,11 @@ export const applyPatchTool: ToolDef = {
             throw new Error(`Cannot write ${rel}: "${relative(ctx.workspace, dir)}" already exists as a FILE but a directory is needed at that path. Remove or rename that file first, then retry.`)
           }
           mkdirSync(dir, { recursive: true })
-          const tmp = `${full}.halis-tmp`
+          // Unique tmp: a fixed `.halis-tmp` name collides when a swarm runs
+          // parallel apply_patch calls on different files with the same name
+          // in different dirs — and worse, two writes to the SAME file under
+          // advisory locks would ship each other's content.
+          const tmp = `${full}.${ctx.agentId.replace(/[^\w-]/g, '')}.${Date.now().toString(36)}.halis-tmp`
           writeFileSync(tmp, content, 'utf8')
           renameSync(tmp, full)
         },

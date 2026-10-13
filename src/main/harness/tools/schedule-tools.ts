@@ -91,9 +91,19 @@ export const scheduleDeleteTool: ToolDef = {
     const id = String(args.id ?? '').trim()
     if (!id) return { output: 'id is required — get reminder ids from schedule_list.' }
     const schedules = ctx.schedules.forSession(ctx.sessionId)
-    const target = schedules.find((s) => s.id === id || s.id.endsWith(id))
-    if (!target) return { output: `No reminder matching "${id}" in this session.` }
-    const result = ctx.schedules.remove(target.id)
+    const exact = schedules.filter((s) => s.id === id)
+    if (exact.length === 1) {
+      const result = ctx.schedules.remove(exact[0]!.id)
+      return { output: result.message }
+    }
+    const matches = schedules.filter((s) => s.id.endsWith(id))
+    if (!matches.length) return { output: `No reminder matching "${id}" in this session.` }
+    if (matches.length > 1) {
+      // A 1-2 char suffix matches several ids — the old `find` deleted the
+      // first one without warning. Demand a longer suffix instead.
+      return { output: `"${id}" matches ${matches.length} reminders (${matches.map((s) => s.id.slice(-6)).join(', ')}). Send more characters of the id.` }
+    }
+    const result = ctx.schedules.remove(matches[0]!.id)
     return { output: result.message }
   },
 }
