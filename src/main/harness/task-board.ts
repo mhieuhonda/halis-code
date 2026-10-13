@@ -108,6 +108,10 @@ export class TaskBoard {
       if (patch.blockedReason !== undefined) {
         task.blockedReason = patch.blockedReason
         if (patch.blockedReason && task.status !== 'done') task.status = 'blocked'
+        // Clearing the reason must UN-block: leaving the status stuck at
+        // 'blocked' with an invisible empty reason makes the task look
+        // dead on the board forever.
+        else if (!patch.blockedReason && task.status === 'blocked') task.status = task.assignee ? 'in_progress' : 'todo'
       }
       task.updatedAt = Date.now()
       return task

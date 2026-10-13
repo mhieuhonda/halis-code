@@ -18,16 +18,20 @@ function isRetryable(status: number | undefined): boolean {
 export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(new DOMException('Aborted', 'AbortError'))
-    const timer = setTimeout(resolve, ms)
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(new DOMException('Aborted', 'AbortError'))
+    }
+    // The listener must die with the timer: a `once` listener that outlives
+    // its sleep pins closures on the SHARED turn signal — a degraded-network
+    // turn (3 sleeps × 40 steps) accumulates enough to trip Node's
+    // "EventTarget memory leak" warning.
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
     if (typeof timer.unref === 'function') timer.unref()
-    signal?.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timer)
-        reject(new DOMException('Aborted', 'AbortError'))
-      },
-      { once: true },
-    )
+    signal?.addEventListener('abort', onAbort, { once: true })
   })
 }
 

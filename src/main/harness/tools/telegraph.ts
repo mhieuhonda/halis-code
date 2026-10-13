@@ -74,11 +74,16 @@ async function runPaidAsk(params: { query: string; minerId?: string; ctx: ToolCo
       // the user pressed Stop — USDC leaves the wallet for a discarded answer.
       signal: ctx.signal,
       onQuote: async (quote) => {
-        // Daily budget hard stop.
+        // Daily budget hard stop. A budget of 0 (or less) means paid asks are
+        // disabled outright — it must NOT silently disable the ceiling.
+        const budget = ctx.telegraph.dailyBudgetUsd
         const spentToday = ledger.spentTodayUsd()
-        if (ctx.telegraph.dailyBudgetUsd > 0 && spentToday + quote.amountUsd > ctx.telegraph.dailyBudgetUsd) {
+        if (budget <= 0) {
+          throw new DeniedError('Daily Telegraph budget is $0 — paid asks are disabled. Ask the user to raise the budget in Settings to spend.')
+        }
+        if (spentToday + quote.amountUsd > budget) {
           throw new DeniedError(
-            `Daily Telegraph budget reached ($${spentToday.toFixed(2)} of $${ctx.telegraph.dailyBudgetUsd.toFixed(2)}). Ask the user to raise the budget in Settings.`,
+            `Daily Telegraph budget reached ($${spentToday.toFixed(2)} of $${budget.toFixed(2)}). Ask the user to raise the budget in Settings.`,
           )
         }
         // Permission engine with the real quoted price — saved "always"
@@ -117,7 +122,7 @@ async function runPaidAsk(params: { query: string; minerId?: string; ctx: ToolCo
       // Served without a receipt header — still record cost from the response.
       receipt = ledger.append(
         {
-          receiptHash: `local_${Date.now()}`,
+          receiptHash: `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
           rail: 'x402',
           payer: '',
           miner: result.minerName,

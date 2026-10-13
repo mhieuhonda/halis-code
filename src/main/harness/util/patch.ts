@@ -7,6 +7,8 @@
  * per-file failures — callers decide how to report partial success.
  */
 
+import { splitKeepEndings } from './edit-match'
+
 export interface PatchAddFile {
   type: 'add'
   path: string
@@ -288,17 +290,21 @@ export function applyPatch(input: PatchApplyInput): PatchApplyResult {
       } else {
         const source = input.read(section.path)
         if (!source.exists) throw new Error(`File not found: ${section.path}`)
-        // Preserve the file's own line endings and trailing-newline state:
-        // rewriting a CRLF file with LF (and forcing a final newline) shows
-        // the WHOLE file as changed to git and breaks CRLF-sensitive tooling.
-        // edit_file already goes to great lengths to preserve these — the
-        // patch path must not be the odd one out.
-        const crlfCount = (source.content.match(/\r\n/g) ?? []).length
-        const loneLfCount = (source.content.match(/(?<!\r)\n/g) ?? []).length
-        const usedCrLf = crlfCount > loneLfCount
-        const hadTrailingNewline = source.content.length > 0 && /\r?\n$/.test(source.content)
-        let lines = source.content.replace(/\r\n/g, '\n').split('\n')
-        if (lines.length && lines[lines.length - 1] === '') lines.pop()
+        // Preserve the file's line endings PER LINE: a mixed CRLF/LF file
+        // (git autocrlf quirks, cross-platform commits) must not have its
+        // untouched lines rewritten to the majority ending — that would
+        // show the WHOLE file as changed to git. edit_file already goes to
+        // great lengths to preserve these — the patch path must not be the
+        // odd one out.
+        const split = splitKeepEndings(source.content)
+        const endings = split.endings
+        let lines = split.lines
+        // Drop the trailing empty artifact produced by a final newline so
+        // EOF-anchored context offsets stay consistent with the old parser.
+        if (lines.length >= 2 && lines[lines.length - 1] === '') {
+          lines = lines.slice(0, -1)
+          endings.length = lines.length
+        }
 
         for (const chunk of section.chunks) {
           const pattern = chunk.oldLines
@@ -319,14 +325,32 @@ export function applyPatch(input: PatchApplyInput): PatchApplyResult {
               throw new Error(`Could not find context in ${section.path}:\n${pattern.join('\n')}`)
             }
           }
+          const oldCount = pattern.length
+          // Same splice semantics as edit-match: intermediate new lines take
+          // the block's leading ending (never '' — that would fuse lines when
+          // the block sits on the file's last, newline-less line); the last
+          // new line inherits the block's final ending so the boundary with
+          // the following line is preserved.
+          const blockEnding = endings[offset] ?? '\n'
+          const lastOldEnding = endings[offset + oldCount - 1] ?? blockEnding
+          const newEndings = chunk.newLines.map(() => blockEnding || '\n')
+          if (newEndings.length) newEndings[newEndings.length - 1] = lastOldEnding
+          if (oldCount === 0 && offset > 0 && endings[offset - 1] === '') {
+            // Pure append onto a newline-less last line: supply the separator
+            // the old join() provided, or the first new line fuses onto it.
+            endings[offset - 1] = blockEnding || '\n'
+          }
           const head = lines.slice(0, offset)
-          const tail = lines.slice(offset + pattern.length)
+          const headEndings = endings.slice(0, offset)
+          const tail = lines.slice(offset + oldCount)
+          const tailEndings = endings.slice(offset + oldCount)
           lines = [...head, ...chunk.newLines, ...tail]
+          endings.length = 0
+          endings.push(...headEndings, ...newEndings, ...tailEndings)
         }
 
         const targetPath = section.moveTo ?? section.path
-        let content = lines.join(usedCrLf ? '\r\n' : '\n')
-        if (content && hadTrailingNewline) content += usedCrLf ? '\r\n' : '\n'
+        const content = lines.map((l, i) => l + (endings[i] ?? '')).join('')
         if (section.moveTo && section.moveTo !== section.path) {
           input.write(section.path, null)
           input.write(targetPath, content)

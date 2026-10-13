@@ -117,6 +117,21 @@ export class ApprovalManager {
     return { id, wait }
   }
 
+  /**
+   * Dismiss a parked question card (ask_user timeout / abort). Resolves the
+   * wait as unanswered and notifies the UI — without this, a card whose tool
+   * already timed out stays clickable and a late user answer resolves a
+   * promise nobody awaits anymore (silently discarded).
+   */
+  dismissQuestions(requestId: string): boolean {
+    const question = this.pendingQuestions.get(requestId)
+    if (!question) return false
+    this.pendingQuestions.delete(requestId)
+    question.resolve(null)
+    this.hooks?.onResolved(requestId, false)
+    return true
+  }
+
   /** Reject everything still parked — used on app-wide aborts. */
   rejectAll(): void {
     for (const [, entry] of this.pending) {

@@ -73,8 +73,10 @@ export async function quoteAsk(opts: { network: TelegraphNetworkConfig; minerId?
     // Already served (e.g. miner with zero price) — treat as free.
     return { amountUsd: 0, payTo: '', network: opts.network.caip2 }
   }
-  // Non-402 error: surface as a zero quote; the paid call will report details.
-  return { amountUsd: 0, payTo: '', network: opts.network.caip2 }
+  // Non-402 error: refuse to quote. A $0.00 quote would let the approval
+  // card and the daily budget vet a fake price while the paid call settles
+  // whatever the real 402 challenge demands.
+  throw new TelegraphError(`Telegraph node returned ${res.status} while quoting — refusing to quote a price blind.`, 'engine')
 }
 
 export class TelegraphError extends Error {

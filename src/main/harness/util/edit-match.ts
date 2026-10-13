@@ -22,7 +22,7 @@ export interface FuzzyMatchResult {
   strategy: 'exact' | 'normalized' | 'line-based' | 'none'
 }
 
-function splitKeepEndings(content: string): { lines: string[]; endings: string[] } {
+export function splitKeepEndings(content: string): { lines: string[]; endings: string[] } {
   // endings[i] is the newline that FOLLOWS lines[i] ('' after the last line).
   // Keeping them per line preserves mixed CRLF/LF files byte-for-byte
   // outside the replaced span.
@@ -126,7 +126,10 @@ export function fuzzyReplace(content: string, oldString: string, newString: stri
 function spliceLines(lines: string[], endings: string[], at: number, oldCount: number, newLines: string[]): void {
   const blockEnding = endings[at] ?? '\n'
   const lastOldEnding = endings[at + oldCount - 1] ?? ''
-  const newEndings = new Array<string>(newLines.length).fill(blockEnding)
+  // Intermediate new lines need a real separator: blockEnding may be '' when
+  // the old block is the file's last line without a trailing newline —
+  // filling with '' would fuse the replacement lines together.
+  const newEndings = new Array<string>(newLines.length).fill(blockEnding || '\n')
   if (newEndings.length) newEndings[newEndings.length - 1] = lastOldEnding
   lines.splice(at, oldCount, ...newLines)
   endings.splice(at, oldCount, ...newEndings)

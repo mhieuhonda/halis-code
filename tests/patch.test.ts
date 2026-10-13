@@ -141,4 +141,48 @@ describe('applyPatch', () => {
     expect(result.success).toBe(false)
     expect(result.output).toContain('already exists')
   })
+
+  it('preserves per-line endings in a mixed CRLF/LF file', () => {
+    // Lines untouched by the patch must keep their own endings — collapsing
+    // to the majority ending would show the whole file as changed to git.
+    const mixed = 'one\r\ntwo\nthree\r\nfour\n'
+    const fs = makeFs({ 'mix.txt': mixed })
+    const { sections } = parsePatch(`*** Begin Patch
+*** Update File: mix.txt
+@@
+-three
++THREE
+*** End Patch`)
+    const result = applyPatch({ sections, read: fs.read, write: fs.write })
+    expect(result.success).toBe(true)
+    expect(fs.store.get('mix.txt')).toBe('one\r\ntwo\nTHREE\r\nfour\n')
+  })
+
+  it('keeps multi-line replacements separated on a newline-less EOF line', () => {
+    const fs = makeFs({ 'eof.txt': 'last' })
+    const { sections } = parsePatch(`*** Begin Patch
+*** Update File: eof.txt
+@@ last
+-last
++first
++second
+*** End of File
+*** End Patch`)
+    const result = applyPatch({ sections, read: fs.read, write: fs.write })
+    expect(result.success).toBe(true)
+    expect(fs.store.get('eof.txt')).toBe('first\nsecond')
+  })
+
+  it('appends at end-of-file without fusing onto a newline-less last line', () => {
+    const fs = makeFs({ 'tail.txt': 'kept\nlast' })
+    const { sections } = parsePatch(`*** Begin Patch
+*** Update File: tail.txt
+@@
++appended
+*** End of File
+*** End Patch`)
+    const result = applyPatch({ sections, read: fs.read, write: fs.write })
+    expect(result.success).toBe(true)
+    expect(fs.store.get('tail.txt')).toBe('kept\nlast\nappended')
+  })
 })

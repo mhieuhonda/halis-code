@@ -141,6 +141,11 @@ export class AgentRunner {
 
         if (!result.toolCalls.length) break
 
+        // Step-cap enforcement: tools are withheld on the final step, but a
+        // model can still hallucinate tool calls without a declared tool
+        // list — never execute anything past the cap.
+        if (isFinalStep) break
+
         // Record the assistant turn with its tool calls.
         history.push({ role: 'assistant', content: result.text, toolCalls: result.toolCalls })
 

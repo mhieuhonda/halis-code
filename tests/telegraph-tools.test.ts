@@ -24,16 +24,21 @@ vi.mock('@main/telegraph/client', async (importOriginal) => {
       { id: 'CODE_REVIEW', label: 'CODE_REVIEW', minerCount: 12 },
       { id: 'WEB_SEARCH', label: 'WEB_SEARCH', minerCount: 30 },
     ]),
-    askTelegraph: vi.fn(async () => ({
-      minerId: '1',
-      minerName: 'Miner One',
-      intent: 'CODE_REVIEW',
-      result: { content: 'looks fine' },
-      costUsd: 0.01,
-      durationMs: 42,
-      signalHash: 'sig-abc',
-      receipt: baseReceipt(),
-    })),
+    askTelegraph: vi.fn(async (opts: { onQuote?: (q: { amountUsd: number; payTo: string; network: string }) => void | Promise<void> }) => {
+      // Mirror the real client: the quote callback runs BEFORE payment so
+      // budget/permission guards are exercised in tests.
+      await opts?.onQuote?.({ amountUsd: 0.01, payTo: '0xpay', network: 'eip155:84532' })
+      return {
+        minerId: '1',
+        minerName: 'Miner One',
+        intent: 'CODE_REVIEW',
+        result: { content: 'looks fine' },
+        costUsd: 0.01,
+        durationMs: 42,
+        signalHash: 'sig-abc',
+        receipt: baseReceipt(),
+      }
+    }),
     verifySignal: vi.fn(async (_n: unknown, hash: string) =>
       hash === 'sig-abc' ? { found: true, detail: '{"ok":true}' } : { found: false, detail: 'nope' },
     ),
@@ -64,7 +69,7 @@ function makeCtx(overrides: Partial<ToolContext['telegraph']> = {}): ToolContext
     sandbox: {} as ToolContext['sandbox'],
     locks: {} as ToolContext['locks'],
     taskBoard: {} as ToolContext['taskBoard'],
-    approvals: {} as ToolContext['approvals'],
+    approvals: { rulesFor: () => [] } as unknown as ToolContext['approvals'],
     workspace: dir,
     sessionId: 's',
     messageId: 'm',
@@ -129,6 +134,19 @@ describe('telegraph tools with the switch off', () => {
 describe('telegraph_signals', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('blocks paid asks outright when the daily budget is 0', async () => {
+    const ctx = makeCtx({ dailyBudgetUsd: 0 })
+    const result = await telegraphAskTool.execute({ query: 'review this code' }, ctx)
+    expect(result.output).toContain('Not executed')
+    expect(result.output).toContain('$0')
+  })
+
+  it('blocks paid asks when the daily budget is already spent', async () => {
+    const ctx = makeCtx({ dailyBudgetUsd: 0.005 })
+    const result = await telegraphAskTool.execute({ query: 'review this code' }, ctx)
+    expect(result.output).toContain('budget reached')
   })
 
   it('lists recent signals from the ledger after a paid ask', async () => {

@@ -3,6 +3,7 @@
  * quoted catalog ids, send_message routing, patch/lock fixes, abort races.
  */
 import { describe, expect, it } from 'vitest'
+import { getEventListeners } from 'node:events'
 import { LlmDispatcher } from '@main/models/llm/client'
 import type { CatalogSnapshot, ModelInfo, ProviderInfo } from '@shared/types'
 import { modelCatalog } from '@main/models/catalog'
@@ -206,7 +207,8 @@ describe('raceWithAbort', () => {
     expect(await pending).toBeNull()
     // Node warns above 10 listeners — approvals + questions across a long
     // turn must not accumulate: after settling, the listener is gone.
-    const eventNames = (controller.signal as unknown as { eventNames?: () => string[] }).eventNames
-    expect(eventNames ? eventNames.call(controller.signal).length : 0).toBe(0)
+    // (listenerCount asserts it directly; the old eventNames fallback could
+    // silently degrade into expect(0).toBe(0) and never fail.)
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0)
   })
 })

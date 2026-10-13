@@ -12,6 +12,7 @@ import { existsSync } from 'node:fs'
 import { SHELL_OUTPUT_CAP, SHELL_TIMEOUT_MS } from '../sandbox'
 import { scrubbedEnv } from '../util/child-env'
 import type { ToolContext, ToolDef, ToolResult } from './index'
+import type { JobStatus } from '../jobs'
 
 /** pwsh 7 → Windows PowerShell 5.1 → cmd fallback (deepseek-harness resolve chain). */
 function resolveWindowsShell(): { shell: string; preamble: string; args: (command: string) => string[]; kind: 'pwsh' | 'powershell' | 'cmd' } {
@@ -45,6 +46,8 @@ interface RunOutcome {
   exitCode: number | null
   signal: NodeJS.Signals | null
   timedOut: boolean
+  /** True when the process never started (spawn 'error' event, e.g. ENOENT). */
+  spawnError: boolean
   stdout: string
   stderr: string
   truncated: boolean
@@ -149,11 +152,11 @@ function runShellProcess(command: string, ctx: ToolContext, env: Record<string, 
     }
     child.on('error', (err) => {
       if (timer) clearTimeout(timer)
-      finish({ exitCode: null, signal: null, timedOut, stdout, stderr: `${stderr}\n${err.message}`.trim(), truncated })
+      finish({ exitCode: null, signal: null, timedOut, spawnError: true, stdout, stderr: `${stderr}\n${err.message}`.trim(), truncated })
     })
     child.on('close', (code, signal) => {
       if (timer) clearTimeout(timer)
-      finish({ exitCode: code, signal, timedOut, stdout, stderr, truncated })
+      finish({ exitCode: code, signal, timedOut, spawnError: false, stdout, stderr, truncated })
     })
   })
 
@@ -175,7 +178,8 @@ function formatResult(outcome: RunOutcome): { output: string; data: Record<strin
   if (stderr.trim()) parts.push(`stderr:\n${stderr.trim()}`)
   if (outcome.truncated) parts.push('… (output truncated)')
   let statusLine: string
-  if (outcome.timedOut) statusLine = 'Command exceeded its timeout and was stopped. For long-running commands use run_in_background: true and collect with job_output.'
+  if (outcome.spawnError) statusLine = 'Command failed to start'
+  else if (outcome.timedOut) statusLine = 'Command exceeded its timeout and was stopped. For long-running commands use run_in_background: true and collect with job_output.'
   else if (outcome.signal) statusLine = `Killed by ${outcome.signal}`
   else statusLine = `exit code: ${outcome.exitCode ?? 'unknown'}`
   return { output: `${statusLine}\n${parts.join('\n') || '(no output)'}`, data: { exitCode: outcome.exitCode, timedOut: outcome.timedOut, truncated: outcome.truncated } }
@@ -222,8 +226,26 @@ export const runCommandTool: ToolDef = {
           // builds) — no timeout. Output cap and job_kill still stop them.
           handle = runShellProcess(command, ctx, env, null, (chunk) => controls.setOutput(chunk))
           const outcome = await handle.outcome
-          controls.setOutput(`\n[${outcome.timedOut ? 'timed out' : outcome.signal ? `killed by ${outcome.signal}` : `finished with exit code ${outcome.exitCode ?? 'unknown'}`}]\n`)
-          controls.settle(outcome.timedOut ? 'failed' : outcome.exitCode === null ? 'killed' : 'completed', outcome.exitCode)
+          const endLabel = outcome.spawnError
+            ? 'failed to start'
+            : outcome.timedOut
+              ? 'timed out'
+              : outcome.signal
+                ? `killed by ${outcome.signal}`
+                : `finished with exit code ${outcome.exitCode ?? 'unknown'}`
+          controls.setOutput(`\n[${endLabel}]\n`)
+          // Terminal status must tell the truth: a non-zero exit is a
+          // FAILURE, a spawn error (ENOENT) is a FAILURE, and only an
+          // externally-killed process is 'killed'.
+          const status: JobStatus =
+            outcome.spawnError || outcome.timedOut
+              ? 'failed'
+              : outcome.exitCode === null
+                ? 'killed'
+                : outcome.exitCode === 0
+                  ? 'completed'
+                  : 'failed'
+          controls.settle(status, outcome.exitCode)
         },
         kill: () => handle?.kill(),
       })

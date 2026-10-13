@@ -427,6 +427,14 @@ describe('quoteAsk blind-price guard', () => {
     await expect(quoteAsk({ network, query: 'q' })).resolves.toEqual({ amountUsd: 0.01, payTo: '0xpay', network: 'eip155:84532' })
     await expect(quoteAsk({ network, query: 'q2' })).resolves.toEqual({ amountUsd: 0, payTo: '', network: network.caip2 })
   })
+
+  it('refuses to quote when the node answers with a non-402 error instead of returning $0.00', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('{"error":"boom"}', { status: 503 })),
+    )
+    await expect(quoteAsk({ network, query: 'q' })).rejects.toThrow(TelegraphError)
+  })
 })
 
 /* ------------------------------------------------------------------ */

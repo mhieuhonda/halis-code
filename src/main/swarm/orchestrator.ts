@@ -30,7 +30,6 @@ import { buildSystemPrompt } from './prompts'
 import { normalizeRoleId } from './roles'
 import { ponytailSection } from '../harness/ponytail'
 import { parseAgentReply, routeNext } from './router'
-import { raceWithAbort } from '../harness/util/abort-race'
 
 export interface SwarmDeps {
   dispatcher: LlmDispatcher
@@ -44,7 +43,7 @@ export interface SwarmDeps {
   mcp: McpManager
   todoFor: (sessionId: string, emit: (event: HarnessEvent) => void) => TodoStore
   saveTodos: (session: Session) => void
-  askUser: (questions: QuestionPrompt[], ctx: { sessionId: string; agentId: string; agentName: string; agentColor?: string }) => Promise<QuestionAnswer[] | null>
+  askUser: (questions: QuestionPrompt[], ctx: { sessionId: string; agentId: string; agentName: string; agentColor?: string }, opts?: { timeoutMs?: number }) => Promise<QuestionAnswer[] | null>
   getSettings: () => { workspace: string; language: import('@shared/types').AppLanguage; autoApproveAll: boolean; telegraph: import('@shared/types').TelegraphSettings; telegraphEnabled?: boolean; ponytailEnabled?: boolean; tavilyApiKey?: string }
   telegraph: ToolContext['telegraph']
   emit: (event: HarnessEvent) => void
@@ -115,21 +114,28 @@ export class SwarmOrchestrator {
           mentions: to.map((n) => n.trim().replace(/^@+/, '')),
         }
         outbox.push(message)
+        // Inter-agent hand-offs must reach the live group chat as they
+        // happen — the renderer's transcript is built purely from events,
+        // so without this pair the message only appears after the turn
+        // finishes (and only after a full session refetch).
+        this.deps.emit({ type: 'message-start', sessionId: session.id, message })
+        this.deps.emit({ type: 'message-done', sessionId: session.id, messageId: message.id, message })
       },
       jobs: this.deps.jobs,
       schedules: this.deps.schedules,
       mcp: this.deps.mcp,
       todos: this.deps.todoFor(session.id, this.deps.emit),
       settings: { tavilyApiKey: settings.tavilyApiKey },
-      askUser: (questions) =>
-        raceWithAbort(
-          this.deps.askUser(questions as QuestionPrompt[], {
+      askUser: (questions, opts) =>
+        this.deps.askUser(
+          questions as QuestionPrompt[],
+          {
             sessionId: session.id,
             agentId: agent.id,
             agentName: agent.name,
             agentColor: agent.color,
-          }),
-          signal,
+          },
+          opts,
         ),
       signal,
       delegationDepth: 1,
@@ -181,6 +187,8 @@ export class SwarmOrchestrator {
       }
       session.messages.push(note)
       produced.push(note)
+      this.deps.emit({ type: 'message-start', sessionId: session.id, message: note })
+      this.deps.emit({ type: 'message-done', sessionId: session.id, messageId: note.id, message: note })
       this.deps.persistSession(session)
     }
 
@@ -229,6 +237,8 @@ export class SwarmOrchestrator {
                 error: `Agent failed: ${error}`,
               }
               roundMessages.push(failMessage)
+              this.deps.emit({ type: 'message-start', sessionId: session.id, message: failMessage })
+              this.deps.emit({ type: 'message-done', sessionId: session.id, messageId: failMessage.id, message: failMessage })
             }
           } finally {
             this.deps.emit({ type: 'typing', sessionId: session.id, agentId, agentName: agent.name, isTyping: false })

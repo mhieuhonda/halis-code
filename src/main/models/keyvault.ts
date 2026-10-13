@@ -3,8 +3,8 @@
  * with the OS keychain via Electron safeStorage when available, with a
  * plain-file fallback (0600) otherwise. Nothing ever leaves the machine.
  */
-import { existsSync, readFileSync, renameSync, statSync, writeFileSync, chmodSync, mkdirSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { existsSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync, chmodSync, mkdirSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 
 export interface SafeCodec {
   isEncryptionAvailable(): boolean
@@ -24,6 +24,7 @@ export class KeyVault {
   private ensureLoaded(): void {
     if (this.loaded) return
     this.loaded = true
+    this.sweepStaleTmp()
     try {
       if (!existsSync(this.file)) return
       const raw = readFileSync(this.file)
@@ -61,19 +62,41 @@ export class KeyVault {
     // truncated keys.bin, the next start would parse-fail into "starting
     // empty", and the FIRST set() would persist over the wreckage — silently
     // erasing every stored provider key and the Telegraph wallet key.
-    const tmp = join(dir, `${Math.random().toString(36).slice(2)}.tmp`)
+    // The tmp file is created 0600: default mode would leave plaintext keys
+    // world-readable both during the write and after any crash between
+    // write and rename (nothing ever cleans those up).
+    const base = basename(this.file)
+    const tmp = join(dir, `${base}.${Math.random().toString(36).slice(2)}.tmp`)
     if (this.codec?.isEncryptionAvailable()) {
       const enc: Record<string, string> = {}
       for (const [k, v] of Object.entries(this.keys)) enc[k] = this.codec.encrypt(v).toString('base64')
-      writeFileSync(tmp, JSON.stringify({ v: 1, enc: true, keys: enc }, null, 2))
+      writeFileSync(tmp, JSON.stringify({ v: 1, enc: true, keys: enc }, null, 2), { mode: 0o600 })
     } else {
-      writeFileSync(tmp, JSON.stringify({ v: 1, enc: false, keys: this.keys }, null, 2))
+      writeFileSync(tmp, JSON.stringify({ v: 1, enc: false, keys: this.keys }, null, 2), { mode: 0o600 })
     }
     renameSync(tmp, this.file)
     try {
       chmodSync(this.file, 0o600)
     } catch {
       /* Windows: not applicable */
+    }
+  }
+
+  /** Best-effort sweep of THIS vault's tmp files a crash left behind (they hold secrets). */
+  private sweepStaleTmp(): void {
+    const dir = dirname(this.file)
+    const prefix = `${basename(this.file)}.`
+    try {
+      for (const name of readdirSync(dir)) {
+        if (!name.startsWith(prefix) || !name.endsWith('.tmp')) continue
+        try {
+          unlinkSync(join(dir, name))
+        } catch {
+          /* raced away — fine */
+        }
+      }
+    } catch {
+      /* best effort */
     }
   }
 

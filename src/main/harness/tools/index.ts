@@ -57,7 +57,7 @@ export interface ToolContext {
   /** Session-scoped todo list; whole-list replacement semantics. */
   todos: TodoStore
   /** ask_user: raise a question card and wait for the user's answers. */
-  askUser?: (questions: unknown[]) => Promise<QuestionAnswer[] | null>
+  askUser?: (questions: unknown[], opts?: { timeoutMs?: number }) => Promise<QuestionAnswer[] | null>
   /** Per-turn settings snapshot (tavily key etc.). */
   settings: { tavilyApiKey?: string }
   /** Turn abort signal — tools check it for long waits. */

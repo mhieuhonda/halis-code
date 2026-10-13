@@ -96,8 +96,17 @@ export function createSandbox(workspace: string): Sandbox {
   function screenCommand(command: string): void {
     const cmd = command.trim()
     if (!cmd) throw new SandboxError('Empty command.')
+    // Screen the raw command AND a normalized copy: quoting the target or
+    // spelling out long flags (`rm -rf "/"`, `rm --recursive --force /`,
+    // `bash -c 'rm -rf /'`) is enough to slip past the raw patterns alone.
+    // False positives on e.g. `echo "rm -rf /"` are acceptable — the
+    // blocklist is a fail-closed backstop, not a parser.
+    const normalized = cmd
+      .replace(/["']/g, '')
+      .replace(/--recursive\b/gi, '-r')
+      .replace(/--force\b/gi, '-f')
     for (const { pattern, why } of BLOCKED_PATTERNS) {
-      if (pattern.test(cmd)) {
+      if (pattern.test(cmd) || pattern.test(normalized)) {
         throw new SandboxError(`Command blocked (${why}). Terminal access is limited to the workspace.`)
       }
     }

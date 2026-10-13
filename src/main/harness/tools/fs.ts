@@ -120,6 +120,9 @@ export const listDirTool: ToolDef = {
   async execute(args, ctx): Promise<ToolResult> {
     const path = ctx.sandbox.safePath(String(args.path ?? '.'))
     if (!existsSync(path)) return { output: `Directory not found: ${String(args.path)}` }
+    // A file path would surface as a raw ENOTDIR crash — point the model at
+    // read_file instead, mirroring read_file's own directory hint.
+    if (statSync(path).isFile()) return { output: `${String(args.path)} is a file. Use read_file instead.` }
     const entries = readdirSync(path, { withFileTypes: true })
     const lines = entries
       .slice(0, MAX_LS_ENTRIES)

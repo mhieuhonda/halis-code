@@ -115,12 +115,15 @@ export class OpenAiCompatProvider implements LlmProvider {
     return h
   }
 
-  private body(request: LlmRequest, stream: boolean): string {
+  private body(request: LlmRequest, stream: boolean, withUsage = true): string {
     const body: Record<string, unknown> = {
       model: request.model,
       messages: toOpenAiMessages(request.messages),
       stream,
     }
+    // Strict OpenAI-dialect servers only send the final usage chunk when it
+    // is requested — without this, token accounting stays silently zeroed.
+    if (stream && withUsage) body.stream_options = { include_usage: true }
     if (request.tools?.length) {
       body.tools = request.tools.map((t) => ({
         type: 'function',
@@ -130,6 +133,37 @@ export class OpenAiCompatProvider implements LlmProvider {
     if (request.temperature !== undefined) body.temperature = request.temperature
     if (request.maxTokens) body.max_tokens = request.maxTokens
     return JSON.stringify(body)
+  }
+
+  /** POST /chat/completions with a one-shot fallback for gateways that reject stream_options. */
+  private async postChat(request: LlmRequest, stream: boolean, signal?: AbortSignal): Promise<Response> {
+    let res = await fetch(`${this.baseURL}/chat/completions`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: this.body(request, stream),
+      signal,
+    })
+    // A few OpenAI-compat gateways blanket-400 the (standard) stream_options
+    // field — retry once without usage accounting instead of failing the
+    // whole turn over a diagnostic.
+    if (res.status === 400 && stream) {
+      let mentionsStreamOptions = false
+      try {
+        mentionsStreamOptions = /stream_options/i.test((await res.clone().text()).slice(0, 1000))
+      } catch {
+        /* ignore */
+      }
+      if (mentionsStreamOptions) {
+        res = await fetch(`${this.baseURL}/chat/completions`, {
+          method: 'POST',
+          headers: this.headers(),
+          body: this.body(request, stream, false),
+          signal,
+        })
+      }
+    }
+    if (!res.ok) await this.failFrom(res)
+    return res
   }
 
   private async failFrom(res: Response): Promise<never> {
@@ -155,13 +189,7 @@ export class OpenAiCompatProvider implements LlmProvider {
   }
 
   async stream(request: LlmRequest, options: LlmStreamOptions): Promise<LlmResult> {
-    const res = await fetch(`${this.baseURL}/chat/completions`, {
-      method: 'POST',
-      headers: this.headers(),
-      body: this.body(request, true),
-      signal: options.signal ?? request.signal,
-    })
-    if (!res.ok) await this.failFrom(res)
+    const res = await this.postChat(request, true, options.signal ?? request.signal)
 
     const result: LlmResult = { text: '', reasoning: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0 }, finishReason: 'other' }
     // Tool call fragments arrive in arbitrary index order; accumulate.
@@ -247,13 +275,7 @@ export class OpenAiCompatProvider implements LlmProvider {
   }
 
   async complete(request: LlmRequest): Promise<LlmResult> {
-    const res = await fetch(`${this.baseURL}/chat/completions`, {
-      method: 'POST',
-      headers: this.headers(),
-      body: this.body(request, false),
-      signal: request.signal,
-    })
-    if (!res.ok) await this.failFrom(res)
+    const res = await this.postChat(request, false, request.signal)
     const json = (await res.json()) as {
       choices?: Array<{ message?: { content?: string; reasoning?: string; tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }> } }>
       usage?: { prompt_tokens?: number; completion_tokens?: number }

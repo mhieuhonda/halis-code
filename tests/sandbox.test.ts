@@ -69,6 +69,14 @@ describe('screenCommand', () => {
     [':(){ :|:& };:', /fork bomb/],
     ['vim src/main.ts', /Interactive/],
     ['cd /etc && cat passwd', /inside the workspace/],
+    // Quoted / long-flag / nested-shell variants must not bypass the blocklist.
+    ['rm -rf "/"', /filesystem root/],
+    ["rm -rf '/'", /filesystem root/],
+    ['rm --recursive --force /', /filesystem root/],
+    ['bash -c "rm -rf /"', /filesystem root/],
+    ["sh -c 'rm -rf /'", /filesystem root/],
+    ['rm -rf "~"', /home directory/],
+    ['rm -rf "$HOME"', /home directory/],
   ]
 
   it.each(cases)('%s → %s', (command, expected) => {

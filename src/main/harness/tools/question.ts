@@ -87,27 +87,11 @@ export const askUserTool: ToolDef = {
       run: { toolCallId: ctx.toolCallId ?? `ask_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, tool: 'ask_user', args, state: 'awaiting-approval', startedAt: Date.now() },
     })
 
-    // Both the abort listener AND the 10-minute timer must die with the wait:
-    // each ask_user call pinning a `once` listener on the shared turn signal
-    // accumulates until Node's EventTarget leak warning (>10) fires, and the
-    // unref'd timeout keeps its closures alive for the full 10 minutes on the
-    // normal (answered-in-20s) path.
-    const onAbort = () => timeoutSettle?.(null)
-    let timeoutSettle: ((value: null) => void) | null = null
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const timeoutPromise = new Promise<null>((resolve) => {
-      timeoutSettle = resolve
-      timer = setTimeout(() => resolve(null), TIMEOUT_MS)
-      if (typeof timer.unref === 'function') timer.unref()
-    })
-    ctx.signal?.addEventListener('abort', onAbort, { once: true })
-    let answers: QuestionAnswer[] | null
-    try {
-      answers = await Promise.race([ctx.askUser(questions), timeoutPromise])
-    } finally {
-      ctx.signal?.removeEventListener('abort', onAbort)
-      if (timer) clearTimeout(timer)
-    }
+    // The implementation parks the card in the ApprovalManager and must race
+    // the wait against BOTH the timeout and the turn signal, dismissing the
+    // card when the wait loses — a card left behind would keep accepting
+    // clicks whose answers resolve a promise nobody awaits anymore.
+    const answers = await ctx.askUser(questions, { timeoutMs: TIMEOUT_MS })
 
     if (!answers || !answers.length) {
       return {

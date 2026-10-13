@@ -60,9 +60,13 @@ export function truncateToolOutput(output: string, toolCallId: string): Truncati
   const lines = output.split('\n')
   let text = lines.slice(0, TOOL_OUTPUT_MAX_LINES).join('\n')
   if (Buffer.byteLength(text, 'utf8') > TOOL_OUTPUT_MAX_BYTES) {
-    // Clip by bytes without splitting a UTF-8 sequence.
+    // Clip by bytes without splitting a UTF-8 sequence: back off from the
+    // cap to the last non-continuation byte, or the cut decodes to U+FFFD
+    // replacement characters at the tail.
     const buf = Buffer.from(text, 'utf8')
-    text = buf.subarray(0, TOOL_OUTPUT_MAX_BYTES).toString('utf8')
+    let end = TOOL_OUTPUT_MAX_BYTES
+    while (end > 0 && (buf[end - 1]! & 0b1100_0000) === 0b1000_0000) end--
+    text = buf.subarray(0, end).toString('utf8')
   }
 
   let spillPath: string | undefined

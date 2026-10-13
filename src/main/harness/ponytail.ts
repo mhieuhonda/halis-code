@@ -20,10 +20,11 @@ const SKILLS = [
 let cached: string | null = null
 
 function packDir(): string {
-  // electron-vite dev: app root holds resources/; packaged builds get the
-  // folder copied next to the app via extraResources.
-  const base = app.isPackaged ? process.resourcesPath : app.getAppPath()
-  return join(base, 'resources', 'ponytail')
+  // electron-vite dev: app root holds resources/. Packaged: extraResources
+  // copies the pack to <resourcesPath>/ponytail (NOT /resources/ponytail —
+  // that double-nesting made existsSync fail and the feature die silently
+  // in shipped builds while working perfectly in dev).
+  return app.isPackaged ? join(process.resourcesPath, 'ponytail') : join(app.getAppPath(), 'resources', 'ponytail')
 }
 
 /** Full markdown of the six bundled ponytail skills, or undefined when the pack is missing/empty. */

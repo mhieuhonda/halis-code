@@ -42,6 +42,19 @@ describe('fuzzyReplace', () => {
     expect(result.content).toBe('y\ny\n')
     expect(result.occurrences).toBe(2)
   })
+
+  it('keeps newlines when a multi-line replacement lands on the last line without trailing newline', () => {
+    // EOF line, no trailing newline; the fuzzy tiers must not fuse the
+    // replacement lines together.
+    const eof = 'const x = 1'
+    const result = fuzzyReplace(eof, 'const x = 1 ', 'const x = 2;\nconst y = 3;', false)
+    expect(result.content).toBe('const x = 2;\nconst y = 3;')
+
+    // Same scenario through the unicode-normalized tier (NFD needle).
+    const nfd = 'caf\u00e9'
+    const nfdResult = fuzzyReplace(nfd, 'cafe\u0301 ', 'A\nB', false)
+    expect(nfdResult.content).toBe('A\nB')
+  })
 })
 
 describe('diffStats + unifiedDiff', () => {
