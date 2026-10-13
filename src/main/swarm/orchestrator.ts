@@ -29,7 +29,7 @@ import type { McpManager } from '../harness/mcp'
 import { buildSystemPrompt } from './prompts'
 import { normalizeRoleId } from './roles'
 import { ponytailSection } from '../harness/ponytail'
-import { parseAgentReply, routeNext } from './router'
+import { parseAgentReply, resolveMentions, routeNext } from './router'
 
 export interface SwarmDeps {
   dispatcher: LlmDispatcher
@@ -213,11 +213,17 @@ export class SwarmOrchestrator {
           if (!agent) return
           speakBudget.set(agentId, (speakBudget.get(agentId) ?? 0) - 1)
           this.deps.emit({ type: 'typing', sessionId: session.id, agentId, agentName: agent.name, isTyping: true })
+          // Declared OUTSIDE the try: inter-agent messages emitted before a
+          // failure must still be persisted and routed — they already reached
+          // the live chat as bubbles, and dropping them here made them
+          // vanish on the next refetch while their recipients never saw the
+          // hand-off.
+          const outbox: ChatMessage[] = []
           try {
-            const outbox: ChatMessage[] = []
             const message = await this.runOneAgent({ session, config, agent, objective: params.objective, outbox, signal, allAgents: agents })
             roundMessages.push(...outbox, message)
           } catch (err) {
+            roundMessages.push(...outbox)
             const error = err instanceof Error ? err.message : String(err)
             // Surface the failure on the streaming placeholder the agent may
             // already have pushed (runOneAgent pushes before running) instead
@@ -261,10 +267,37 @@ export class SwarmOrchestrator {
       // Route on the union of this round's agent messages.
       const alreadySpoke = new Set([...speakBudget].filter(([, n]) => n <= 0).map(([id]) => id))
       const nextTargets = new Set<string>()
+      const budgetBlocked = new Set<string>()
       for (const message of roundMessages) {
         if (message.role !== 'assistant' || message.from === 'system') continue
         const next = routeNext({ message, agents, plannerId: undefined, alreadySpoke })
         for (const id of next.toRun) nextTargets.add(id)
+        // A hand-off to an agent who exhausted their speak budget used to be
+        // dropped silently: the sender saw "Delivered", the recipient never
+        // ran, the work fell through. Surface the drop on the group chat.
+        const { resolved } = resolveMentions(message.mentions, agents)
+        for (const id of resolved) {
+          if (id !== message.from && alreadySpoke.has(id) && !nextTargets.has(id)) budgetBlocked.add(id)
+        }
+      }
+      if (budgetBlocked.size) {
+        const nameOf = (id: string) => agents.find((a) => a.id === id)?.name ?? id
+        const note: ChatMessage = {
+          id: newId('msg'),
+          sessionId: session.id,
+          mode: 'swarm',
+          from: 'system',
+          fromName: 'Harness',
+          to: ['user'],
+          mentions: [],
+          role: 'system',
+          content: `${[...budgetBlocked].map((id) => `@${nameOf(id)}`).join(', ')} already reached their speaking limit for this turn — the hand-off was NOT delivered. Ask them again in your next message or end the turn.`,
+          createdAt: Date.now(),
+        }
+        session.messages.push(note)
+        produced.push(note)
+        this.deps.emit({ type: 'message-start', sessionId: session.id, message: note })
+        this.deps.emit({ type: 'message-done', sessionId: session.id, messageId: note.id, message: note })
       }
       // When the planner ran alone this round, the agents the user (or the
       // routing) originally asked for must not be silently dropped — carry

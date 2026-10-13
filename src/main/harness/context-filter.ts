@@ -26,15 +26,20 @@ export const DEFAULT_CONTEXT_WINDOW: ContextWindow = {
 
 export function messageConcerns(message: ChatMessage, agentId: string, plannerId: string | undefined, allAgents: AgentConfig[]): boolean {
   if (message.from === agentId) return true
-  if (message.role === 'user' && (!message.to.length || message.to.includes('all'))) return false // user broadcast handled by digest/planner
-  if (message.to.includes(agentId)) return true
-  if (message.mentions.includes(agentId)) return true
-  // Mentioning by name also counts — models emit "@Name".
+  // `to`/`mentions` are required by the type, but a session file written by
+  // an ancient build can omit them — degrade instead of crashing the turn.
+  if (message.role === 'user' && (!message.to?.length || message.to.includes('all'))) return false // user broadcast handled by digest/planner
+  if (message.to?.includes(agentId)) return true
+  if (message.mentions?.includes(agentId)) return true
+  // Mentioning by name also counts — models emit "@Name". The match needs a
+  // word boundary: "@Dev" must not match "@DevOps" (substring matching gave
+  // every prefix-named agent a copy of conversations that were not theirs).
   const agent = allAgents.find((a) => a.id === agentId)
   if (agent) {
     const lower = message.content.toLowerCase()
     if (message.mentions.some((m) => m.toLowerCase() === agent.name.toLowerCase())) return true
-    if (lower.includes(`@${agent.name.toLowerCase()}`)) return true
+    const escaped = agent.name.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    if (new RegExp(`(?:^|[^a-z0-9_.-])@${escaped}(?![a-z0-9_-])`).test(lower)) return true
   }
   if (plannerId && message.from === plannerId) return true
   return false
@@ -55,9 +60,16 @@ export function seedUserAsk(objective: string, messages: ChatMessage[]): string 
 /** Compact a message for the digest section. */
 function digestLine(message: ChatMessage, nameOf: (id: string) => string): string {
   const who = message.role === 'user' ? 'User' : nameOf(message.from)
-  const to = message.to.length ? ` → ${message.to.map(nameOf).join(', ')}` : ''
-  const content = message.content.replace(/\s+/g, ' ').slice(0, 400)
-  return `${who}${to}: ${content}`
+  const to = message.to?.length ? ` → ${message.to.map(nameOf).join(', ')}` : ''
+  // A broadcast user message reaches an agent ONLY through this digest, and
+  // the newest one is the ask the agent is supposed to work on — clipping it
+  // to 400 chars (the general chatter cap) silently amputated every request
+  // past the first turn. User lines get a far larger budget; agent chatter
+  // keeps the short cap.
+  const cap = message.role === 'user' ? 2000 : 400
+  const content = message.content.replace(/\s+/g, ' ').slice(0, cap)
+  const clipped = message.content.replace(/\s+/g, ' ').length > cap ? '…' : ''
+  return `${who}${to}: ${content}${clipped}`
 }
 
 export interface AssembledContext {
@@ -113,7 +125,7 @@ export function buildAgentContext(params: {
 
   const transcript = mine.map((m) => {
     const speaker = m.role === 'user' ? 'User' : nameOf(m.from)
-    const recipients = m.to.length ? ` (to: ${m.to.map(nameOf).join(', ')})` : ''
+    const recipients = m.to?.length ? ` (to: ${m.to.map(nameOf).join(', ')})` : ''
     return {
       role: m.role === 'user' ? ('user' as const) : ('assistant' as const),
       text: `${speaker}${recipients}:\n${m.content}`,
