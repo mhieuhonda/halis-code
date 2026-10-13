@@ -1,57 +1,202 @@
 /** Composer — DSH InputBar card: 28px-radius surface, blue caret,
  *  chip selects, round blue send button, mention popup as menu surface. */
-import { useEffect, useRef, useState } from 'react'
-import { ArrowUp, Square, AtSign, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowUp, AtSign, Check, ChevronDown, Square, Star, X } from 'lucide-react'
 import { useT } from '../../i18n'
-import { Badge, ChipSelect, Spinner } from '../ui'
+import { AgentAvatar, Badge, Spinner } from '../ui'
 import { useAppStore } from '../../stores/app'
 import { useChatStore } from '../../stores/chat'
 import { useSwarmStore } from '../../stores/swarm'
+import type { ModelInfo } from '@shared/types'
 
-export function ModelPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+/* opencode-style model preferences, persisted locally like the TUI's
+ * model-preference.json: a short favorites + recent list on top of the
+ * picker. */
+const FAV_KEY = 'halis.model.favorites'
+const RECENT_KEY = 'halis.model.recent'
+const MAX_PREFS = 10
+const BROWSE_CAP = 50
+
+function readPrefs(key: string): string[] {
+  try {
+    const list = JSON.parse(localStorage.getItem(key) ?? '[]') as unknown
+    return Array.isArray(list) ? list.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function rememberModel(key: string, id: string): string[] {
+  const next = [id, ...readPrefs(key).filter((x) => x !== id)].slice(0, MAX_PREFS)
+  localStorage.setItem(key, JSON.stringify(next))
+  return next
+}
+
+function toggleModelPref(key: string, id: string): string[] {
+  const prev = readPrefs(key)
+  const next = (prev.includes(id) ? prev.filter((x) => x !== id) : [id, ...prev]).slice(0, MAX_PREFS)
+  localStorage.setItem(key, JSON.stringify(next))
+  return next
+}
+
+export function ModelPicker({ value, onChange, direction = 'up', className = '' }: { value: string; onChange: (id: string) => void; direction?: 'up' | 'down'; className?: string }) {
   const t = useT()
   const catalog = useAppStore((s) => s.catalog)
-  const [group, setGroup] = useState('all')
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [favs, setFavs] = useState<string[]>(() => readPrefs(FAV_KEY))
+  const [recents, setRecents] = useState<string[]>(() => readPrefs(RECENT_KEY))
+  const rootRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    window.addEventListener('mousedown', onDown)
+    return () => window.removeEventListener('mousedown', onDown)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    setQuery('')
+    requestAnimationFrame(() => searchRef.current?.focus())
+  }, [open])
+
+  const providerName = useMemo(() => {
+    const map = new Map((catalog?.providers ?? []).map((p) => [p.id, p.name]))
+    return (m: ModelInfo) => map.get(m.providerId) ?? m.providerId
+  }, [catalog])
 
   if (!catalog) return null
-  const groups = [
-    { id: 'free-nokey', label: t('group_free_nokey') },
-    { id: 'free-key', label: t('group_free_key') },
-    { id: 'local', label: t('group_local') },
-    { id: 'all', label: t('group_all') },
-  ]
-  const keyless = new Set(catalog.providers.filter((p) => p.keyless).map((p) => p.id))
-  let models = catalog.models
-  if (group === 'free-nokey') models = models.filter((m) => m.free && keyless.has(m.providerId))
-  else if (group === 'free-key') models = models.filter((m) => m.free && !keyless.has(m.providerId))
-  else if (group === 'local') models = models.filter((m) => m.providerId === 'ollama')
-
   const current = catalog.models.find((m) => m.id === value)
-  // A filtered group (or the 300-option cap) can exclude the selected model —
-  // a controlled <select> with no matching option renders blank while the
-  // hidden model is still what sends use. Keep it visible as a pinned entry.
-  const listed = models.slice(0, 300)
-  if (current && !listed.some((m) => m.id === current.id)) listed.unshift(current)
+  const q = query.trim().toLowerCase()
+  const matches = (m: ModelInfo) => !q || m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q) || providerName(m).toLowerCase().includes(q)
+
+  const favModels = favs.map((id) => catalog.models.find((m) => m.id === id)).filter((m): m is ModelInfo => !!m)
+  const recentModels = recents
+    .filter((id) => !favs.includes(id))
+    .map((id) => catalog.models.find((m) => m.id === id))
+    .filter((m): m is ModelInfo => !!m)
+
+  const star = (m: ModelInfo) => (
+    <button
+      className="shrink-0 p-1 bg-transparent border-none cursor-pointer text-[color:var(--dsw-alias-label-dimmed)] hover:text-[var(--dsw-alias-state-warning-primary)] transition-colors duration-100"
+      title={t('model_favorite_toggle')}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation()
+        setFavs(toggleModelPref(FAV_KEY, m.id))
+      }}
+    >
+      <Star size={13} className={favs.includes(m.id) ? 'fill-[var(--dsw-alias-state-warning-primary)] text-[var(--dsw-alias-state-warning-primary)]' : ''} />
+    </button>
+  )
+
+  const row = (m: ModelInfo, extraBadge?: React.ReactNode) => (
+    <div
+      key={m.id}
+      className={`group flex items-center gap-2 min-h-[32px] pl-2.5 pr-1 rounded-md cursor-pointer transition-colors duration-100 ${
+        m.id === value ? 'bg-[var(--dsw-alias-interactive-bg-hover)]' : 'hover:bg-[var(--dsw-alias-interactive-bg-hover)]'
+      }`}
+      title={`${m.id}`}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => {
+        onChange(m.id)
+        setRecents(rememberModel(RECENT_KEY, m.id))
+        setOpen(false)
+      }}
+    >
+      <span className="flex-1 min-w-0 truncate text-[13px] text-ink">{m.name}</span>
+      {extraBadge}
+      {m.free ? <Badge color="#22c55e">free</Badge> : null}
+      <span className="text-[10.5px] text-[color:var(--dsw-alias-label-tertiary)] truncate max-w-[110px]">{providerName(m)}</span>
+      {m.id === value ? <Check size={13} className="shrink-0 text-[color:var(--dsw-alias-state-success-primary)]" /> : <span className="w-[13px] shrink-0" />}
+      <span className="opacity-0 group-hover:opacity-100 transition-opacity">{star(m)}</span>
+    </div>
+  )
+
+  const section = (label: string, models: ModelInfo[], cap?: number) => {
+    if (!models.length) return null
+    const shown = cap ? models.slice(0, cap) : models
+    return (
+      <div key={label} className="px-1">
+        <div className="flex items-baseline gap-1.5 px-1.5 pt-2 pb-1">
+          <span className="text-[11px] font-medium text-[color:var(--dsw-alias-label-tertiary)]">{label}</span>
+          <span className="text-[10px] text-[color:var(--dsw-alias-label-caption)]">{models.length}</span>
+        </div>
+        {shown.map((m) => row(m))}
+        {cap && models.length > cap ? (
+          <div className="px-2.5 py-1.5 text-[11px] text-[color:var(--dsw-alias-label-caption)]">{t('model_more', { n: models.length - cap })}</div>
+        ) : null}
+      </div>
+    )
+  }
+
+  const popupPos = direction === 'up' ? 'bottom-[calc(100%+6px)]' : 'top-[calc(100%+6px)]'
 
   return (
-    <div className="flex items-center gap-1 min-w-0">
-      <ChipSelect value={group} onChange={(e) => setGroup(e.target.value)} aria-label="model group">
-        {groups.map((g) => (
-          <option key={g.id} value={g.id}>
-            {g.label}
-          </option>
-        ))}
-      </ChipSelect>
-      <ChipSelect value={value} onChange={(e) => onChange(e.target.value)} title={value} className="max-w-[240px]">
-        {listed.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.providerId !== 'pollinations' ? `${catalog.providers.find((p) => p.id === m.providerId)?.name ?? m.providerId} · ` : ''}
-            {m.name}
-            {m.free ? ' ✦' : ''}
-          </option>
-        ))}
-      </ChipSelect>
-      {current?.free ? <Badge color="#22c55e">free</Badge> : null}
+    <div ref={rootRef} className={`relative min-w-0 ${className}`}>
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 h-7 max-w-[280px] rounded-sm bg-transparent pl-2 pr-1.5 text-[13px] font-medium text-muted outline-none cursor-pointer hover:bg-[var(--dsw-alias-interactive-bg-hover)] transition-colors duration-100"
+        onClick={() => setOpen((v) => !v)}
+        title={current ? `${current.id}` : t('select_model')}
+      >
+        <span className="truncate">
+          {current ? (
+            <>
+              {providerName(current)} · {current.name}
+            </>
+          ) : (
+            t('select_model')
+          )}
+        </span>
+        {current?.free ? <span className="text-[#22c55e] text-[11px] leading-none">✦</span> : null}
+        <ChevronDown size={13} className={`shrink-0 opacity-60 transition-transform duration-100 ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open ? (
+        <div
+          className={`dsh-menu-surface absolute ${popupPos} left-0 z-20 w-[360px] rounded-lg overflow-hidden flex flex-col p-1.5 pop`}
+          style={{ boxShadow: 'var(--dsw-elevation-prominent)' }}
+        >
+          <input
+            ref={searchRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.stopPropagation()
+                setOpen(false)
+              }
+            }}
+            placeholder={t('model_search')}
+            className="shrink-0 h-8 mx-0.5 mb-1 rounded-md bg-[var(--dsw-alias-bg-layer-1)] border-[0.5px] border-[color:var(--dsw-alias-border-l4)] px-2.5 text-[12.5px] text-ink placeholder:text-[color:var(--dsw-alias-label-dimmed)] outline-none focus:border-[color:var(--dsw-alias-state-business-primary)]"
+          />
+          <div className="overflow-y-auto min-h-0 max-h-[380px]">
+            {q ? (
+              (() => {
+                const hits = catalog.models.filter(matches)
+                const ranked = [...hits.filter((m) => favs.includes(m.id)), ...hits.filter((m) => !favs.includes(m.id))]
+                return ranked.length ? ranked.map((m) => row(m)) : <div className="px-2.5 py-4 text-[12px] text-[color:var(--dsw-alias-label-tertiary)]">{t('model_none')}</div>
+              })()
+            ) : (
+              <>
+                {section(t('model_favorites'), favModels)}
+                {section(t('model_recent'), recentModels)}
+                {catalog.providers.map((p) => {
+                  const models = catalog.models.filter((m) => m.providerId === p.id && !favs.includes(m.id) && !recents.includes(m.id))
+                  if (!models.length) return null
+                  const sorted = [...models].sort((a, b) => Number(b.free) - Number(a.free) || a.name.localeCompare(b.name))
+                  return section(p.name, sorted, BROWSE_CAP)
+                })}
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -162,7 +307,7 @@ export function Composer() {
         {/* tools row */}
         <div className="flex items-center gap-3 px-2 pb-2 min-w-0">
           {isAgent ? (
-            <ModelPicker value={modelId || settings?.defaultModelId || 'pollinations/openai-fast'} onChange={(id) => { setModelId(id); void loadSettings() }} />
+            <ModelPicker value={modelId || settings?.defaultModelId || ''} onChange={(id) => { setModelId(id); void loadSettings() }} />
           ) : (
             <span className="inline-flex items-center gap-1.5 h-7 px-2 rounded-sm text-[12px] font-medium text-[color:var(--dsw-alias-label-secondary)] hover:bg-[var(--dsw-alias-interactive-bg-hover)] cursor-default transition-colors duration-100">
               <AtSign size={12} className="text-[color:var(--dsw-alias-state-business-primary)]" />
@@ -205,8 +350,8 @@ export function Composer() {
                 className="flex items-center gap-2 min-h-[34px] px-2.5 rounded-md hover:bg-[var(--dsw-alias-interactive-bg-hover)] w-full text-left cursor-pointer bg-transparent border-none transition-colors duration-100"
                 onMouseDown={(e) => { e.preventDefault(); applyMention(a.name) }}
               >
-                <span className="w-5 h-5 rounded-sm flex items-center justify-center text-[11px] shrink-0" style={{ background: `${a.color}14`, color: a.color }}>
-                  {a.avatar}
+                <span className="w-5 h-5 rounded-sm overflow-hidden shrink-0">
+                  <AgentAvatar agent={a} size={20} className="rounded-sm" />
                 </span>
                 <span className="text-[13px] text-ink">{a.name}</span>
                 <span className="text-[11px] text-[color:var(--dsw-alias-label-tertiary)]">{a.roleId}</span>

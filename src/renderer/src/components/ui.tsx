@@ -136,6 +136,53 @@ export function Toggle({ checked, onChange, label }: { checked: boolean; onChang
   )
 }
 
+/* ---------------------------- Agent avatar --------------------------- */
+
+/** Agent avatar tile: uploaded picture first, then the legacy emoji, then
+ *  the agent's initial. New agents ship with no picture at all — the UI
+ *  never offers preset avatars, only upload-or-empty. */
+export function AgentAvatar({
+  agent,
+  size = 20,
+  className = '',
+}: {
+  agent: { name: string; avatar: string; avatarImage?: string; color: string }
+  size?: number
+  className?: string
+}) {
+  const initial = agent.name?.trim()?.[0]?.toUpperCase() || '·'
+  const tile: React.CSSProperties = {
+    width: size,
+    height: size,
+    backgroundColor: `${agent.color}1a`,
+    color: agent.color,
+    fontSize: Math.max(9, Math.round(size * 0.46)),
+  }
+  if (agent.avatarImage) {
+    return (
+      <img
+        src={agent.avatarImage}
+        alt={agent.name}
+        draggable={false}
+        className={`inline-flex shrink-0 rounded-[inherit] object-cover ${className}`}
+        style={{ width: size, height: size }}
+      />
+    )
+  }
+  if (agent.avatar) {
+    return (
+      <span className={`inline-flex shrink-0 items-center justify-center rounded-[inherit] ${className}`} style={tile}>
+        {agent.avatar}
+      </span>
+    )
+  }
+  return (
+    <span className={`inline-flex shrink-0 items-center justify-center rounded-[inherit] font-semibold ${className}`} style={tile}>
+      {initial}
+    </span>
+  )
+}
+
 /* ------------------------------ Spinner ------------------------------ */
 
 export function Spinner({ size = 14, className = '' }: { size?: number; className?: string }) {
