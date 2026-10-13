@@ -45,6 +45,7 @@ export const IPC = {
   /* chat */
   chatSend: 'chat:send',
   chatStop: 'chat:stop',
+  chatRunningSessions: 'chat:running-sessions',
 
   /* swarm */
   swarmGetConfig: 'swarm:get-config',
@@ -126,6 +127,8 @@ export interface IpcApi {
     modelId?: string
   }): { ok: boolean; error?: string }
   chatStop(sessionId: string): void
+  /** Sessions with a live turn (renderer reload recovery). */
+  chatRunningSessions(): string[]
 
   swarmGetConfig(): SwarmConfig
   swarmSaveConfig(config: SwarmConfig): { ok: boolean; error?: string; warnings: string[] }

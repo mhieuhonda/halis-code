@@ -43,7 +43,6 @@ export function Sidebar({ route, setRoute }: { route: Route; setRoute: (r: Route
   })
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1')
   const [animating, setAnimating] = useState(false)
-  const [dragging, setDragging] = useState(false)
   const animTimer = useRef<number | undefined>(undefined)
 
   const toggleCollapse = useCallback(() => {
@@ -62,14 +61,14 @@ export function Sidebar({ route, setRoute }: { route: Route; setRoute: (r: Route
       e.preventDefault()
       const startX = e.clientX
       const startW = width
-      setDragging(true)
+      let latestW = startW
       const onMove = (ev: PointerEvent) => {
         const next = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, startW + (ev.clientX - startX)))
+        latestW = next
         setWidth(next)
       }
       const onUp = () => {
-        setDragging(false)
-        localStorage.setItem(WIDTH_KEY, String(width))
+        localStorage.setItem(WIDTH_KEY, String(latestW))
         window.removeEventListener('pointermove', onMove)
         window.removeEventListener('pointerup', onUp)
       }

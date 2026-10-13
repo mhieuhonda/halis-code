@@ -32,6 +32,7 @@ const api: HalisBridge = {
   /* chat */
   chatSend: (params) => ipcRenderer.invoke(IPC.chatSend, params),
   chatStop: (sessionId) => ipcRenderer.invoke(IPC.chatStop, sessionId),
+  chatRunningSessions: () => ipcRenderer.invoke(IPC.chatRunningSessions),
 
   /* swarm */
   swarmGetConfig: () => ipcRenderer.invoke(IPC.swarmGetConfig),

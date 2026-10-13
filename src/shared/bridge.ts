@@ -49,6 +49,8 @@ export interface HalisBridge {
   /* chat */
   chatSend(params: { sessionId: string; text: string; modelId?: string }): Promise<{ ok: boolean; error?: string }>
   chatStop(sessionId: string): Promise<void>
+  /** Sessions with a live turn — lets a reloaded renderer recover its Stop buttons. */
+  chatRunningSessions(): Promise<string[]>
 
   /* swarm */
   swarmGetConfig(): Promise<SwarmConfig>

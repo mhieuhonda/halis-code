@@ -14,10 +14,18 @@ const CONTEXT = 2
  */
 function parseUnifiedDiff(diff: string): DiffLine[] {
   const out: DiffLine[] = []
+  let sawHunk = false
   for (const line of diff.split('\n')) {
-    if (line.startsWith('--- ') || line.startsWith('+++ ') || line.startsWith('index ') || line.startsWith('diff ')) continue
-    if (line.startsWith('@@')) out.push({ kind: 'hunk', text: line })
-    else if (line.startsWith('+')) out.push({ kind: 'add', text: line.slice(1) })
+    // `\ No newline at end of file` markers are metadata, not content.
+    if (line.startsWith('\\')) continue
+    // File headers only count BEFORE the first hunk: a deleted line whose
+    // original text starts with `-- ` serializes to `--- …` and must NOT be
+    // swallowed as a header (same for added `++ …`).
+    if (!sawHunk && (line.startsWith('--- ') || line.startsWith('+++ ') || line.startsWith('index ') || line.startsWith('diff '))) continue
+    if (line.startsWith('@@')) {
+      sawHunk = true
+      out.push({ kind: 'hunk', text: line })
+    } else if (line.startsWith('+')) out.push({ kind: 'add', text: line.slice(1) })
     else if (line.startsWith('-')) out.push({ kind: 'del', text: line.slice(1) })
     else out.push({ kind: 'ctx', text: line.replace(/^ /, '') })
   }
@@ -86,11 +94,19 @@ function lineDiff(oldText: string, newText: string): DiffLine[] {
 export function DiffView({ diff }: { diff: string }) {
   const lines = useMemo(() => {
     const trimmed = diff.replace(/^\n+/, '')
-    // Content-based detection: synthetic diffs (from lineDiff / write bodies)
-    // carry bare +/- lines without @@ headers.
+    // Content-based detection. A real unified diff carries @@ hunk headers;
+    // synthetic diffs (lineDiff / write bodies) are bare +/- lines where
+    // EVERY non-empty line starts with +, - or a space. Merely containing
+    // some -prefixed lines (e.g. markdown with `---` YAML front matter)
+    // must NOT trigger diff mode — it would render prose as deletions and
+    // inflate the −N counter.
     const rows = trimmed.split('\n')
-    const looksLikeDiff = rows.some((l) => /^[+-]/.test(l))
-    if (looksLikeDiff) return parseUnifiedDiff(trimmed)
+    const hasHunk = rows.some((l) => l.startsWith('@@'))
+    const synthetic =
+      !hasHunk &&
+      rows.some((l) => /^[+-]/.test(l)) &&
+      rows.every((l) => !l.trim() || /^[+\- ]/.test(l))
+    if (hasHunk || synthetic) return parseUnifiedDiff(trimmed)
     return [{ kind: 'add' as const, text: trimmed }]
   }, [diff])
 
@@ -125,6 +141,21 @@ export function diffForTool(tool: string, args: Record<string, unknown>): string
     if (typeof oldText === 'string' && typeof newText === 'string') return lineDiff(oldText, newText).map((l) => (l.kind === 'add' ? `+${l.text}` : l.kind === 'del' ? `-${l.text}` : ` ${l.text}`)).join('\n')
     if (typeof newText === 'string') return newText.split('\n').map((l) => `+${l}`).join('\n')
   }
+  if (tool === 'multi_edit' && Array.isArray(args.edits)) {
+    // One diff block per edit pair, separated so each stays readable.
+    const blocks: string[] = []
+    for (const e of args.edits as Array<Record<string, unknown>>) {
+      const oldText = e.old_string ?? e.oldText
+      const newText = e.new_string ?? e.newText
+      if (typeof oldText === 'string' && typeof newText === 'string') {
+        blocks.push(lineDiff(oldText, newText).map((l) => (l.kind === 'add' ? `+${l.text}` : l.kind === 'del' ? `-${l.text}` : ` ${l.text}`)).join('\n'))
+      } else if (typeof newText === 'string') {
+        blocks.push(newText.split('\n').map((l) => `+${l}`).join('\n'))
+      }
+    }
+    if (blocks.length) return blocks.join('\n@@\n')
+  }
+  if (tool === 'apply_patch' && typeof args.patch === 'string' && args.patch.trim()) return args.patch
   if (tool === 'write_file' && typeof args.content === 'string') {
     return args.content.split('\n').map((l) => `+${l}`).join('\n')
   }

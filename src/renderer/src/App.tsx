@@ -22,16 +22,21 @@ export default function App() {
   const chat = useChatStore()
   const swarm = useSwarmStore()
   const tg = useTelegraphStore()
+  // Boot-once snapshot of the store objects: keeping `chat` itself out of
+  // effect dependency arrays below avoids re-running effects on every
+  // streamed token (each `set` gives the store a new identity).
+  const chatInit = chat.init
+  const chatLoadSessions = chat.loadSessions
 
   useEffect(() => {
-    const unsub = chat.init()
+    const unsub = chatInit()
     void Promise.all([
       app.loadSettings(),
       app.loadCatalog(),
       app.loadKeyStatus(),
       app.loadWorkspace(),
       swarm.load(),
-      chat.loadSessions(),
+      chatLoadSessions(),
     ])
       .catch(() => {})
       .finally(() => setBooted(true))
@@ -55,6 +60,9 @@ export default function App() {
   }, [chat.sessionsLoaded, chat.sessions, chat.activeSessionId, chat.activeMode])
 
   // Global shortcuts: Ctrl+K palette, Ctrl+N new chat, Esc closes palette.
+  // Reads the store imperatively inside the handler — a `chat` dependency
+  // would tear down and re-add this listener on EVERY store update (i.e.
+  // every streamed token) for the whole app lifetime.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -62,7 +70,7 @@ export default function App() {
         setPaletteOpen((v) => !v)
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
         e.preventDefault()
-        void chat.newSession(chat.activeMode)
+        void useChatStore.getState().newSession(useChatStore.getState().activeMode)
         setRoute('chat')
       } else if (e.key === 'Escape' && paletteOpen) {
         setPaletteOpen(false)
@@ -70,7 +78,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [paletteOpen, chat])
+  }, [paletteOpen])
 
   // Keep the document title in sync with the open session (opencode-style).
   useEffect(() => {

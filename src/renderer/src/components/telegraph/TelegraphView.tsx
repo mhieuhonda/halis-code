@@ -178,8 +178,8 @@ export function TelegraphView() {
                   type="number"
                   min={0}
                   step="0.5"
-                  value={settings?.telegraph.dailyBudgetUsd ?? 5}
-                  onChange={(e) => void setSettings({ telegraph: { ...(settings?.telegraph ?? { networkId: 'base-sepolia', autoApproveUpTo: 0, dailyBudgetUsd: 5 }), dailyBudgetUsd: Number(e.target.value) || 0 } })}
+                  defaultValue={settings?.telegraph.dailyBudgetUsd ?? 5}
+                  onBlur={(e) => { const n = Number(e.target.value); void setSettings({ telegraph: { ...(settings?.telegraph ?? { networkId: 'base-sepolia', autoApproveUpTo: 0, dailyBudgetUsd: 5 }), dailyBudgetUsd: Number.isFinite(n) && n >= 0 ? n : 0 } }) }}
                   className="!py-1.5 !text-xs mt-1"
                 />
               </label>
@@ -189,8 +189,8 @@ export function TelegraphView() {
                   type="number"
                   min={0}
                   step="0.01"
-                  value={settings?.telegraph.autoApproveUpTo ?? 0}
-                  onChange={(e) => void setSettings({ telegraph: { ...(settings?.telegraph ?? { networkId: 'base-sepolia', autoApproveUpTo: 0, dailyBudgetUsd: 5 }), autoApproveUpTo: Number(e.target.value) || 0 } })}
+                  defaultValue={settings?.telegraph.autoApproveUpTo ?? 0}
+                  onBlur={(e) => { const n = Number(e.target.value); void setSettings({ telegraph: { ...(settings?.telegraph ?? { networkId: 'base-sepolia', autoApproveUpTo: 0, dailyBudgetUsd: 5 }), autoApproveUpTo: Number.isFinite(n) && n >= 0 ? n : 0 } }) }}
                   className="!py-1.5 !text-xs mt-1"
                 />
               </label>

@@ -12,6 +12,7 @@ import type {
   TodoItem,
 } from '@shared/types'
 import { bridge } from '../lib/ipc'
+import { useAppStore } from './app'
 
 interface ChatState {
   sessions: SessionMeta[]
@@ -125,6 +126,20 @@ function applyEvent(state: ChatState, event: HarnessEvent): Partial<ChatState> |
       // sessions already resets swarmRound in openSession.
       if (event.sessionId !== state.activeSessionId) return null
       return { swarmRound: { round: event.round, maxRounds: event.maxRounds } }
+    case 'model-catalog-updated': {
+      // The main process refreshes the catalog in the background; without
+      // this case the refreshed snapshot is silently dropped and the model
+      // pickers stay stale for the whole session.
+      useAppStore.setState({ catalog: event.catalog })
+      return null
+    }
+    case 'session-reloaded': {
+      // Compaction prunes older messages and re-orders the transcript —
+      // a plain append (message-start) would show the note at the bottom
+      // and keep the pruned messages visible until the turn's refetch.
+      if (event.session.id !== state.activeSessionId) return null
+      return { messages: event.session.messages }
+    }
     case 'todo-changed': {
       if (event.sessionId !== state.activeSessionId) return null
       return { todos: event.todos }
@@ -183,6 +198,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (fresh.length) set({ approvals: [...get().approvals, ...fresh] })
       })
       .catch(() => {})
+    // Recover running turns the same way: after a renderer reload the Stop
+    // button and the composer lock would otherwise never come back, and a
+    // mid-turn send would just bounce with "a turn is already running".
+    void bridge
+      .chatRunningSessions()
+      .then((ids) => {
+        if (!Array.isArray(ids) || !ids.length) return
+        set((state) => {
+          const runningSessions = [...new Set([...state.runningSessions, ...ids.filter((id) => typeof id === 'string')])]
+          return { runningSessions, running: state.activeSessionId !== null && runningSessions.includes(state.activeSessionId) }
+        })
+      })
+      .catch(() => {})
     // The cleanup must clear the field too, or the remount would reuse an
     // already-unsubscribed listener and drop every live event.
     const teardown = () => {
@@ -227,7 +255,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
   newSession: async (mode, modelId) => {
     const session = (await bridge.sessionNew(mode, undefined, modelId)) as Session
     await get().loadSessions()
-    set({ activeSessionId: session.id, pendingSessionId: session.id, messages: session.messages, activeMode: mode, typing: {}, swarmRound: null })
+    // Reset the LIVE-turn state too: a brand-new session inherits nothing —
+    // leaving `running` from session A would dead-lock the composer (Enter
+    // is gated on chat.running) and show A's todos and error banner.
+    set({
+      activeSessionId: session.id,
+      pendingSessionId: session.id,
+      messages: session.messages,
+      activeMode: mode,
+      typing: {},
+      swarmRound: null,
+      running: false,
+      todos: [],
+      sendError: null,
+    })
     return session.id
   },
 
@@ -272,7 +313,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // unaffected) and re-derive `running` for the session on screen.
       set((state) => {
         const runningSessions = state.runningSessions.filter((s) => s !== sessionId)
-        return { runningSessions, running: state.activeSessionId !== null && runningSessions.includes(state.activeSessionId), typing: state.activeSessionId === sessionId ? {} : state.typing }
+        return {
+          runningSessions,
+          running: state.activeSessionId !== null && runningSessions.includes(state.activeSessionId),
+          typing: state.activeSessionId === sessionId ? {} : state.typing,
+          // The round indicator belongs to the turn — without this it keeps
+          // showing "Round N/M" after the swarm turn completes.
+          swarmRound: state.activeSessionId === sessionId ? null : state.swarmRound,
+        }
       })
       await get().loadSessions()
       // Refresh the open session to catch anything missed by events — but

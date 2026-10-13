@@ -39,6 +39,27 @@ function Card({ title, hint, children, accent }: { title: string; hint?: string;
   )
 }
 
+/**
+ * Input controlled by a LOCAL draft, committed on blur. Settings writes are
+ * async IPC round-trips (file write + workspace scan) — an input whose value
+ * comes straight from the store re-renders with the older snapshot while the
+ * user types faster than the round-trip, silently eating characters.
+ */
+function DraftInput({ value, onCommit, ...rest }: { value: string; onCommit: (next: string) => void } & Omit<React.ComponentProps<'input'>, 'value' | 'onChange' | 'onBlur'>) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+  return (
+    <Input
+      {...(rest as object)}
+      value={draft}
+      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft(e.target.value)}
+      onBlur={() => {
+        if (draft !== value) onCommit(draft)
+      }}
+    />
+  )
+}
+
 export function SettingsView() {
   const t = useT()
   const app = useAppStore()
@@ -271,11 +292,11 @@ function IntegrationsSection({ configs, statuses, onChange }: { configs: McpServ
       </Card>
 
       <Card title={t('settings_websearch')} hint={t('settings_websearch_hint')}>
-        <Input
+        <DraftInput
           type="password"
           placeholder="TAVILY_API_KEY (optional)"
           value={settings.tavilyApiKey ?? ''}
-          onChange={(e) => void app.setSettings({ tavilyApiKey: e.target.value })}
+          onCommit={(next) => void app.setSettings({ tavilyApiKey: next })}
           className="font-mono !text-xs"
         />
       </Card>

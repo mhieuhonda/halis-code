@@ -63,7 +63,9 @@ export function MessageBubble({ message, swarm, nameOf }: { message: ChatMessage
         fragments.push({ text: line + '\n', mention: false })
         continue
       }
-      const chunks = line.split(/(@[A-Za-z0-9][A-Za-z0-9_.-]{0,31})/g)
+      // Negative lookbehind: `user@example.com` is an email, not a mention —
+      // a `@` glued to a preceding word character must never become a chip.
+      const chunks = line.split(/(?<![\w.-])(@[A-Za-z0-9][A-Za-z0-9_.-]{0,31})/g)
       for (const c of chunks) {
         if (c) fragments.push({ text: c, mention: c.startsWith('@') && c.length > 1 })
       }

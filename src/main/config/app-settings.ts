@@ -48,7 +48,9 @@ export function setSettings(patch: Partial<AppSettings>): AppSettings {
     telegraph: { ...prev.telegraph, ...(patch.telegraph ?? {}) },
     mcpServers: patch.mcpServers ? patch.mcpServers.map((s) => ({ ...s })) : prev.mcpServers,
   }
-  writeJson(paths.settingsFile, current)
+  // 0600: settings can carry a Tavily API key — keep it away from other
+  // local users.
+  writeJson(paths.settingsFile, current, { mode: 0o600 })
   return current
 }
 

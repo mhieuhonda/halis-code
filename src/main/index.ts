@@ -63,6 +63,10 @@ app.whenReady().then(() => {
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    // window-all-closed stopped the refresh timer; on macOS the app keeps
+    // running, so re-activating must bring the catalog updates back or the
+    // model lists stay frozen until a full restart.
+    modelCatalog.startBackgroundRefresh()
   })
 })
 

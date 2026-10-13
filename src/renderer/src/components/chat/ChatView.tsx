@@ -42,6 +42,17 @@ export function ChatView({ mode }: { mode: 'agent' | 'swarm' }) {
     if (el && stick.current) el.scrollTop = el.scrollHeight
   }, [chat.messages, chat.typing])
 
+  // Switching sessions must re-pin the scroll to the newest message: the
+  // scroller element (and its scrollTop / stick flag) survives the switch,
+  // so session B would otherwise open at session A's scrolled position with
+  // the "jump to latest" pill showing instead of at the live tail.
+  useEffect(() => {
+    stick.current = true
+    setAtBottom(true)
+    const el = scroller.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [chat.activeSessionId])
+
   const nameOf = useMemo(() => {
     const map = new Map(swarm.config.agents.map((a) => [a.id, a.name]))
     return (id: string) => {

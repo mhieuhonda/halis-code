@@ -539,6 +539,7 @@ export type HarnessEvent =
   | { type: 'typing'; sessionId: string; agentId: string; agentName: string; isTyping: boolean }
   | { type: 'swarm-round'; sessionId: string; round: number; maxRounds: number }
   | { type: 'model-catalog-updated'; catalog: CatalogSnapshot }
+  | { type: 'session-reloaded'; session: Session }
   | { type: 'todo-changed'; sessionId: string; todos: TodoItem[] }
   | { type: 'reminder-fired'; sessionId: string; scheduleId: string; title: string; prompt: string }
   | { type: 'mcp-changed'; servers: McpServerStatus[] }

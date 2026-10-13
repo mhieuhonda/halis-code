@@ -51,7 +51,7 @@ import { SessionStore } from './sessions/store'
 import { getNetwork } from './telegraph/config'
 import { ReceiptLedger } from './telegraph/receipts'
 import { usdcBalance, walletAddress } from './telegraph/wallet'
-import { pingNode, listIntents, askTelegraph } from './telegraph/client'
+import { pingNode, listIntents, askTelegraph, TelegraphError } from './telegraph/client'
 import { telegraphTools } from './harness/tools/telegraph'
 
 export class HalisApp {
@@ -448,6 +448,11 @@ export class HalisApp {
     return this.running.has(sessionId)
   }
 
+  /** Sessions with a live turn — lets a reloaded renderer recover its Stop buttons. */
+  runningSessionIds(): string[] {
+    return [...this.running.keys()].filter((id) => !id.endsWith(':sub'))
+  }
+
   stop(sessionId: string): void {
     this.running.get(sessionId)?.abort()
   }
@@ -586,18 +591,29 @@ export class HalisApp {
       settings: { tavilyApiKey: getSettings().tavilyApiKey || undefined },
       signal: input.signal,
       delegationDepth: input.depth ?? 0,
-      askUser: async (questions) => {
-        const { wait } = this.approvals.requestQuestions({
+      askUser: async (questions, opts) => {
+        const { id, wait } = this.approvals.requestQuestions({
           sessionId: session.id,
           agentId: input.agentId,
           agentName: input.agentName,
           agentColor: input.agentColor,
           questions: questions as QuestionPrompt[],
         })
-        // raceWithAbort removes its abort listener when the wait settles;
-        // a hand-rolled Promise.race leaked one listener per ask_user call on
-        // the shared turn signal (>10 triggers Node's leak warning).
-        return raceWithAbort(wait, input.signal)
+        // The wait races the tool's timeout AND the turn signal; when the
+        // wait loses, the card is dismissed so a late user answer is not
+        // silently discarded and the card cannot linger clickable.
+        const timeoutMs = Math.max(1_000, opts?.timeoutMs ?? 10 * 60 * 1000)
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const timeoutPromise = new Promise<null>((resolve) => {
+          timer = setTimeout(() => resolve(null), timeoutMs)
+          if (typeof timer.unref === 'function') timer.unref()
+        })
+        try {
+          return await raceWithAbort(Promise.race([wait, timeoutPromise]), input.signal)
+        } finally {
+          if (timer) clearTimeout(timer)
+          this.approvals.dismissQuestions(id)
+        }
       },
       delegate:
         (input.depth ?? 0) >= 1
@@ -701,7 +717,11 @@ export class HalisApp {
       }
       session.messages.unshift(note)
       this.sessions.save(session)
-      this.emit({ type: 'message-start', sessionId: session.id, message: note })
+      // The whole transcript changed (older messages pruned, note on top) —
+      // a plain message-start would APPEND the note at the live view's end
+      // while the pruned messages stay visible until the turn's final
+      // refetch. A full reload event keeps the live view canonical.
+      this.emit({ type: 'session-reloaded', session })
     } catch (err) {
       console.warn('[halis] compaction failed (continuing without):', err)
     }
@@ -800,8 +820,8 @@ export class HalisApp {
         return this.todoStoreFor(live, emit)
       },
       saveTodos: (liveSession) => this.saveTodos(liveSession, this.todoStoreFor(liveSession, () => {}).get()),
-      askUser: (questions, ctx) => {
-        const { wait } = this.approvals.requestQuestions({
+      askUser: async (questions, ctx, opts) => {
+        const { id, wait } = this.approvals.requestQuestions({
           sessionId: ctx.sessionId,
           agentId: ctx.agentId,
           agentName: ctx.agentName,
@@ -810,7 +830,20 @@ export class HalisApp {
         })
         // Stop must settle swarm question cards too — an unresolved wait
         // parks the whole turn and the session stays "running" forever.
-        return raceWithAbort(wait, controller.signal)
+        // The ask_user timeout gets the same treatment, and a lost wait
+        // dismisses its card.
+        const timeoutMs = Math.max(1_000, opts?.timeoutMs ?? 10 * 60 * 1000)
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const timeoutPromise = new Promise<null>((resolve) => {
+          timer = setTimeout(() => resolve(null), timeoutMs)
+          if (typeof timer.unref === 'function') timer.unref()
+        })
+        try {
+          return await raceWithAbort(Promise.race([wait, timeoutPromise]), controller.signal)
+        } finally {
+          if (timer) clearTimeout(timer)
+          this.approvals.dismissQuestions(id)
+        }
       },
       getSettings: () => getSettings(),
       telegraph: this.telegraphDeps(),
@@ -849,7 +882,9 @@ export class HalisApp {
     const validation = this.validateSwarm(config)
     if (validation.errors.length) return { ok: false, error: validation.errors.join(' '), warnings: validation.warnings }
     this.swarmConfig = { ...config, agents: config.agents.slice(0, 20) }
-    writeJson(paths.swarmFile, this.swarmConfig)
+    // 0600: the config carries per-agent provider keys in plaintext —
+    // default 0644 would expose them to every local user.
+    writeJson(paths.swarmFile, this.swarmConfig, { mode: 0o600 })
     return { ok: true, warnings: validation.warnings }
   }
 
@@ -952,7 +987,26 @@ export class HalisApp {
     if (!this.telegraphEnabled()) throw new TelegraphDisabledError()
     const settings = getSettings()
     const network = getNetwork(settings.telegraph.networkId)
-    const result = await askTelegraph({ query, privateKey: this.walletKey() ?? '', network })
+    const result = await askTelegraph({
+      query,
+      privateKey: this.walletKey() ?? '',
+      network,
+      // The UI button must respect the same daily ceiling as the agent tool —
+      // without this, a mispriced miner gets paid silently.
+      onQuote: (quote) => {
+        const budget = settings.telegraph.dailyBudgetUsd
+        if (budget <= 0) {
+          throw new TelegraphError('Daily Telegraph budget is $0 — paid asks are disabled. Raise the budget in Settings to spend.', 'validation')
+        }
+        const spentToday = this.ledger.spentTodayUsd()
+        if (spentToday + quote.amountUsd > budget) {
+          throw new TelegraphError(
+            `Daily Telegraph budget reached ($${spentToday.toFixed(2)} of $${budget.toFixed(2)}).`,
+            'validation',
+          )
+        }
+      },
+    })
     if (result.receipt) {
       const receipt = this.ledger.append({ ...result.receipt, signalHash: result.signalHash }, network, query)
       this.emit({ type: 'receipt', sessionId: sessionId ?? '', receipt })

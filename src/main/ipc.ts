@@ -81,14 +81,28 @@ export function registerIpc(app: HalisApp, getWindow: () => BrowserWindow | null
 
   /* ---------------- sessions ---------------- */
   ipcMain.handle(IPC.sessionList, () => app.sessions.list())
-  ipcMain.handle(IPC.sessionNew, (_e, mode: ChatMode, title?: string, modelId?: string) => app.sessions.create(mode, title, modelId))
+  ipcMain.handle(IPC.sessionNew, (_e, mode: ChatMode, title?: string, modelId?: string) => {
+    // The renderer is the trust boundary (it renders untrusted model output)
+    // — never let an arbitrary mode string flow into routing heuristics.
+    const safeMode: ChatMode = mode === 'swarm' ? 'swarm' : 'agent'
+    return app.sessions.create(safeMode, typeof title === 'string' ? title : undefined, typeof modelId === 'string' ? modelId : undefined)
+  })
   ipcMain.handle(IPC.sessionGet, (_e, id: string) => app.sessions.get(id))
   ipcMain.handle(IPC.sessionDelete, (_e, id: string) => app.sessions.delete(id))
   ipcMain.handle(IPC.sessionRename, (_e, id: string, title: string) => app.sessions.rename(id, title))
 
   /* ---------------- chat ---------------- */
-  ipcMain.handle(IPC.chatSend, (_e, params: { sessionId: string; text: string; modelId?: string }) => app.send(params))
+  ipcMain.handle(IPC.chatSend, (_e, params: { sessionId: string; text: string; modelId?: string }) => {
+    // Shape-check at the boundary: a malformed payload must fail cleanly,
+    // not as a raw TypeError from deep inside the turn machinery.
+    if (!params || typeof params !== 'object') return { ok: false, error: 'Invalid send payload.' }
+    if (typeof params.sessionId !== 'string' || !params.sessionId) return { ok: false, error: 'Invalid session id.' }
+    if (typeof params.text !== 'string' || !params.text.trim()) return { ok: false, error: 'Message text is required.' }
+    if (params.modelId !== undefined && typeof params.modelId !== 'string') return { ok: false, error: 'Invalid model id.' }
+    return app.send(params)
+  })
   ipcMain.handle(IPC.chatStop, (_e, sessionId: string) => app.stop(sessionId))
+  ipcMain.handle(IPC.chatRunningSessions, () => app.runningSessionIds())
 
   /* ---------------- swarm ---------------- */
   ipcMain.handle(IPC.swarmGetConfig, () => app.getSwarmConfig())
@@ -98,7 +112,11 @@ export function registerIpc(app: HalisApp, getWindow: () => BrowserWindow | null
 
   /* ---------------- approvals ---------------- */
   ipcMain.handle(IPC.approvalRespond, (_e, requestId: string, response: 'allow' | 'always' | 'reject', answers?: QuestionAnswer[]) => {
-    return app.approvals.respond(requestId, response, answers)
+    // Whitelist the response: approvals.respond treats anything other than
+    // the literal 'reject' as ALLOW — an unchecked string from a compromised
+    // renderer would auto-approve every pending card.
+    const safe: 'allow' | 'always' | 'reject' = response === 'allow' ? 'allow' : response === 'always' ? 'always' : response === 'reject' ? 'reject' : 'reject'
+    return app.approvals.respond(typeof requestId === 'string' ? requestId : '', safe, Array.isArray(answers) ? answers : undefined)
   })
   ipcMain.handle(IPC.approvalList, () => app.approvals.pendingRequests())
 
@@ -182,7 +200,10 @@ export function registerIpc(app: HalisApp, getWindow: () => BrowserWindow | null
   ipcMain.handle(IPC.tgAsk, async (_e, params: { query: string; sessionId?: string }) => {
     try {
       requireTelegraph()
-      const result = await app.telegraphAsk(params.query, params.sessionId)
+      if (!params || typeof params.query !== 'string' || !params.query.trim()) {
+        return { error: 'A query is required.' }
+      }
+      const result = await app.telegraphAsk(params.query, typeof params.sessionId === 'string' ? params.sessionId : undefined)
       return result as object
     } catch (err) {
       return { error: err instanceof Error ? err.message : String(err) }

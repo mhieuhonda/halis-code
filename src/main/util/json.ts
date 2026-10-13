@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, chmodSync } from 'node:fs'
 import { dirname } from 'node:path'
 
 /**
@@ -16,10 +16,22 @@ export function readJson<T>(path: string, fallback: T): T {
   }
 }
 
-export function writeJson(path: string, value: unknown): void {
+/**
+ * Write JSON atomically (tmp + rename). `mode` applies restrictive
+ * permissions at creation — use 0o600 for files that hold secrets
+ * (settings with provider keys, the swarm config with per-agent keys).
+ */
+export function writeJson(path: string, value: unknown, opts: { mode?: number } = {}): void {
   const dir = dirname(path)
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
   const tmp = `${path}.${process.pid}.tmp`
-  writeFileSync(tmp, JSON.stringify(value, null, 2), 'utf8')
+  writeFileSync(tmp, JSON.stringify(value, null, 2), { encoding: 'utf8', ...(opts.mode !== undefined ? { mode: opts.mode } : {}) })
   renameSync(tmp, path)
+  if (opts.mode !== undefined) {
+    try {
+      chmodSync(path, opts.mode)
+    } catch {
+      /* Windows: not applicable */
+    }
+  }
 }
