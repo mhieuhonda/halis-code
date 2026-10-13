@@ -1,7 +1,7 @@
 /** Sidebar — DeepSeek Harness desktop structure: logo row, new-chat bar,
  *  mode segments, panel rows, session list, footer. Drag-resizable. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, Cpu, ListChecks, PanelLeft, Plus, Search, Settings, Trash2, Users, X, Zap } from 'lucide-react'
+import { Bot, ListChecks, PanelLeft, Plus, Search, Settings, Trash2, Users, X, Zap } from 'lucide-react'
 import { useT } from '../../i18n'
 import { useChatStore } from '../../stores/chat'
 import { useAppStore } from '../../stores/app'
@@ -10,7 +10,7 @@ import { useTelegraphStore } from '../../stores/telegraph'
 import logoUrl from '../../assets/logo.png'
 import nameUrl from '../../assets/name.png'
 
-export type Route = 'chat' | 'swarm-setup' | 'models' | 'telegraph' | 'tasks' | 'settings'
+export type Route = 'chat' | 'swarm-setup' | 'telegraph' | 'tasks' | 'settings'
 
 const SIDEBAR_MIN = 264
 const SIDEBAR_MAX = 420
@@ -86,7 +86,6 @@ export function Sidebar({ route, setRoute }: { route: Route; setRoute: (r: Route
   const navItems: Array<{ id: Route; icon: React.ReactNode; label: string; badge?: React.ReactNode }> = [
     { id: 'chat', icon: <Bot size={16} />, label: t('nav_chat') },
     { id: 'swarm-setup', icon: <Users size={16} />, label: t('nav_swarm_setup'), badge: swarmCount ? <Badge count={swarmCount} /> : undefined },
-    { id: 'models', icon: <Cpu size={16} />, label: t('nav_models') },
     ...(settings?.telegraphEnabled === false
       ? []
       : [{ id: 'telegraph' as Route, icon: <Zap size={16} />, label: t('nav_telegraph'), badge: tgStatus?.walletFunded ? <DotBadge /> : undefined }]),

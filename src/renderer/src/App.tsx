@@ -9,7 +9,6 @@ import { Splash } from './components/layout/Splash'
 import { CommandPalette } from './components/layout/CommandPalette'
 import { ChatView } from './components/chat/ChatView'
 import { SwarmSetupView } from './components/swarm/SwarmSetupView'
-import { ModelsView } from './components/models/ModelsView'
 import { TelegraphView } from './components/telegraph/TelegraphView'
 import { TaskBoardView } from './components/taskboard/TaskBoardView'
 import { SettingsView } from './components/settings/SettingsView'
@@ -87,7 +86,6 @@ export default function App() {
         <main key={route} className="flex-1 min-w-0 flex fade-in">
           {route === 'chat' ? <ChatView mode={chat.activeMode} /> : null}
           {route === 'swarm-setup' ? <SwarmSetupView /> : null}
-          {route === 'models' ? <ModelsView /> : null}
           {route === 'telegraph' ? <TelegraphView /> : null}
           {route === 'tasks' ? <TaskBoardView /> : null}
           {route === 'settings' ? <SettingsView /> : null}

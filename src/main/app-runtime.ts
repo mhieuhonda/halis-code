@@ -869,7 +869,7 @@ export class HalisApp {
         // A provider key saved in the vault satisfies the requirement —
         // a per-agent key is only one of the two valid sources.
         if (provider && !provider.keyless && !agent.apiKey?.trim() && !this.vault.has(provider.id)) {
-          errors.push(`${agent.name}: API key required for ${model.name}. Save it once in Models & Keys, or enter it for this agent.`)
+          errors.push(`${agent.name}: API key required for ${model.name}. Save it once in Settings → Models & API keys, or enter it for this agent.`)
         }
       }
       // Duplicate-key rule: same key on two different models → warn.

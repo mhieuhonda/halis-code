@@ -4,7 +4,7 @@
  * sticky group headers, shortcut chips.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, Cpu, ListChecks, MessageSquarePlus, Search, Settings, Star, Users, Zap } from 'lucide-react'
+import { Bot, ListChecks, MessageSquarePlus, Search, Settings, Star, Users, Zap } from 'lucide-react'
 import { useT } from '../../i18n'
 import { useAppStore } from '../../stores/app'
 import { useChatStore } from '../../stores/chat'
@@ -42,7 +42,6 @@ export function CommandPalette({ open, onClose, setRoute }: { open: boolean; onC
     const nav: Array<{ id: Route; icon: React.ReactNode; label: string }> = [
       { id: 'chat', icon: <Bot size={14} />, label: t('nav_chat') },
       { id: 'swarm-setup', icon: <Users size={14} />, label: t('nav_swarm_setup') },
-      { id: 'models', icon: <Cpu size={14} />, label: t('nav_models') },
       { id: 'telegraph', icon: <Zap size={14} />, label: t('nav_telegraph') },
       { id: 'tasks', icon: <ListChecks size={14} />, label: t('nav_tasks') },
       { id: 'settings', icon: <Settings size={14} />, label: t('nav_settings') },
