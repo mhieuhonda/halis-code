@@ -27,23 +27,31 @@ Its differentiator is deep **Telegraph Protocol** integration: every agent can b
 
 ## Screenshots
 
-*Real turns on the free keyless model — no API key, no setup.*
+*Real runs at 2× resolution — agent turns, swarm coordination and the opencode-style model picker.*
 
-| Agent chat — live tool run | Approval card before a file write |
+| Agent chat — live tool run | Model picker (opencode-style, searchable) |
 |---|---|
-| ![Agent chat](docs/screenshots/01-agent-chat-live.png) | ![Approval card](docs/screenshots/02-approval-card.png) |
+| ![Agent chat](docs/screenshots/01-agent-chat.png) | ![Model picker](docs/screenshots/02-model-picker.png) |
 
-| Swarm setup | Models & keys |
+| Swarm chat — @-addressed roles | Swarm setup — upload-your-own avatars |
 |---|---|
-| ![Swarm setup](docs/screenshots/03-swarm-setup.png) | ![Models](docs/screenshots/04-models.png) |
+| ![Swarm chat](docs/screenshots/03-swarm-chat.png) | ![Swarm setup](docs/screenshots/04-swarm-setup.png) |
 
-| Telegraph — live discovery | Task board |
+| Settings — General | Settings — Models & API keys |
 |---|---|
-| ![Telegraph](docs/screenshots/05-telegraph.png) | ![Task board](docs/screenshots/06-task-board.png) |
+| ![Settings general](docs/screenshots/05-settings-general.png) | ![Settings models](docs/screenshots/06-settings-models.png) |
 
-| Settings (Tiếng Việt) — Light is the default | Dark mode — one click in Settings → Appearance |
+| Settings — Integrations (MCP) | Settings — Security |
 |---|---|
-| ![Settings VI](docs/screenshots/07-settings-vi.png) | ![Dark mode](docs/screenshots/09-dark-mode-chat.png) |
+| ![Settings integrations](docs/screenshots/07-settings-integrations.png) | ![Settings security](docs/screenshots/08-settings-security.png) |
+
+| Dark mode — swarm chat | Dark mode — model picker in Settings |
+|---|---|
+| ![Dark chat](docs/screenshots/09-dark-chat.png) | ![Dark settings](docs/screenshots/10-dark-settings-models.png) |
+
+| Telegraph — live discovery | Task board · Command palette |
+|---|---|
+| ![Telegraph](docs/screenshots/11-telegraph.png) | ![Task board](docs/screenshots/12-task-board.png) ![Command palette](docs/screenshots/13-command-palette.png) |
 
 ---
 
@@ -125,11 +133,11 @@ Ported and adapted from opencode and deepseek-harness (TypeScript 7, sandbox-jai
 
 ## Models
 
-The built-in catalog ships with ~190 models and refreshes live from [models.dev](https://models.dev) (the public catalog opencode maintains), plus locally-detected Ollama models.
+The catalog is opencode's: the bundled snapshot is generated from [models.opencode.ai](https://models.opencode.ai/api.json) (the exact catalog opencode ships) and refreshes live from the same source, plus locally-detected Ollama models. The model picker is a single searchable dialog with favorites and recents — no group tabs.
 
-- **Free, no key** — Pollinations (`openai-fast`) works the moment the app installs; LLM7 and local Ollama round out the keyless tier
-- **Free key** — OpenCode Zen free-tier models with a free API key from [opencode.ai/zen](https://opencode.ai/zen)
-- **Bring your own key** — Anthropic, OpenAI, Google, DeepSeek, Groq, OpenRouter, Mistral, Z.AI, Moonshot, MiniMax, Together, Cerebras, xAI and more
+- **Free key** — OpenCode Zen (`ling-3.1-flash-free` is the default) with a free API key from [opencode.ai/zen](https://opencode.ai/zen)
+- **Bring your own key** — Anthropic, OpenAI, Google, OpenRouter, Vercel AI Gateway and the rest of opencode's popular provider list
+- **Local** — Ollama models are auto-detected when the server is running
 
 Key rules (as configured in Swarm Setup):
 
@@ -170,7 +178,7 @@ Requires Node.js 20+ (24 recommended).
 ### Try it in two minutes
 
 1. `npm run dev`
-2. The default model (Pollinations, free, no key) is already usable — ask the agent to build something in your workspace (Settings → pick a folder first)
+2. The default model (OpenCode Zen, free tier) needs a free key — paste one in Settings → **Models & API keys** (get it at [opencode.ai/zen](https://opencode.ai/zen)), then ask the agent to build something in your workspace (Settings → pick a folder first)
 3. Telegraph tab → **Create wallet** → fund it with a little testnet USDC on Base Sepolia (faucets: Alchemy / Coinbase) → ask an agent to "buy a code review of this file from Telegraph"
 4. Swarm Setup → add a Planner + Coder + Reviewer → save → switch to Swarm mode and give the team a job
 
@@ -186,25 +194,26 @@ src/
 │   │                skills, compaction, util (patch/cron/html-markdown/
 │   │                edit-match/truncate)
 │   ├── swarm/       roles, prompts, @mention router, orchestrator
-│   ├── models/      catalog (bundled + models.dev refresh), key vault,
-│   │                OpenAI-compatible + Anthropic streaming clients,
-│   │                retry policy (opencode schedule)
+│   ├── models/      catalog (bundled from opencode's catalog + live refresh),
+│   │                key vault, OpenAI-compatible + Anthropic streaming
+│   │                clients, retry policy (opencode schedule)
 │   ├── telegraph/   engine client, x402 payments, wallet, receipts
 │   ├── sessions/    local session store
 │   └── ipc.ts       thin typed handlers
 ├── preload/         contextBridge (no Node in the renderer)
 └── renderer/        React 19 + Tailwind 4 UI (Agent chat, Swarm chat,
-                     Swarm Setup, Models & Keys, Telegraph, Task Board +
-                     reminders, Settings + MCP servers, live todo panel,
+                     Swarm Setup, Telegraph, Task Board + reminders,
+                     Settings — General / Workspace / Models & API keys /
+                     Integrations / Security / Telegraph, live todo panel,
                      question cards)
 ```
 
-The LLM layer speaks the OpenAI-compatible dialect natively (streaming SSE, function calling, vision image parts) and the Anthropic Messages API — one client covers every catalog provider plus the keyless gateways.
+The LLM layer speaks the OpenAI-compatible dialect natively (streaming SSE, function calling, vision image parts) and the Anthropic Messages API — one client covers every catalog provider plus local Ollama.
 
 ## Credits
 
-- Harness concepts studied from [opencode](https://github.com/anomalyco/opencode) (step loop, permission rules, models.dev catalog, patch format + fuzzy matching, html→markdown, tool-output spill, compaction template, retry schedule, snapshot concepts) and [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) (guarded tool pipeline, job registry, schedule/cron domain, read-before-write discipline, pwsh handling, session event log)
-- Model catalog from [models.dev](https://models.dev)
+- Harness concepts studied from [opencode](https://github.com/anomalyco/opencode) (step loop, permission rules, model catalog + picker, patch format + fuzzy matching, html→markdown, tool-output spill, compaction template, retry schedule, snapshot concepts) and [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) (guarded tool pipeline, job registry, schedule/cron domain, read-before-write discipline, pwsh handling, session event log)
+- Model catalog from opencode ([models.opencode.ai](https://models.opencode.ai))
 - Payments over the [x402](https://x402.org) standard using the same client approach as the official [Telegraph MCP server](https://github.com/telegraphprotocol/Telegraph-MCP)
 
 ## License
