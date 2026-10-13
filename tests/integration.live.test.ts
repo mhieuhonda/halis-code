@@ -5,7 +5,8 @@
  * permission engine, and probes the live Telegraph testnet node (free
  * discovery + x402 quote).
  *
- * Requires network + OPENCODE_API_KEY. Skipped automatically when offline.
+ * Requires network + OPENCODE_API_KEY (model) / TELEGRAPH_LIVE=1 (node).
+ * Skipped automatically when offline.
  */
 import { describe, expect, it, beforeAll } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs'
@@ -31,8 +32,10 @@ import { TELEGRAPH_NETWORKS } from '@shared/types'
 
 const LIVE_MODEL = 'opencode/ling-3.1-flash-free'
 const KEY = process.env.OPENCODE_API_KEY ?? ''
+const TELEGRAPH_LIVE = process.env.TELEGRAPH_LIVE === '1'
 
 let online = false
+let telegraphOnline = false
 beforeAll(async () => {
   if (!KEY) return
   try {
@@ -131,10 +134,27 @@ describe('live: free model agent turn', () => {
 })
 
 describe('live: telegraph testnet', () => {
+  // Opt-in: the third-party node is flaky — an unguarded block makes plain
+  // `npm test` fail red on any offline or firewalled CI runner (and hang
+  // until the per-test timeout on blackholed networks).
+  beforeAll(async () => {
+    if (!TELEGRAPH_LIVE) return
+    try {
+      const network = TELEGRAPH_NETWORKS['base-sepolia']!
+      // Any HTTP answer (even 404/405) proves the node is reachable — only
+      // network-level failure (null) means offline.
+      const res = await fetch(network.nodeUrl, { method: 'GET', signal: AbortSignal.timeout(8000) }).catch(() => null)
+      telegraphOnline = res !== null
+    } catch {
+      telegraphOnline = false
+    }
+  })
+
   it(
     'discovers miners and intents from the live node (free)',
     { timeout: 30_000, retry: 1 },
     async () => {
+      if (!TELEGRAPH_LIVE || !telegraphOnline) return console.warn('TELEGRAPH_LIVE not set or node unreachable — skipping live telegraph test')
       const network = TELEGRAPH_NETWORKS['base-sepolia']!
       const miners = await listMiners(network)
       expect(Array.isArray(miners)).toBe(true)
@@ -151,6 +171,7 @@ describe('live: telegraph testnet', () => {
     'quotes a paid ask from the 402 challenge without paying',
     { timeout: 30_000, retry: 1 },
     async () => {
+      if (!TELEGRAPH_LIVE || !telegraphOnline) return console.warn('TELEGRAPH_LIVE not set or node unreachable — skipping live telegraph test')
       const network = TELEGRAPH_NETWORKS['base-sepolia']!
       const quote = await quoteAsk({ network, query: 'What is the price direction of ETH?' })
       // Either a priced 402 challenge or a free serve — both prove the rail works.
