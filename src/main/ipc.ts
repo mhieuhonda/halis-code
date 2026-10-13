@@ -9,7 +9,6 @@ import { join } from 'node:path'
 import type { HalisApp } from './app-runtime'
 import { SWARM_ROLES } from './swarm/roles'
 import { modelCatalog } from './models/catalog'
-import { createSandbox } from './harness/sandbox'
 import { testMcpConfig } from './harness/mcp'
 import { importWallet, createBurnerWallet } from './telegraph/wallet'
 import { listMiners, listIntents, verifySignal } from './telegraph/client'
@@ -28,7 +27,10 @@ export function registerIpc(app: HalisApp, getWindow: () => BrowserWindow | null
   ipcMain.handle(IPC.settingsSet, (_e, patch: Partial<AppSettings>) => app.updateSettings(patch))
   ipcMain.handle(IPC.workspacePick, async () => {
     const win = getWindow()
-    const result = await dialog.showOpenDialog(win!, { properties: ['openDirectory', 'createDirectory'] })
+    // The window can be gone (closed while a picker promise is in flight) —
+    // a bare `win!` here turned the picker into an unhandled TypeError.
+    if (!win || win.isDestroyed()) return null
+    const result = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] })
     if (result.canceled || !result.filePaths[0]) return null
     app.updateSettings({ workspace: result.filePaths[0] })
     return result.filePaths[0]
@@ -88,8 +90,8 @@ export function registerIpc(app: HalisApp, getWindow: () => BrowserWindow | null
     return app.sessions.create(safeMode, typeof title === 'string' ? title : undefined, typeof modelId === 'string' ? modelId : undefined)
   })
   ipcMain.handle(IPC.sessionGet, (_e, id: string) => app.sessions.get(id))
-  ipcMain.handle(IPC.sessionDelete, (_e, id: string) => app.sessions.delete(id))
-  ipcMain.handle(IPC.sessionRename, (_e, id: string, title: string) => app.sessions.rename(id, title))
+  ipcMain.handle(IPC.sessionDelete, (_e, id: string) => app.deleteSession(id))
+  ipcMain.handle(IPC.sessionRename, (_e, id: string, title: string) => app.renameSession(id, title))
 
   /* ---------------- chat ---------------- */
   ipcMain.handle(IPC.chatSend, (_e, params: { sessionId: string; text: string; modelId?: string }) => {
@@ -214,14 +216,4 @@ export function registerIpc(app: HalisApp, getWindow: () => BrowserWindow | null
     requireTelegraph()
     return verifySignal(app.telegraphNetwork(), signalHash)
   })
-
-  /* ---------------- dev helper ---------------- */
-  ipcMain.handle('halis:sandbox-check', (_e, workspace: string, path: string) => {
-    try {
-      return { ok: true, resolved: createSandbox(workspace).safePath(path) }
-    } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) }
-    }
-  })
-
 }

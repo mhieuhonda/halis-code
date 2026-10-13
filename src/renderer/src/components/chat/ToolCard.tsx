@@ -1,6 +1,6 @@
 /** Tool run row — DSH disclosure row: 24px header, chevron, status dot,
  *  summary; expanded IN/OUT cards on the markdown-code-block surface. */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   ChevronRight,
   FileText,
@@ -206,7 +206,11 @@ export function ToolCard({ run }: { run: ToolRun }) {
   const icon = TOOL_ICONS[run.tool] ?? <ShieldQuestion size={13} />
   const verb = TOOL_VERBS[run.tool]
   const result = typeof run.result === 'string' ? run.result : JSON.stringify(run.result ?? '')
-  const diff = open ? diffForTool(run.tool, run.args) : null
+  // Memoize: an expanded diff recomputed its O(n·m) LCS on EVERY render —
+  // i.e. on every streaming delta of the parent message — freezing the chat
+  // for large edits.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const diff = useMemo(() => (open ? diffForTool(run.tool, run.args) : null), [open, run.tool, run.args])
   const duration = run.endedAt && run.startedAt ? ((run.endedAt - run.startedAt) / 1000).toFixed(1) : null
 
   return (

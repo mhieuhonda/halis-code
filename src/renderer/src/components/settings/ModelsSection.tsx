@@ -186,8 +186,12 @@ export function ModelsSection() {
 
   const refresh = async () => {
     setRefreshing(true)
-    await loadCatalog()
-    setRefreshing(false)
+    try {
+      await loadCatalog()
+    } finally {
+      // A rejected load must not strand the spinner forever.
+      setRefreshing(false)
+    }
   }
 
   return (

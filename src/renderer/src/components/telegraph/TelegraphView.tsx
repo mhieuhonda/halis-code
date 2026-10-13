@@ -174,7 +174,12 @@ export function TelegraphView() {
             <div className="mt-4 pt-3 border-t border-line/70 space-y-3">
               <label className="block">
                 <span className="text-[11px] text-faint">{t('tg_budget')}</span>
+                {/* key on the saved value: settings can arrive AFTER mount
+                    (async boot) and an uncontrolled defaultValue then kept
+                    showing the stale default and overwrote the saved budget
+                    on the next blur. */}
                 <Input
+                  key={`budget-${settings?.telegraph.dailyBudgetUsd ?? 'loading'}`}
                   type="number"
                   min={0}
                   step="0.5"
@@ -186,6 +191,7 @@ export function TelegraphView() {
               <label className="block">
                 <span className="text-[11px] text-faint">{t('tg_autoapprove')}</span>
                 <Input
+                  key={`autoapprove-${settings?.telegraph.autoApproveUpTo ?? 'loading'}`}
                   type="number"
                   min={0}
                   step="0.01"

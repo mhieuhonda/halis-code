@@ -242,6 +242,12 @@ export class HalisApp {
   }
 
   updateSettings(patch: Partial<AppSettings>): AppSettings {
+    // Switching the workspace mid-turn invalidates every hard file lock the
+    // running turns hold (locks.clear() below) — two agents would edit the
+    // same file unprotected. Refuse instead of silently removing protection.
+    if (patch.workspace !== undefined && this.running.size > 0) {
+      throw new Error('Cannot switch the workspace while a turn is running. Stop the running turn(s) first.')
+    }
     const next = setSettings(patch)
     if (patch.workspace !== undefined) this.refreshWorkspace()
     if (patch.telegraphEnabled !== undefined) this.applyTelegraphEnabled()
@@ -860,6 +866,25 @@ export class HalisApp {
     await orchestrator.runTurn({ session, config, objective, signal: controller.signal })
   }
 
+  /** Delete a session and drop every per-session cache keyed by its id. */
+  deleteSession(sessionId: string): void {
+    this.sessions.delete(sessionId)
+    this.todoStores.delete(sessionId)
+    this.todoStores.delete(`${sessionId}:sub`)
+    this.pendingReminders.delete(sessionId)
+    this.pendingJobNotices.delete(sessionId)
+  }
+
+  /** Rename a session, keeping the LIVE turn's in-memory copy in sync —
+   *  a turn keeps overwriting the file with its own object, so without this
+   *  the new title would be reverted by the next save of the running turn. */
+  renameSession(sessionId: string, title: string): void {
+    const live = this.liveSessions.get(sessionId)
+    const next = title.trim()
+    if (live && next) live.title = next
+    this.sessions.rename(sessionId, title)
+  }
+
   /* ------------------------- swarm config ------------------------- */
 
   getSwarmConfig(): SwarmConfig {
@@ -893,7 +918,7 @@ export class HalisApp {
     return { ok: true, warnings: validation.warnings }
   }
 
-  validateSwarm(config: SwarmConfig): { errors: string[]; warnings: string[] } {
+  validateSwarm(config: SwarmConfig): { ok: boolean; errors: string[]; warnings: string[] } {
     const errors: string[] = []
     const warnings: string[] = []
     const agents = config.agents ?? []
@@ -927,7 +952,10 @@ export class HalisApp {
         }
       }
     }
-    return { errors, warnings }
+    // The bridge contract (shared/ipc.ts) promises `ok` — the renderer's
+    // Swarm Setup save gate reads it, and a missing field made every save
+    // a silent no-op.
+    return { ok: errors.length === 0, errors, warnings }
   }
 
   /* ------------------------- questions (ask_user) ------------------------- */

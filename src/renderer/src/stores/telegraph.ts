@@ -87,6 +87,10 @@ export const useTelegraphStore = create<TelegraphState>((set, get) => ({
       set({ lastAsk: result })
       await get().loadReceipts()
       await get().loadStatus()
+    } catch (err) {
+      // IPC-level failure (handler throw, channel gone) must reach the UI —
+      // `void ask()` callers have nowhere else to surface it.
+      set({ lastAsk: { error: err instanceof Error ? err.message : String(err) } as TelegraphAskResult & { error?: string } })
     } finally {
       set({ busy: false })
     }

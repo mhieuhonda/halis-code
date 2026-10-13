@@ -258,6 +258,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   newSession: async (mode, modelId) => {
     const session = (await bridge.sessionNew(mode, undefined, modelId)) as Session
     await get().loadSessions()
+    // A session click landing while the create was in flight wins — do not
+    // yank the view back to the brand-new empty session (same guard shape
+    // as openSession; without it "New chat" + quick sidebar click yanked).
+    if (get().pendingSessionId && get().pendingSessionId !== session.id) return session.id
     // Reset the LIVE-turn state too: a brand-new session inherits nothing —
     // leaving `running` from session A would dead-lock the composer (Enter
     // is gated on chat.running) and show A's todos and error banner.
@@ -295,7 +299,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   send: async (text, modelId) => {
     const sessionId = get().activeSessionId
-    if (!sessionId || !text.trim()) return
+    // Early returns must surface: the Composer already cleared the input, a
+    // silent return used to make the message vanish without a trace.
+    if (!sessionId) {
+      set({ sendError: 'No active session — create or open one first.' })
+      return
+    }
+    if (!text.trim()) return
     set((state) => ({
       running: true,
       runningSessions: state.runningSessions.includes(sessionId) ? state.runningSessions : [...state.runningSessions, sessionId],
@@ -327,9 +337,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       })
       await get().loadSessions()
       // Refresh the open session to catch anything missed by events — but
-      // only if the user is still looking at it. Switching sessions while a
-      // turn runs must not yank the view back to the originating session.
-      if (get().activeSessionId === sessionId) await get().openSession(sessionId)
+      // only if the user is still looking at it. `pendingSessionId` catches
+      // the in-flight case: a session click during the turn's last moment
+      // used to be stomped by this refetch (its openSession re-pinned
+      // pendingSessionId back to the finished session and the click died).
+      if (get().pendingSessionId === sessionId && get().activeSessionId === sessionId) await get().openSession(sessionId)
     }
   },
 

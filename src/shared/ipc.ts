@@ -144,7 +144,7 @@ export interface IpcApi {
   mcpTest(config: McpServerConfig): { ok: boolean; detail: string; toolCount: number }
 
   scheduleList(sessionId: string): ScheduleView[]
-  scheduleDelete(id: string): boolean
+  scheduleDelete(id: string): { ok: boolean; message: string }
 
   jobList(): Array<unknown>
 

@@ -35,10 +35,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setSettings: async (patch) => {
-    const settings = (await bridge.settingsSet(patch)) as AppSettings
-    if (patch.theme) applyTheme(settings.theme)
-    set({ settings })
-    await get().loadWorkspace()
+    try {
+      const settings = (await bridge.settingsSet(patch)) as AppSettings
+      if (patch.theme) applyTheme(settings.theme)
+      set({ settings })
+      await get().loadWorkspace()
+    } catch (err) {
+      // A refused patch (e.g. workspace switch while a turn runs) must reach
+      // the user — every caller is fire-and-forget `void setSettings(...)`.
+      window.dispatchEvent(
+        new CustomEvent('halis:toast', { detail: { message: err instanceof Error ? err.message : String(err), kind: 'error' } }),
+      )
+    }
   },
 
   loadCatalog: async () => {
@@ -57,9 +65,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   pickWorkspace: async () => {
-    const path = (await bridge.workspacePick()) as string | null
-    if (path) {
-      await get().loadWorkspace()
+    try {
+      const path = (await bridge.workspacePick()) as string | null
+      if (path) {
+        await get().loadWorkspace()
+      }
+    } catch (err) {
+      window.dispatchEvent(
+        new CustomEvent('halis:toast', { detail: { message: err instanceof Error ? err.message : String(err), kind: 'error' } }),
+      )
     }
   },
 }))

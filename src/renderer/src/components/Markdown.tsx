@@ -68,8 +68,12 @@ const markdownComponents = {
     // Fenced block vs inline: react-markdown renders fenced code
     // without a wrapping <p>; inline code arrives inside <p>.
     if (!match && !text.includes('\n')) {
+      // react-markdown (passNode) injects the hast `node` object into props —
+      // spreading it onto the DOM printed node="[object Object]" on every
+      // inline code and tripped React's unknown-prop warning.
+      const { node: _node, ...rest } = props as typeof props & { node?: unknown }
       return (
-        <code className={className} {...props}>
+        <code className={className} {...rest}>
           {children}
         </code>
       )

@@ -96,7 +96,9 @@ export function MessageBubble({ message, swarm, nameOf }: { message: ChatMessage
 
   if (isSystem && !message.content && !message.error) return null
 
-  const recipients = message.to.filter((r) => r !== 'user')
+  // Session files written by very old builds may lack `to` — a bare filter
+  // crashed the whole chat view (no error boundary around it).
+  const recipients = (message.to ?? []).filter((r) => r !== 'user')
 
   if (isSystem) {
     return (

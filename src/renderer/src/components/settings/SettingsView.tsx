@@ -224,12 +224,15 @@ function IntegrationsSection({ configs, statuses, onChange }: { configs: McpServ
             size="sm"
             variant="ghost"
             className="ml-auto"
-            onClick={() =>
-              onChange([
-                ...configs,
-                { name: `server-${configs.length + 1}`, command: '', args: [], enabled: false },
-              ])
-            }
+            onClick={() => {
+              // `configs.length + 1` collided after a delete (1,2,3 → delete
+              // 2 → add → "server-3" duplicated) and the status/test result
+              // lookups by name then misattributed between rows.
+              let n = configs.length + 1
+              const taken = new Set(configs.map((c) => c.name))
+              while (taken.has(`server-${n}`)) n++
+              onChange([...configs, { name: `server-${n}`, command: '', args: [], enabled: false }])
+            }}
           >
             <Plus size={12} /> {t('mcp_add')}
           </Button>
@@ -239,7 +242,7 @@ function IntegrationsSection({ configs, statuses, onChange }: { configs: McpServ
           {configs.map((config, index) => {
             const status = statuses.find((s) => s.name === config.name)
             return (
-              <div key={index} className="rounded-xl border border-line bg-panel/60 p-3 space-y-2">
+              <div key={config.name || `idx-${index}`} className="rounded-xl border border-line bg-panel/60 p-3 space-y-2">
                 <div className="flex items-center gap-2">
                   <Input value={config.name} onChange={(e) => update(index, { name: e.target.value })} className="!text-xs max-w-[180px]" placeholder="name" />
                   <Toggle checked={config.enabled} onChange={(v) => update(index, { enabled: v })} label={t('mcp_enabled')} />

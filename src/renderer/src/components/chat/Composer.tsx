@@ -295,8 +295,18 @@ export function Composer() {
             onBlur={() => setFocused(false)}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
+              // IME composition (Windows Vietnamese Telex, CJK…): the Enter
+              // that COMMITS the candidate must not send the message.
+              if (e.nativeEvent.isComposing) return
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
+                // Enter with the mention popup open picks the first
+                // suggestion instead of sending a raw "@Ri" that resolves
+                // to nobody.
+                if (suggestions.length > 0 && mentionStart !== null) {
+                  applyMention(suggestions[0]!.name)
+                  return
+                }
                 submit()
               }
             }}

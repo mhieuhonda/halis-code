@@ -314,6 +314,17 @@ export function ToastHost({ children }: { children: ReactNode }) {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4200)
   }, [])
 
+  // Bridge for non-React emitters (zustand stores): a refused settings save
+  // or a failed catalog load has no component scope to show anything in.
+  useEffect(() => {
+    const onToast = (e: Event) => {
+      const detail = (e as CustomEvent<{ message?: string; kind?: ToastKind }>).detail
+      if (detail?.message) push(detail.message, detail.kind ?? 'error')
+    }
+    window.addEventListener('halis:toast', onToast)
+    return () => window.removeEventListener('halis:toast', onToast)
+  }, [push])
+
   const api = useMemo(() => ({ push }), [push])
 
   const iconFor = (kind: ToastKind) =>
