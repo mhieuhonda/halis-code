@@ -46,6 +46,8 @@ interface ServerEntry {
   client: Client | null
   error?: string
   tools: McpToolInfo[]
+  /** Set by closeEntry: a reconnect retry must not resurrect a closed server. */
+  closed?: boolean
 }
 
 const REQUEST_TIMEOUT_DEFAULT = 30_000
@@ -78,7 +80,7 @@ export class McpManager {
    * both set their own; the loser's connect() finishes into an entry that is
    * no longer in the map, and its stdio child is never closed by closeAll.
    * Every caller gets the result of ITS OWN run (chained onto the tail). */
-  private syncTail: Promise<McpServerStatus[]> = Promise.resolve([])
+  private syncTail: Promise<unknown> = Promise.resolve([])
 
   syncConfigs(configs: McpServerConfig[]): Promise<McpServerStatus[]> {
     const run = this.syncTail.catch(() => {}).then(() => this.doSyncConfigs(configs))
@@ -111,11 +113,24 @@ export class McpManager {
     return this.statuses()
   }
 
-  /** Connect or reconnect one server by name. */
-  async connectServer(name: string): Promise<McpServerStatus | { error: string }> {
+  /** Connect or reconnect one server by name. Also chained onto syncTail:
+   *  a manual reconnect racing a settings sync used to close + connect the
+   *  OLD entry object while the sync replaced it — the fresh client ended up
+   *  on an entry that was no longer in the map and was never closed. */
+  connectServer(name: string): Promise<McpServerStatus | { error: string }> {
+    const run = this.syncTail.catch(() => {}).then(() => this.doConnectServer(name))
+    this.syncTail = run
+    return run
+  }
+
+  private async doConnectServer(name: string): Promise<McpServerStatus | { error: string }> {
     const entry = this.entries.get(name)
     if (!entry) return { error: `Unknown MCP server: ${name}` }
     await this.closeEntry(entry)
+    // closeEntry marks the entry closed (teardown flag) — a deliberate
+    // reconnect re-opens it, and the one quiet retry in connect() must stay
+    // available for flaky stdio startups.
+    entry.closed = false
     await this.connect(entry, 0)
     this.hooks?.onToolsChanged(this.allTools())
     return { name, enabled: entry.config.enabled, connected: !!entry.client, error: entry.error, toolCount: entry.tools.length }
@@ -163,10 +178,12 @@ export class McpManager {
       entry.client = null
       entry.error = err instanceof Error ? err.message : String(err)
       entry.tools = []
-      // One quiet reconnect for flaky stdio startups.
-      if (attempt < 1) {
+      // One quiet reconnect for flaky stdio startups — but never after the
+      // entry (or the whole manager) was closed: the retry timer used to
+      // wake up after closeAll (app quit) and respawn an orphan child.
+      if (attempt < 1 && !entry.closed && !this.closed) {
         await new Promise((resolve) => setTimeout(resolve, 1500))
-        await this.connect(entry, attempt + 1)
+        if (!entry.closed && !this.closed) await this.connect(entry, attempt + 1)
       }
     }
   }
@@ -213,11 +230,15 @@ export class McpManager {
   }
 
   async closeAll(): Promise<void> {
+    this.closed = true
     for (const entry of this.entries.values()) await this.closeEntry(entry)
     this.entries.clear()
   }
 
+  private closed = false
+
   private async closeEntry(entry: ServerEntry): Promise<void> {
+    entry.closed = true
     if (entry.client) {
       try {
         await entry.client.close()
@@ -250,7 +271,8 @@ function minimalEnv(): Record<string, string> {
   return out
 }
 
-/** Order-insensitive config equality (JSON.stringify is key-order-sensitive). */
+/** Order-insensitive config equality. Nested objects (env, headers) compare
+ *  deep and key-order-insensitive; arrays (args) stay order-sensitive. */
 function sameConfig(a: McpServerConfig, b: McpServerConfig): boolean {
   const keys = new Set([...Object.keys(a), ...Object.keys(b)])
   const ra = a as unknown as Record<string, unknown>
@@ -260,9 +282,24 @@ function sameConfig(a: McpServerConfig, b: McpServerConfig): boolean {
     const bv = rb[key]
     const an = av === undefined || av === '' ? null : av
     const bn = bv === undefined || bv === '' ? null : bv
-    if (JSON.stringify(an) !== JSON.stringify(bn)) return false
+    if (!deepEqual(an, bn)) return false
   }
   return true
+}
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false
+    return a.every((v, i) => deepEqual(v, b[i]))
+  }
+  if (a && b && typeof a === 'object' && typeof b === 'object') {
+    const ka = Object.keys(a as Record<string, unknown>)
+    const kb = Object.keys(b as Record<string, unknown>)
+    if (ka.length !== kb.length) return false
+    return ka.every((k) => deepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]))
+  }
+  return false
 }
 
 /** Quick reachability test used by Settings. */

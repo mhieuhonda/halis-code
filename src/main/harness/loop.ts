@@ -135,7 +135,10 @@ export class AgentRunner {
         const stepText = result.text || streamText
         if (stepText) text = text ? `${text}\n\n${stepText}` : stepText
         streamText = ''
-        reasoning = result.reasoning
+        // Accumulate like text does — overwriting kept only the LAST step's
+        // reasoning, so message-done shrank the reasoning the user had just
+        // watched stream in and the persisted turn lost earlier steps'.
+        if (result.reasoning) reasoning = reasoning ? `${reasoning}\n\n${result.reasoning}` : result.reasoning
         usage.inputTokens += result.usage?.inputTokens ?? 0
         usage.outputTokens += result.usage?.outputTokens ?? 0
 
@@ -223,7 +226,11 @@ export class AgentRunner {
     }
     const emitRun = (state: ToolRun['state'], patch: Partial<ToolRun> = {}) => {
       Object.assign(run, { state }, patch)
-      emit({ type: 'tool-update', sessionId: req.sessionId, messageId: req.messageId, run: { ...run } })
+      // Strip the internal `_data` carrier (read_image base64, megabytes)
+      // from the event copy: it only belongs in the LLM transcript payload,
+      // never on the wire to the renderer or in the message parts store.
+      const { _data: _omit, ...clean } = run as ToolRun & { _data?: unknown }
+      emit({ type: 'tool-update', sessionId: req.sessionId, messageId: req.messageId, run: clean })
     }
     emit({ type: 'tool-start', sessionId: req.sessionId, messageId: req.messageId, run: { ...run } })
 

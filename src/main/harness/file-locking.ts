@@ -49,6 +49,15 @@ export class FileLockManager {
         `File is locked by ${other.holderName} (hard lock since ${new Date(other.acquiredAt).toLocaleTimeString()}). Wait for them to finish or coordinate through the planner.`,
       )
     }
+    // Advisory must still YIELD to an existing hard lock: "hard = exclusive"
+    // is the whole contract, and an advisory write through a hard-locked file
+    // (a log file being patched by another agent) lost updates silently.
+    if (mode === 'advisory' && others.some((o) => o.mode === 'hard')) {
+      const other = others.find((o) => o.mode === 'hard')!
+      throw new Error(
+        `File is locked by ${other.holderName} (hard lock since ${new Date(other.acquiredAt).toLocaleTimeString()}). Wait for them to finish or coordinate through the planner.`,
+      )
+    }
     if (mode === 'advisory' && others.length) {
       const names = others.map((o) => o.holderName).join(', ')
       holders.set(agentId, { path, holderAgentId: agentId, holderName: agentName, mode, acquiredAt: Date.now() })
@@ -98,7 +107,10 @@ export class FileLockManager {
 }
 
 export function isLogLikePath(path: string): boolean {
-  return /\.(log|txt\.log|out|err)$/i.test(path) || /logs?\//i.test(path)
+  // The segment must START with `log(s)` — the old bare `logs?\//` test
+  // matched anywhere ("catalogs/…", "backlogs/x.md") and silently demoted
+  // regular files to advisory locking.
+  return /\.(log|txt\.log|out|err)$/i.test(path) || /(^|[\\/])logs?[\\/]/i.test(path)
 }
 
 /** Files whose corruption would break the harness itself: always hard-locked. */

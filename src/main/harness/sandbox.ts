@@ -4,7 +4,7 @@
  * are screened against an obvious-danger blocklist.
  */
 import { dirname, isAbsolute, normalize, resolve, sep } from 'node:path'
-import { existsSync, realpathSync } from 'node:fs'
+import { existsSync, lstatSync, realpathSync } from 'node:fs'
 
 export class SandboxError extends Error {
   constructor(message: string) {
@@ -17,7 +17,9 @@ const BLOCKED_PATTERNS: Array<{ pattern: RegExp; why: string }> = [
   // `/*` globs every top-level entry — same blast radius as `rm -rf /` itself.
   { pattern: /\brm\s+(-[a-z]*\s+)*-?[rf]{0,2}\s*(--no-preserve-root\s+)?\/(\*|\s|$)/i, why: 'recursive delete targeting the filesystem root' },
   // $HOME is just as destructive as ~ and does not match the sigil form.
-  { pattern: /\brm\s+-[rf]+\s+(~|\$\{?HOME\}?)(\s|\/|$)/, why: 'recursive delete targeting the home directory' },
+  // The flag run may be split ("rm -r -f ~"), so allow repeated single-flag
+  // groups before -[rf] — same shape the root pattern above handles.
+  { pattern: /\brm\s+(-[a-z]+\s+)*-[rf]+\s+(~|\$\{?HOME\}?)(\s|\/|$)/, why: 'recursive delete targeting the home directory' },
   { pattern: /\bmkfs\b/i, why: 'filesystem formatting' },
   { pattern: /\bdd\b[^|]*\bof=\/dev\//i, why: 'raw device writes' },
   { pattern: /\bsudo\b/i, why: 'privilege escalation' },
@@ -77,9 +79,23 @@ export function createSandbox(workspace: string): Sandbox {
     // exists and jail-check its real path. Checking only the full path would
     // miss `symlink-outside/newfile` where the leaf does not exist yet — the
     // write would land outside the workspace through the symlinked parent.
+    // Existence must be probed with lstat (NOT existsSync, which follows
+    // symlinks): a DANGLING symlink reports "not exists" under existsSync,
+    // so the probe walked past it, the realpath check passed on the parent,
+    // and the write went through the dangling link to whatever target a
+    // later command creates outside the workspace. With lstat the walk stops
+    // ON the link itself and realpathSync below fails closed (ENOENT).
+    const lstatExists = (p: string): boolean => {
+      try {
+        lstatSync(p)
+        return true
+      } catch {
+        return false
+      }
+    }
     let probe = normalized
-    while ((probe.startsWith(root + sep) || probe.startsWith(realRoot + sep)) && !existsSync(probe)) probe = dirname(probe)
-    if (existsSync(probe)) {
+    while ((probe.startsWith(root + sep) || probe.startsWith(realRoot + sep)) && !lstatExists(probe)) probe = dirname(probe)
+    if (lstatExists(probe)) {
       let real: string
       try {
         real = realpathSync(probe)
@@ -124,12 +140,15 @@ export function createSandbox(workspace: string): Sandbox {
       const r = resolve(p)
       return r === root || r.startsWith(root + sep) || r === realRoot || r.startsWith(realRoot + sep)
     }
-    for (const m of cmd.matchAll(/\bcd\s+("(?:[^"\\]|\\.)*"|'[^']*'|[^\s;|&]+)/g)) {
+    for (const m of cmd.matchAll(/\bcd\s+("(?:[^"\\]|\\.)*"|'[^']*'|[^\s;|&`]+)/g)) {
       let target = m[1] ?? ''
-      if (target.length >= 2 && (target.startsWith('"') || target.startsWith("'")) && target.endsWith(target[0])) {
+      if (target.length >= 2 && (target.startsWith('"') || target.startsWith("'")) && target.endsWith(target.charAt(0))) {
         target = target.slice(1, -1)
       }
-      if (target.startsWith('-') || target.includes('~') || target.includes('$')) {
+      // Fail closed on anything that is not a plain path: `-` flags, `~`,
+      // `$VAR`, and backticks (`` cd `echo /etc` `` — command substitution
+      // resolves AFTER this screen passed the lexical jail).
+      if (target.startsWith('-') || target.includes('~') || target.includes('$') || target.includes('`')) {
         throw new SandboxError('Commands must stay inside the workspace directory.')
       }
       if (!insideRoot(isAbsolute(target) ? target : resolve(root, target))) {
@@ -138,10 +157,16 @@ export function createSandbox(workspace: string): Sandbox {
     }
     // Bare `cd` (no target) jumps to $HOME — catch it at command position so
     // arguments that merely look like `cd` (e.g. `mkdir cd`) stay allowed.
+    // pushd/popd re-anchor the same way and were not screened at all
+    // (`pushd /etc` escaped the jail entirely).
     for (const seg of cmd.split(/&&|\|\||[;|&\n]/)) {
       const tokens = seg.trim().split(/\s+/)
-      if (tokens.length === 1 && tokens[0]?.replace(/^["']|["']$/g, '') === 'cd') {
+      const first = tokens[0]?.replace(/^["']|["']$/g, '')
+      if (tokens.length === 1 && first === 'cd') {
         throw new SandboxError('Commands must stay inside the workspace directory.')
+      }
+      if (first === 'pushd' || first === 'popd') {
+        throw new SandboxError('Commands must stay inside the workspace directory (pushd/popd are not allowed).')
       }
     }
   }

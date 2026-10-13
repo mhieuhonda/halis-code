@@ -20,6 +20,11 @@ const MAX_SAMPLE_FILES = 10
 
 export function discoverSkills(workspace: string): SkillInfo[] {
   const skills: SkillInfo[] = []
+  // Same folder name in two skill dirs (e.g. .halis/skills/foo and
+  // .claude/skills/foo) produced two entries with id "foo" — consumers
+  // looked up by id and silently loaded the wrong one. First dir wins
+  // (the SKILL_DIRS order is the intended priority).
+  const seen = new Set<string>()
   for (const base of SKILL_DIRS) {
     const root = join(workspace, base)
     if (!existsSync(root)) continue
@@ -30,9 +35,11 @@ export function discoverSkills(workspace: string): SkillInfo[] {
       continue
     }
     for (const folder of entries) {
+      if (seen.has(folder)) continue
       const dir = join(root, folder)
       const skillFile = join(dir, 'SKILL.md')
       if (!existsSync(skillFile)) continue
+      seen.add(folder)
       const info = readSkill(skillFile)
       const files: string[] = []
       try {

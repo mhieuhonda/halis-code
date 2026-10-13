@@ -130,17 +130,23 @@ export class JobRegistry {
     }
     this.jobs.set(id, entry)
 
-    void input
-      .run({
-        setOutput: (chunk: string) => {
-          if (entry.info.status !== 'running') return
-          entry.chunks.push(chunk)
-          entry.bytes += Buffer.byteLength(chunk, 'utf8')
-          entry.info.outputBytes = entry.bytes
-          if (entry.bytes > RETAIN_LIVE_BYTES) this.trimTo(entry, RETAIN_LIVE_BYTES)
-        },
-        settle: settleFn,
-      })
+    // Promise.resolve().then converts a SYNCHRONOUS throw from `run` into a
+    // rejected promise: the old bare call left the entry stuck at 'running'
+    // forever when run threw before returning, and ten of those permanently
+    // blocked the owner from starting any new job.
+    Promise.resolve()
+      .then(() =>
+        input.run({
+          setOutput: (chunk: string) => {
+            if (entry.info.status !== 'running') return
+            entry.chunks.push(chunk)
+            entry.bytes += Buffer.byteLength(chunk, 'utf8')
+            entry.info.outputBytes = entry.bytes
+            if (entry.bytes > RETAIN_LIVE_BYTES) this.trimTo(entry, RETAIN_LIVE_BYTES)
+          },
+          settle: settleFn,
+        }),
+      )
       .catch((err) => {
         try {
           entry.chunks.push(`\n[job error: ${err instanceof Error ? err.message : String(err)}]\n`)

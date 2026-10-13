@@ -27,7 +27,10 @@ export class TaskBoard {
   private load(): void {
     try {
       if (existsSync(this.boardFile)) {
-        this.tasks = JSON.parse(readFileSync(this.boardFile, 'utf8')) as BoardTask[]
+        const parsed: unknown = JSON.parse(readFileSync(this.boardFile, 'utf8'))
+        // Wrong-shape JSON (hand-edited) must degrade to an empty board, not
+        // brick every task-board tool call for the rest of the run.
+        this.tasks = Array.isArray(parsed) ? (parsed as BoardTask[]) : []
       }
     } catch (err) {
       console.warn('[halis] task board load failed:', err)

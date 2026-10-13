@@ -176,7 +176,13 @@ export class ScheduleStore {
 
   private load(): void {
     try {
-      if (existsSync(this.file())) this.schedules = JSON.parse(readFileSync(this.file(), 'utf8')) as Schedule[]
+      if (existsSync(this.file())) {
+        const parsed: unknown = JSON.parse(readFileSync(this.file(), 'utf8'))
+        // A hand-edited or foreign file with valid JSON of the wrong shape
+        // (object instead of array) used to poison the store — tick() threw
+        // every 15 s and create/all were dead until the file was fixed.
+        this.schedules = Array.isArray(parsed) ? (parsed as Schedule[]) : []
+      }
     } catch (err) {
       console.warn('[halis] schedule load failed:', err)
       this.schedules = []
