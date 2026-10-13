@@ -129,6 +129,15 @@ export class ModelCatalog {
       if (ollamaModels.length) {
         models = [...models.filter((m) => m.providerId !== 'ollama' || !m.tags?.includes('suggested')), ...ollamaModels]
         if (source === 'models.dev') source = 'merged'
+      } else {
+        // Daemon unreachable: carry over previously DETECTED ollama models so
+        // a session mid-way through `ollama/x` does not explode with
+        // `Unknown model` the moment the daemon takes a nap (the refresh
+        // used to rebuild from the bundled base, which has none of them).
+        const prevDetected = this.snapshot.models.filter((m) => m.providerId === 'ollama' && m.tags?.includes('detected'))
+        if (prevDetected.length) {
+          models = [...models.filter((m) => m.providerId !== 'ollama' || !m.tags?.includes('suggested')), ...prevDetected]
+        }
       }
 
       this.snapshot = { providers, models, updatedAt: Date.now(), source }

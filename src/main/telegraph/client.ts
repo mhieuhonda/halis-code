@@ -29,6 +29,18 @@ export interface AskOptions {
   onQuote?: (quote: { amountUsd: number; payTo: string; network: string }) => void | Promise<void>
 }
 
+/** Default hard ceiling for a Telegraph request: the node accepting the TCP
+ *  connection and then never answering used to park the IPC promise (and the
+ *  renderer spinner) forever — undici's own headers timeout is 5 minutes and
+ *  a slow-drip body has NO timeout at all. */
+const REQUEST_TIMEOUT_MS = 90_000
+
+/** Combine the caller's signal with a hard timeout. */
+function withTimeout(signal?: AbortSignal, timeoutMs = REQUEST_TIMEOUT_MS): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs)
+  return signal ? AbortSignal.any([signal, timeout]) : timeout
+}
+
 /** Decode a 402 challenge into a human-usable quote. */
 export async function quoteAsk(opts: { network: TelegraphNetworkConfig; minerId?: string; query: string; method?: string; endpoint?: string; payload?: unknown; signal?: AbortSignal }): Promise<{ amountUsd: number; payTo: string; network: string }> {
   const paths = enginePaths(opts.network.nodeUrl)
@@ -40,7 +52,7 @@ export async function quoteAsk(opts: { network: TelegraphNetworkConfig; minerId?
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body,
-    signal: opts.signal,
+    signal: withTimeout(opts.signal),
   })
   const header = res.headers.get('payment-required') ?? res.headers.get('PAYMENT-REQUIRED')
   if (res.status === 402 && header) {
@@ -87,6 +99,40 @@ export class TelegraphError extends Error {
     super(message)
     this.name = 'TelegraphError'
   }
+}
+
+/** Read a response body with a hard byte cap. */
+async function boundedText(res: Response, cap = 10 * 1024 * 1024): Promise<string> {
+  if (!res.body) return ''
+  const reader = res.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      total += value.byteLength
+      if (total > cap) {
+        try {
+          await reader.cancel()
+        } catch {
+          /* ignore */
+        }
+        throw new TelegraphError(`Response body exceeded ${(cap / 1048576).toFixed(0)} MB — aborted.`, 'network')
+      }
+      chunks.push(value)
+    }
+  } finally {
+    try {
+      await reader.cancel()
+    } catch {
+      /* already closed */
+    }
+  }
+  const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)))
+  let end = buf.length
+  while (end > 0 && ((buf[end] ?? 0) & 0xc0) === 0x80) end--
+  return buf.subarray(0, end).toString('utf8')
 }
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
@@ -192,14 +238,16 @@ export async function askTelegraph(opts: AskOptions): Promise<TelegraphAskResult
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body,
-      signal: opts.signal,
+      signal: withTimeout(opts.signal),
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     throw new TelegraphError(`x402 payment or network failure: ${message}`, 'payment')
   }
 
-  const text = await res.text()
+  // Bounded read — same class of fix as web_fetch: an engine error page with
+  // a huge body used to buffer without any cap in the main process.
+  const text = await boundedText(res)
   let json: EngineAskResponse = {}
   try {
     json = JSON.parse(text) as EngineAskResponse

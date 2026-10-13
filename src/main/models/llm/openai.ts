@@ -131,7 +131,16 @@ export class OpenAiCompatProvider implements LlmProvider {
       }))
     }
     if (request.temperature !== undefined) body.temperature = request.temperature
-    if (request.maxTokens) body.max_tokens = request.maxTokens
+    if (request.maxTokens) {
+      // The official OpenAI API requires `max_completion_tokens` (and rejects
+      // `max_tokens` with unsupported_parameter on every o-series/gpt-5
+      // reasoning model — the bundled catalog ships 40 of them, so even the
+      // one-token Test call failed with "wrong key" confusion). Other
+      // OpenAI-COMPAT gateways (ollama, openrouter, deepseek…) still speak
+      // `max_tokens` and may not know the new name, so keep it there.
+      if (/api\.openai\.com/.test(this.baseURL)) body.max_completion_tokens = request.maxTokens
+      else body.max_tokens = request.maxTokens
+    }
     return JSON.stringify(body)
   }
 
@@ -268,7 +277,10 @@ export class OpenAiCompatProvider implements LlmProvider {
     // Partial content with NO terminal marker = the connection died
     // mid-generation. Throw (status undefined → retryable) so withRetry can
     // re-request instead of persisting a silently truncated answer.
-    if (!sawTerminal && (result.text || result.toolCalls.length)) {
+    // Reasoning-only streams count too: a connection that died after
+    // reasoning deltas but before any text/tool call used to slip through
+    // as a successful, EMPTY turn.
+    if (!sawTerminal && (result.text || result.reasoning || result.toolCalls.length)) {
       throw new LlmError(`${this.providerName} stream ended without a completion marker — the answer may be truncated`, undefined, this.providerName)
     }
     return result

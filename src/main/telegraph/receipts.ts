@@ -33,7 +33,14 @@ export class ReceiptLedger {
     const startOfDay = new Date()
     startOfDay.setHours(0, 0, 0, 0)
     return this.all()
-      .filter((r) => r.timestamp * 1000 >= startOfDay.getTime())
+      .filter((r) => {
+        // Header timestamps are epoch-seconds, but a node emitting ms
+        // (1.7e12) used to be multiplied again into year ~56k — the receipt
+        // then matched "today" FOREVER and the daily budget locked up
+        // permanently with no way to clear it.
+        const ms = r.timestamp > 1e12 ? r.timestamp : r.timestamp * 1000
+        return ms >= startOfDay.getTime()
+      })
       .reduce((sum, r) => sum + (r.amountUsd || 0), 0)
   }
 

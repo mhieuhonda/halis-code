@@ -45,14 +45,20 @@ export function extractReceipt(res: Response): import('@shared/types').Telegraph
   if (!header) return undefined
   try {
     const decoded = JSON.parse(Buffer.from(header, 'base64').toString('utf8')) as Record<string, unknown>
+    // uusdc base units fit well inside Number.MAX_SAFE_INTEGER for any
+    // realistic spend; BigInt() threw on a decimal amount ("1500.5") and the
+    // outer catch dropped the WHOLE receipt — money settled on-chain but the
+    // local ledger undercounted it forever.
+    const rawAmount = decoded.amount_uusdc
+    const amountNum = typeof rawAmount === 'number' ? rawAmount : Number(String(rawAmount ?? 0))
     return {
       receiptHash: String(decoded.receipt_hash ?? ''),
       rail: String(decoded.rail ?? 'x402'),
       payer: String(decoded.payer ?? ''),
       miner: String(decoded.miner ?? ''),
       intent: String(decoded.intent ?? ''),
-      amountUsd: Number(BigInt(String(decoded.amount_uusdc ?? 0))) / 1e6,
-      amountUusdc: String(decoded.amount_uusdc ?? '0'),
+      amountUsd: Number.isFinite(amountNum) ? amountNum / 1e6 : 0,
+      amountUusdc: String(rawAmount ?? '0'),
       epochId: Number(decoded.epoch_id ?? 0),
       settlement: String(decoded.settlement ?? 'onchain'),
       chain: String(decoded.chain ?? ''),

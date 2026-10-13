@@ -16,6 +16,13 @@ export interface ProviderResolution {
 
 export type KeyLookup = (providerId: string) => string | undefined
 
+/** Strip stray double quotes/whitespace from ids saved by older builds —
+ *  the same tolerance catalog.getModel applies; the dispatcher used to be
+ *  the one lookup that still rejected them. */
+function cleanModelToken(token: string): string {
+  return token.replace(/"/g, '').trim()
+}
+
 export class LlmDispatcher {
   constructor(
     private readonly getCatalog: () => CatalogSnapshot,
@@ -30,7 +37,11 @@ export class LlmDispatcher {
    */
   resolve(modelId: string, keyOverride?: string): ProviderResolution {
     const { providers, models } = this.getCatalog()
-    const model = models.find((m) => m.id === modelId)
+    // Tolerate quoted/whitespace-polluted ids from older saved configs —
+    // exact matching here defeated the "older saved configs" cleanup that
+    // getModel already does, so such sessions died with `Unknown model` at
+    // the first LLM call.
+    const model = models.find((m) => m.id === cleanModelToken(modelId))
     if (!model) throw new LlmError(`Unknown model: ${modelId}. Only models shipped with the app can be used.`, undefined, 'catalog')
     const providerInfo = providers.find((p) => p.id === model.providerId)
     if (!providerInfo) throw new LlmError(`Unknown provider: ${model.providerId}`, undefined, 'catalog')

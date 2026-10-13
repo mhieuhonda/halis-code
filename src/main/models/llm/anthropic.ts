@@ -227,7 +227,9 @@ export class AnthropicProvider implements LlmProvider {
     // Partial content with NO terminal marker = the connection died
     // mid-generation. Throw (status undefined → retryable) so withRetry can
     // re-request instead of persisting a silently truncated answer.
-    if (!sawTerminal && (result.text || result.toolCalls.length)) {
+    // Reasoning-only streams count: a stream killed after thinking deltas
+    // but before text/tool output used to pass as a successful empty turn.
+    if (!sawTerminal && (result.text || result.reasoning || result.toolCalls.length)) {
       throw new LlmError(`${this.providerName} stream ended without a completion marker — the answer may be truncated`, undefined, this.providerName)
     }
     return result
