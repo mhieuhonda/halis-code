@@ -1,7 +1,9 @@
-/** Swarm Setup — build the team: name, avatar upload, role, model, key, permissions, prompt. */
+/** Swarm Setup — build the team: name, avatar upload, role, model, key, permissions, prompt.
+ *  Stock formations are suggested up top so the team can start from a sensible lineup. */
 import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Check, ChevronDown, ImagePlus, KeyRound, Plus, RefreshCw, Trash2, Wand2 } from 'lucide-react'
 import type { AgentConfig } from '@shared/types'
+import { SWARM_FORMATIONS } from '@shared/formations'
 import { useT } from '../../i18n'
 import { useAppStore } from '../../stores/app'
 import { useSwarmStore } from '../../stores/swarm'
@@ -346,6 +348,7 @@ export function SwarmSetupView() {
   const swarm = useSwarmStore()
   const keyStatus = useAppStore((s) => s.keyStatus)
   const loadKeyStatus = useAppStore((s) => s.loadKeyStatus)
+  const language = useAppStore((s) => s.settings?.language ?? 'en')
   const [errors, setErrors] = useState<string[]>([])
   const [saved, setSaved] = useState(false)
   const [warnings, setWarnings] = useState<string[]>([])
@@ -384,6 +387,57 @@ export function SwarmSetupView() {
         <SectionTitle hint={`${swarm.config.agents.length}/20`}>{t('swarm_setup_title')}</SectionTitle>
         <p className="text-[13px] text-muted mb-5 -mt-1">{t('swarm_setup_subtitle')}</p>
 
+        {/* suggested formations — two stock lineups, one click to fill the team */}
+        <div className="mb-5">
+          <div className="text-[11px] text-faint mb-2">{t('formation_title')}</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {SWARM_FORMATIONS.map((f) => {
+              const name = language === 'vi' ? f.nameVi : f.name
+              const desc = language === 'vi' ? f.descriptionVi : f.description
+              const active =
+                swarm.config.agents.length === f.slots.length &&
+                f.slots.every((slot, i) => swarm.config.agents[i]?.roleId === slot.roleId && swarm.config.agents[i]?.enabled)
+              return (
+                <div
+                  key={f.id}
+                  className={`rounded-2xl border p-3.5 flex flex-col gap-2 transition-colors ${
+                    active ? 'border-cyan/50 bg-cyan/5' : 'border-line bg-panel2 hover:border-faint/40'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[17px] leading-none">{f.emoji}</span>
+                    <span className="text-[13.5px] font-semibold">{name}</span>
+                    {active ? <Badge color="#22D3EE">✓</Badge> : null}
+                  </div>
+                  <p className="text-[12px] text-muted leading-relaxed">{desc}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {f.slots.map((slot, i) => {
+                      const role = swarm.roles.find((r) => r.id === slot.roleId)
+                      return (
+                        <span key={`${f.id}-${i}`} className="inline-flex items-center gap-1 rounded-full border border-line bg-panel/60 px-2 py-0.5 text-[10.5px] text-faint">
+                          {role?.emoji} {language === 'vi' ? role?.nameVi : role?.name ?? slot.roleId} · {slot.name}
+                        </span>
+                      )
+                    })}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant={active ? 'ghost' : 'outline'}
+                    className="self-start"
+                    onClick={() => swarm.applyFormation(
+                      f.slots.map((s) => s.roleId),
+                      f.slots.map((s) => s.name),
+                    )}
+                  >
+                    <Wand2 size={12} /> {t('formation_apply')}
+                  </Button>
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-[11px] text-faint mt-1.5">{t('formation_note')}</p>
+        </div>
+
         {errors.length ? (
           <div className="rounded-xl border border-red/40 bg-red/5 p-3.5 mb-4">
             <div className="text-[12.5px] font-semibold text-red mb-1">{t('validation_errors')}</div>
@@ -414,11 +468,11 @@ export function SwarmSetupView() {
               <Button variant="default" onClick={() => swarm.addAgent()}>
                 <Plus size={14} /> {t('add_agent')}
               </Button>
-              <Button variant="ghost" onClick={() => swarm.addAgent('planner')}>
-                <Plus size={13} /> Planner
+              <Button variant="ghost" onClick={() => swarm.addAgent('chief-of-staff')}>
+                <Plus size={13} /> Chief of Staff
               </Button>
-              <Button variant="ghost" onClick={() => swarm.addAgent('reviewer')}>
-                <Plus size={13} /> Reviewer
+              <Button variant="ghost" onClick={() => swarm.addAgent('feature-builder')}>
+                <Plus size={13} /> Feature Builder
               </Button>
             </>
           ) : (
@@ -441,7 +495,7 @@ export function SwarmSetupView() {
           <Toggle
             checked={swarm.config.plannerCoordination}
             onChange={(v) => useSwarmStore.setState({ config: { ...swarm.config, plannerCoordination: v } })}
-            label={t('planner_hint')}
+            label={t('chief_hint')}
           />
           <div className="ml-auto flex items-center gap-3">
             {missingKeys > 0 ? <span className="text-[12px] text-amber">{missingKeys} {t('missing_keys')}</span> : null}

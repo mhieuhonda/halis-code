@@ -117,10 +117,10 @@ export function ChatView({ mode }: { mode: 'agent' | 'swarm' }) {
         </div>
       </div>
 
-      {/* swarm planner banner */}
+      {/* chief-of-staff coordination banner */}
       {mode === 'swarm' && swarm.config.plannerCoordination ? (
         <div className="flex-none px-6 py-1.5 border-b-[0.5px] border-[color:var(--dsw-alias-border-l1)] bg-[color-mix(in_srgb,var(--dsw-alias-state-business-primary)_4%,transparent)] text-[11px] text-[color:var(--dsw-alias-label-secondary)]">
-          {t('planner_banner')}
+          {t('chief_banner')}
         </div>
       ) : null}
 

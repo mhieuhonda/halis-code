@@ -100,7 +100,7 @@ describe('buildAgentContext', () => {
     const sections = ctx.systemSections.join('\n')
     expect(sections).toContain('Ship the app')
     expect(sections).toContain('@Rin')
-    expect(sections).toContain('PLANNER')
+    expect(sections).toContain('CHIEF OF STAFF')
   })
 
   it('respects the character budget', () => {

@@ -27,6 +27,7 @@ import type { JobRegistry } from '../harness/jobs'
 import type { ScheduleStore } from '../harness/schedules'
 import type { McpManager } from '../harness/mcp'
 import { buildSystemPrompt } from './prompts'
+import { normalizeRoleId } from './roles'
 import { ponytailSection } from '../harness/ponytail'
 import { parseAgentReply, routeNext } from './router'
 import { raceWithAbort } from '../harness/util/abort-race'
@@ -151,7 +152,7 @@ export class SwarmOrchestrator {
     const { session, config, signal } = params
     const agents = config.agents.filter((a) => a.enabled)
     if (!agents.length) throw new Error('No enabled agents in the swarm. Configure the team first.')
-    const planner = agents.find((a) => a.roleId === 'planner')
+    const planner = agents.find((a) => normalizeRoleId(a.roleId) === 'chief-of-staff')
     const speakBudget = new Map<string, number>(agents.map((a) => [a.id, 2]))
     const produced: ChatMessage[] = []
     const outboxAll: ChatMessage[] = []
@@ -285,7 +286,7 @@ export class SwarmOrchestrator {
     this.deps.emit({ type: 'message-start', sessionId: session.id, message })
     this.deps.persistSession(session)
 
-    const planner = allAgents.find((a) => a.roleId === 'planner')
+    const planner = allAgents.find((a) => normalizeRoleId(a.roleId) === 'chief-of-staff')
     const context = buildAgentContext({
       agent,
       agents: allAgents,

@@ -122,12 +122,17 @@ export const en = {
   dup_key_body: 'This key is already used by {agent} on another model. Sharing a key multiplies rate-limit risk — both agents stall when the provider throttles. Use it anyway?',
   use_anyway: 'Use anyway',
   generate_prompt: 'Regenerate from role',
-  planner_hint: 'The Planner coordinates the team when you do not @mention anyone.',
+  chief_hint: 'The Chief of Staff coordinates the team when you do not @mention anyone.',
   rounds_label: 'Max rounds per turn',
   missing_keys: 'agents need keys',
 
+  /* swarm formations */
+  formation_title: 'Suggested formations',
+  formation_apply: 'Use this lineup',
+  formation_note: 'Applying a formation replaces the team below — nothing is saved until you press Save team.',
+
   /* swarm chat */
-  planner_banner: 'Planner coordination active — no @mention means the Planner distributes work.',
+  chief_banner: 'Chief of Staff coordination active — no @mention means the Chief of Staff distributes work.',
   round_label: 'Round',
   typing: 'typing…',
   agent_replied_to: 'to',

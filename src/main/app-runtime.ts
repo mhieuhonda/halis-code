@@ -43,7 +43,7 @@ import { setToolOutputSpillDir } from './harness/util/truncate'
 import { SwarmOrchestrator } from './swarm/orchestrator'
 import { buildSingleAgentPrompt } from './swarm/prompts'
 import { extractMentions, resolveMentions } from './swarm/router'
-import { SWARM_ROLES } from './swarm/roles'
+import { SWARM_ROLES, normalizeRoleId } from './swarm/roles'
 import { readJson, writeJson } from './util/json'
 import { newId } from './util/id'
 import { raceWithAbort } from './harness/util/abort-race'
@@ -836,6 +836,9 @@ export class HalisApp {
           // (a generator bug). Clean them so catalog lookups match again.
           modelId: a.modelId?.replace(/"/g, '').trim() ?? a.modelId,
           apiKey: a.apiKey?.trim() || undefined,
+          // Older builds also saved the retired role ids (planner, coder,
+          // reviewer, …) — migrate them so role lookups keep working.
+          roleId: normalizeRoleId(a.roleId),
         })),
       }
     }

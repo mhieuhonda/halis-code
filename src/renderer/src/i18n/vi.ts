@@ -124,12 +124,17 @@ export const vi: Dict = {
   dup_key_body: 'Key này đã được "{agent}" dùng cho model khác. Dùng chung key làm tăng rủi ro rate limit — cả hai agent cùng bị treo khi nhà cung cấp giới hạn. Vẫn dùng chứ?',
   use_anyway: 'Vẫn dùng',
   generate_prompt: 'Sinh lại theo vai trò',
-  planner_hint: 'Planner điều phối đội khi bạn không @mention ai.',
+  chief_hint: 'Tham mưu trưởng điều phối đội khi bạn không @mention ai.',
   rounds_label: 'Số vòng tối đa mỗi lượt',
   missing_keys: 'agent cần key',
 
+  /* swarm formations */
+  formation_title: 'Đội hình gợi ý',
+  formation_apply: 'Dùng đội hình này',
+  formation_note: 'Áp dụng đội hình sẽ thay thế đội bên dưới — chưa lưu gì cho đến khi bạn bấm Lưu đội hình.',
+
   /* swarm chat */
-  planner_banner: 'Planner đang điều phối — không @mention ai thì Planner sẽ phân công việc.',
+  chief_banner: 'Tham mưu trưởng đang điều phối — không @mention ai thì Tham mưu trưởng sẽ phân công việc.',
   round_label: 'Vòng',
   typing: 'đang nhập…',
   agent_replied_to: 'đến',

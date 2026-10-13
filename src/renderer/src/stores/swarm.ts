@@ -13,6 +13,8 @@ interface SwarmState {
   updateAgent: (id: string, patch: Partial<AgentConfig>) => void
   addAgent: (role?: string) => void
   removeAgent: (id: string) => void
+  /** Replace the whole agent list with a stock formation's slots. */
+  applyFormation: (slotRoleIds: string[], slotNames: string[]) => void
   setMaxRounds: (n: number) => void
   save: () => Promise<{ ok: boolean; error?: string; warnings: string[] }>
   /** Regenerate an agent's system prompt from its role. */
@@ -20,25 +22,18 @@ interface SwarmState {
 }
 
 const FALLBACK_ROLE: AgentRole = {
-  id: 'coder',
-  name: 'Coder',
-  nameVi: 'Lập trình',
-  emoji: '💻',
+  id: 'feature-builder',
+  name: 'Feature Builder',
+  nameVi: 'Người xây tính năng',
+  emoji: '⌨️',
   priority: 3,
   defaultPermissions: {},
-  prompt: 'You are a member of a coding swarm. Follow the objective, coordinate through the planner, address teammates with @Name, and use the task board for shared work.',
-  promptVi: 'Bạn là thành viên của một swarm lập trình. Bám sát mục tiêu, phối hợp qua planner, gọi teammate bằng @Tên, và dùng task board cho công việc chung.',
+  prompt: 'You are a member of a coding swarm. Follow the objective, coordinate through the chief of staff, address teammates with @Name, and use the task board for shared work.',
+  promptVi: 'Bạn là thành viên của một swarm lập trình. Bám sát mục tiêu, phối hợp qua tham mưu trưởng, gọi teammate bằng @Tên, và dùng task board cho công việc chung.',
 }
 
-function blankAgent(roles: AgentRole[], existing: AgentConfig[], index: number): AgentConfig {
-  const role = roles.find((r) => r.id === 'coder') ?? roles[0] ?? FALLBACK_ROLE
+function agentFromRole(role: AgentRole, name: string, index: number): AgentConfig {
   const colors = ['#7C6CFF', '#4ADE80', '#38BDF8', '#F472B6', '#FBBF24', '#2DD4BF', '#F97316', '#A78BFA']
-  let name = `Agent${index + 1}`
-  let n = index + 1
-  while (existing.some((a) => a.name.toLowerCase() === name.toLowerCase())) {
-    n += 1
-    name = `Agent${n}`
-  }
   return {
     id: `ag_${Math.random().toString(36).slice(2, 10)}`,
     name,
@@ -58,6 +53,17 @@ function blankAgent(roles: AgentRole[], existing: AgentConfig[], index: number):
     systemPrompt: role.prompt,
     enabled: true,
   }
+}
+
+function blankAgent(roles: AgentRole[], existing: AgentConfig[], index: number): AgentConfig {
+  const role = roles.find((r) => r.id === 'feature-builder') ?? roles[0] ?? FALLBACK_ROLE
+  let name = `Agent${index + 1}`
+  let n = index + 1
+  while (existing.some((a) => a.name.toLowerCase() === name.toLowerCase())) {
+    n += 1
+    name = `Agent${n}`
+  }
+  return agentFromRole(role, name, index)
 }
 
 export const useSwarmStore = create<SwarmState>((set, get) => ({
@@ -121,6 +127,15 @@ export const useSwarmStore = create<SwarmState>((set, get) => ({
 
   removeAgent: (id) => {
     set((state) => ({ config: { ...state.config, agents: state.config.agents.filter((a) => a.id !== id) } }))
+  },
+
+  applyFormation: (slotRoleIds, slotNames) => {
+    const { roles } = get()
+    const agents = slotRoleIds.map((roleId, i) => {
+      const role = roles.find((r) => r.id === roleId) ?? roles[0] ?? FALLBACK_ROLE
+      return agentFromRole(role, slotNames[i] ?? `Agent${i + 1}`, i)
+    })
+    set({ config: { ...get().config, agents } })
   },
 
   setMaxRounds: (n) => {

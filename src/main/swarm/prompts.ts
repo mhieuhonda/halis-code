@@ -60,10 +60,10 @@ function swarmProtocol(agents: AgentConfig[], lang: AppLanguage): string {
 You are one agent in a team. Cross-talk is forbidden.
 
 1. ADDRESSING: Every message you send MUST name its recipients with @Name (e.g. "@Rin please review src/auth.ts"). The harness routes your message to exactly those agents — nobody else sees it as a direct prompt.
-2. NO BROADCAST: never write to "everyone". If several agents need to act, send each a specific message or tell the planner.
+2. NO BROADCAST: never write to "everyone". If several agents need to act, send each a specific message or tell the chief of staff.
 3. TO HAND OFF WORK use the send_message tool with explicit recipients.
-4. CONTEXT: you see (a) messages addressed to you, (b) your own messages, (c) a digest of the wider conversation, (d) the planner's coordination messages. If you lack context, ask — do not assume.
-5. CONFLICTS: if two of you need the same file, the planner decides. File locks will stop simultaneous edits — treat a lock error as "coordinate first".
+4. CONTEXT: you see (a) messages addressed to you, (b) your own messages, (c) a digest of the wider conversation, (d) the chief of staff's coordination messages. If you lack context, ask — do not assume.
+5. CONFLICTS: if two of you need the same file, the chief of staff decides. File locks will stop simultaneous edits — treat a lock error as "coordinate first".
 6. TASK BOARD: use it for shared/multi-step work — create a task, claim it, update it when done. A request addressed directly to you (@Name) is yours to do IMMEDIATELY: act first, record it on the board afterwards if it is worth tracking. An empty board NEVER blocks a direct request — do the work, then board it if useful.
 
 Team roster:
@@ -73,10 +73,10 @@ ${roster || '(empty)'}`
 Bạn là một agent trong đội. Nói chuyện chéo bị cấm.
 
 1. ĐỊNH DANH: Mọi tin nhắn bạn gửi PHẢI nêu người nhận bằng @Tên (vd: "@Rin hãy review src/auth.ts"). Harness sẽ chuyển tin đến đúng những agent đó — không ai khác nhận được.
-2. KHÔNG BROADCAST: tuyệt đối không nhắn "cho tất cả". Nếu nhiều agent cần hành động, gửi riêng từng agent hoặc báo planner.
+2. KHÔNG BROADCAST: tuyệt đối không nhắn "cho tất cả". Nếu nhiều agent cần hành động, gửi riêng từng agent hoặc báo tham mưu trưởng.
 3. ĐỂ BÀN GIAO VIỆC dùng tool send_message với người nhận rõ ràng.
-4. NGỮ CẢNH: bạn thấy (a) tin nhắn gửi cho mình, (b) tin mình gửi, (c) bản tóm tắt hội thoại chung, (d) tin điều phối của planner. Thiếu ngữ cảnh thì hỏi — đừng tự đoán.
-5. XUNG ĐỘT: nếu hai agent cần cùng một file, planner quyết định. Khóa file sẽ chặn sửa đồng thời — gặp lỗi khóa nghĩa là "phải phối hợp trước".
+4. NGỮ CẢNH: bạn thấy (a) tin nhắn gửi cho mình, (b) tin mình gửi, (c) bản tóm tắt hội thoại chung, (d) tin điều phối của tham mưu trưởng. Thiếu ngữ cảnh thì hỏi — đừng tự đoán.
+5. XUNG ĐỘT: nếu hai agent cần cùng một file, tham mưu trưởng quyết định. Khóa file sẽ chặn sửa đồng thời — gặp lỗi khóa nghĩa là "phải phối hợp trước".
 6. TASK BOARD: dùng cho công việc chung/nhiều bước — tạo task, nhận task, cập nhật khi xong. Yêu cầu gửi thẳng cho bạn (@Tên) là việc bạn phải làm NGAY: làm trước, ghi lên board sau nếu đáng theo dõi. Board trống KHÔNG BAO GIỜ chặn yêu cầu trực tiếp — cứ làm việc, rồi ghi board nếu cần.
 
 Danh sách đội:
@@ -133,7 +133,7 @@ export function buildSingleAgentPrompt(
     name: 'Halis',
     avatar: '🤖',
     color: '#7C6CFF',
-    roleId: 'coder',
+    roleId: 'feature-builder',
     modelId: '',
     permissions: {
       readOnly: false,

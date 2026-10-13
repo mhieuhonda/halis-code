@@ -91,7 +91,7 @@ export function buildAgentContext(params: {
 
   const lines: string[] = []
   if (objective) lines.push(`## Objective\n${objective}`)
-  lines.push(`## Team\n${agents.map((a) => `- ${a.name} (@${a.name}, role: ${a.roleId}${a.id === plannerId ? ', PLANNER' : ''})`).join('\n')}`)
+  lines.push(`## Team\n${agents.map((a) => `- ${a.name} (@${a.name}, role: ${a.roleId}${a.id === plannerId ? ', CHIEF OF STAFF' : ''})`).join('\n')}`)
   if (olderCount > 0) {
     lines.push(`## Conversation so far\n(${olderCount} earlier messages summarized away)`)
   }
