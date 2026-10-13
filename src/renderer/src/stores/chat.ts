@@ -246,6 +246,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       typing: {},
       swarmRound: null,
       todos: session.todos ?? [],
+      // A "Send failed" banner from the previous session must not follow the
+      // user into this one.
+      sendError: null,
       // Per-session running state: the composer only locks up when the
       // session on screen is one of the sessions with a live turn.
       running: get().runningSessions.includes(id),

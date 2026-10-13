@@ -1,4 +1,4 @@
-/** Sidebar — DeepSeek Harness desktop structure: logo row, new-chat bar,
+/** Sidebar — logo row, new-chat bar,
  *  mode segments, panel rows, session list, footer. Drag-resizable. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Bot, ListChecks, PanelLeft, Plus, Search, Settings, Trash2, Users, X, Zap } from 'lucide-react'
@@ -105,11 +105,11 @@ export function Sidebar({ route, setRoute }: { route: Route; setRoute: (r: Route
   return (
     <aside
       className="relative h-full shrink-0 overflow-hidden"
-      style={{ width: collapsed ? 0 : width, transition: animating ? `width var(--ds-transition-duration-slow) var(--ds-ease-in-out)` : 'none' }}
+      style={{ width: collapsed ? 0 : width, transition: animating ? `width var(--hal-transition-duration-slow) var(--hal-ease-in-out)` : 'none' }}
     >
-      <div className="dsh-sidebar h-full flex flex-col box-border px-3 pt-1.5 pb-1.5 overflow-hidden" style={{ width }}>
+      <div className="hal-sidebar h-full flex flex-col box-border px-3 pt-1.5 pb-1.5 overflow-hidden" style={{ width }}>
         {/* macOS drag strip under the traffic lights */}
-        <div className="dsh-topstrip" />
+        <div className="hal-topstrip" />
 
         {/* logo row: new brand mark + wordmark, panel toggle */}
         <div className="flex-none flex items-center justify-between h-[56px] pl-1">
@@ -121,14 +121,14 @@ export function Sidebar({ route, setRoute }: { route: Route; setRoute: (r: Route
             <img src={logoUrl} alt="Halis Code" className="brand-img w-6 h-6" draggable={false} />
             <img src={nameUrl} alt="" className="brand-img h-[22px] w-auto" draggable={false} />
           </button>
-          <button className="dsh-iconbtn" onClick={toggleCollapse} aria-label="Toggle sidebar">
+          <button className="hal-iconbtn" onClick={toggleCollapse} aria-label="Toggle sidebar">
             <PanelLeft size={15} />
           </button>
         </div>
 
         {/* new session bar */}
         <button
-          className="group relative flex-none flex items-center h-[38px] mx-0.5 mb-3 px-3 box-border rounded-md border-[0.5px] border-[color:var(--dsw-alias-border-l3)] bg-[var(--dsw-alias-button-elevated-fill)] text-ink text-[13px] font-medium cursor-pointer overflow-hidden hover:bg-[var(--dsw-alias-button-floating-hover)] transition-colors duration-100"
+          className="group relative flex-none flex items-center h-[38px] mx-0.5 mb-3 px-3 box-border rounded-md border-[0.5px] border-[color:var(--hal-alias-border-l3)] bg-[var(--hal-alias-button-elevated-fill)] text-ink text-[13px] font-medium cursor-pointer overflow-hidden hover:bg-[var(--hal-alias-button-floating-hover)] transition-colors duration-100"
           onClick={() => {
             void chat.newSession(chatMode)
             setRoute('chat')
@@ -138,20 +138,22 @@ export function Sidebar({ route, setRoute }: { route: Route; setRoute: (r: Route
             <Plus size={15} className="shrink-0" />
             <span className="truncate">{t('new_chat')}</span>
             <span className="ml-auto hidden group-hover:flex items-center gap-1 opacity-80 shrink-0">
-              <span className="dsh-kbd">{isMac ? '⌘' : 'Ctrl'}</span>
-              <span className="dsh-kbd">N</span>
+              <span className="hal-kbd">{isMac ? '⌘' : 'Ctrl'}</span>
+              <span className="hal-kbd">N</span>
             </span>
           </span>
         </button>
 
-        {/* mode switch — DSH segmented control */}
-        <div className="flex-none relative flex rounded-md p-1 gap-0.5 mb-2 bg-[var(--dsw-alias-interactive-bg-hover)]">
+        {/* mode switch — segmented control */}
+        <div className="flex-none relative flex rounded-md p-1 gap-0.5 mb-2 bg-[var(--hal-alias-interactive-bg-hover)]">
           <span
-            className="absolute top-1 bottom-1 rounded-sm bg-[var(--dsw-alias-bg-layer-1)]"
+            className="absolute top-1 bottom-1 rounded-sm bg-[var(--hal-alias-bg-layer-1)]"
             style={{
-              width: 'calc(50% - 4px)',
-              left: 'calc(4px + ' + modeIndex * 100 + '% + ' + modeIndex * 2 + 'px)',
-              boxShadow: 'var(--dsw-elevation-soft)',
+              width: 'calc(50% - 5px)',
+              // left percent resolves against the container, so each step is
+              // half the container minus the shared padding/gap (4px + 2px).
+              left: 'calc(4px + ' + modeIndex * 50 + '% - ' + modeIndex * 3 + 'px)',
+              boxShadow: 'var(--hal-elevation-soft)',
               transition: 'transform 160ms ease, left 160ms ease',
               transform: 'translateX(0)',
             }}
@@ -166,7 +168,7 @@ export function Sidebar({ route, setRoute }: { route: Route; setRoute: (r: Route
                 setRoute('chat')
               }}
               className={`relative z-10 flex-1 h-7 rounded-sm text-[13px] font-medium cursor-pointer bg-transparent border-none transition-colors duration-100 ${
-                modeActive(m) ? 'text-ink' : 'text-[color:var(--dsw-alias-label-tertiary)] hover:text-ink'
+                modeActive(m) ? 'text-ink' : 'text-[color:var(--hal-alias-label-tertiary)] hover:text-ink'
               }`}
             >
               <span className="flex items-center justify-center gap-1.5">
@@ -187,11 +189,11 @@ export function Sidebar({ route, setRoute }: { route: Route; setRoute: (r: Route
                 onClick={() => setRoute(item.id)}
                 className={`flex items-center gap-2 mx-0.5 min-h-9 px-2 rounded-md text-[13px] leading-[22px] text-left cursor-pointer bg-transparent border-none transition-colors duration-100 ${
                   active
-                    ? 'text-ink bg-[var(--dsw-specific-sidebar-nav-item-active)]'
-                    : 'text-ink hover:bg-[var(--dsw-specific-sidebar-nav-item-hover)]'
+                    ? 'text-ink bg-[var(--hal-specific-sidebar-nav-item-active)]'
+                    : 'text-ink hover:bg-[var(--hal-specific-sidebar-nav-item-hover)]'
                 }`}
               >
-                <span className={active ? 'text-[color:var(--dsw-alias-state-business-primary)]' : 'text-[color:var(--dsw-alias-label-tertiary)]'}>{item.icon}</span>
+                <span className={active ? 'text-[color:var(--hal-alias-state-business-primary)]' : 'text-[color:var(--hal-alias-label-tertiary)]'}>{item.icon}</span>
                 <span className="flex-1 truncate">{item.label}</span>
                 {item.badge ? <span className="flex-none">{item.badge}</span> : null}
               </button>
@@ -202,21 +204,21 @@ export function Sidebar({ route, setRoute }: { route: Route; setRoute: (r: Route
         {/* sessions */}
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           <div className="flex-none flex items-center justify-between pl-2 pr-1 mb-1">
-            <span className="text-[11px] font-medium text-[color:var(--dsw-alias-label-tertiary)]">{t('sessions')}</span>
-            <span className="text-[10px] text-[color:var(--dsw-alias-label-caption)] font-mono">{chat.sessions.length}</span>
+            <span className="text-[11px] font-medium text-[color:var(--hal-alias-label-tertiary)]">{t('sessions')}</span>
+            <span className="text-[10px] text-[color:var(--hal-alias-label-caption)] font-mono">{chat.sessions.length}</span>
           </div>
           {chat.sessions.length > 3 ? (
             <div className="flex-none relative mb-1.5 mx-0.5">
-              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[color:var(--dsw-alias-label-tertiary)]" />
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[color:var(--hal-alias-label-tertiary)]" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={t('search')}
-                className="w-full h-7 rounded-md bg-transparent border-[0.5px] border-[color:var(--dsw-alias-border-l4)] pl-7 pr-6 text-[12px] text-ink placeholder:text-[color:var(--dsw-alias-label-dimmed)] outline-none focus:border-[color:var(--dsw-alias-border-l4)] focus:bg-[var(--dsw-alias-bg-layer-1)] transition-colors duration-100"
+                className="w-full h-7 rounded-md bg-transparent border-[0.5px] border-[color:var(--hal-alias-border-l4)] pl-7 pr-6 text-[12px] text-ink placeholder:text-[color:var(--hal-alias-label-dimmed)] outline-none focus:border-[color:var(--hal-alias-border-l4)] focus:bg-[var(--hal-alias-bg-layer-1)] transition-colors duration-100"
               />
               {query ? (
                 <button
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[color:var(--dsw-alias-label-tertiary)] hover:text-ink cursor-pointer bg-transparent border-none p-0"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[color:var(--hal-alias-label-tertiary)] hover:text-ink cursor-pointer bg-transparent border-none p-0"
                   onClick={() => setQuery('')}
                 >
                   <X size={11} />
@@ -226,7 +228,7 @@ export function Sidebar({ route, setRoute }: { route: Route; setRoute: (r: Route
           ) : null}
           <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
             {filteredSessions.length === 0 ? (
-              <div className="text-[12px] text-[color:var(--dsw-alias-label-tertiary)] px-2 py-1">{query ? t('no_results') : t('no_sessions')}</div>
+              <div className="text-[12px] text-[color:var(--hal-alias-label-tertiary)] px-2 py-1">{query ? t('no_results') : t('no_sessions')}</div>
             ) : (
               filteredSessions.map((s) => {
                 const active = chat.activeSessionId === s.id && route === 'chat'
@@ -234,20 +236,20 @@ export function Sidebar({ route, setRoute }: { route: Route; setRoute: (r: Route
                   <div
                     key={s.id}
                     className={`group flex items-center gap-2 h-8 px-2 mb-0.5 rounded-md cursor-pointer transition-colors duration-100 ${
-                      active ? 'bg-[var(--dsw-alias-interactive-bg-hover)]' : 'hover:bg-[var(--dsw-specific-sidebar-nav-item-hover)]'
+                      active ? 'bg-[var(--hal-alias-interactive-bg-hover)]' : 'hover:bg-[var(--hal-specific-sidebar-nav-item-hover)]'
                     }`}
                     onClick={() => {
                       void chat.openSession(s.id)
                       setRoute('chat')
                     }}
                   >
-                    <span className={active ? 'text-[color:var(--dsw-alias-state-business-primary)]' : 'text-[color:var(--dsw-alias-label-tertiary)]'}>
+                    <span className={active ? 'text-[color:var(--hal-alias-state-business-primary)]' : 'text-[color:var(--hal-alias-label-tertiary)]'}>
                       {s.mode === 'swarm' ? <Users size={12} /> : <Bot size={12} />}
                     </span>
                     <span className="flex-1 text-[13px] leading-5 truncate text-ink">{s.title}</span>
-                    <span className="group-hover:hidden text-[10px] leading-4 text-[color:var(--dsw-alias-label-tertiary)]">{relativeTime(s.updatedAt)}</span>
+                    <span className="group-hover:hidden text-[10px] leading-4 text-[color:var(--hal-alias-label-tertiary)]">{relativeTime(s.updatedAt)}</span>
                     <button
-                      className="hidden group-hover:inline-flex text-[color:var(--dsw-alias-label-tertiary)] hover:text-[color:var(--dsw-alias-state-error-primary)] cursor-pointer bg-transparent border-none p-0"
+                      className="hidden group-hover:inline-flex text-[color:var(--hal-alias-label-tertiary)] hover:text-[color:var(--hal-alias-state-error-primary)] cursor-pointer bg-transparent border-none p-0"
                       onClick={(e) => {
                         e.stopPropagation()
                         void chat.deleteSession(s.id)
@@ -263,8 +265,8 @@ export function Sidebar({ route, setRoute }: { route: Route; setRoute: (r: Route
         </div>
 
         {/* footer */}
-        <div className="flex-none flex items-center gap-1.5 px-2 pt-2 pb-1 text-[10px] text-[color:var(--dsw-alias-label-caption)]">
-          <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--dsw-alias-state-success-primary)] inline-block" />
+        <div className="flex-none flex items-center gap-1.5 px-2 pt-2 pb-1 text-[10px] text-[color:var(--hal-alias-label-caption)]">
+          <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--hal-alias-state-success-primary)] inline-block" />
           {settings?.telegraphEnabled === false ? 'local-first' : 'local-first · telegraph-ready'}
         </div>
       </div>
@@ -278,7 +280,7 @@ export function Sidebar({ route, setRoute }: { route: Route; setRoute: (r: Route
         />
       )}
       {/* right hairline */}
-      {!collapsed && <div className="absolute top-0 bottom-0 right-0 w-[0.5px] pointer-events-none bg-[color:var(--dsw-alias-border-l3)]" />}
+      {!collapsed && <div className="absolute top-0 bottom-0 right-0 w-[0.5px] pointer-events-none bg-[color:var(--hal-alias-border-l3)]" />}
     </aside>
   )
 }
@@ -287,7 +289,7 @@ function Badge({ count }: { count: number }) {
   return (
     <span
       className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full text-[10px] font-medium leading-none"
-      style={{ background: 'var(--dsw-alias-state-business-tertiary)', color: 'var(--dsw-alias-state-business-primary)' }}
+      style={{ background: 'var(--hal-alias-state-business-tertiary)', color: 'var(--hal-alias-state-business-primary)' }}
     >
       {count}
     </span>
@@ -295,5 +297,5 @@ function Badge({ count }: { count: number }) {
 }
 
 function DotBadge() {
-  return <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--dsw-alias-state-success-primary)] inline-block" />
+  return <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--hal-alias-state-success-primary)] inline-block" />
 }

@@ -11,6 +11,7 @@ import type {
   ChatMode,
   McpServerConfig,
   QuestionAnswer,
+  ScheduleView,
   Session,
   SessionMeta,
   SwarmConfig,
@@ -140,9 +141,9 @@ export interface IpcApi {
 
   mcpStatuses(): Array<{ name: string; connected: boolean; toolCount: number; error?: string }>
   mcpSetServers(configs: McpServerConfig[]): { ok: boolean; error?: string }
-  mcpTest(config: McpServerConfig): { ok: boolean; error?: string; toolCount?: number }
+  mcpTest(config: McpServerConfig): { ok: boolean; detail: string; toolCount: number }
 
-  scheduleList(): Array<{ id: string; sessionId: string; title: string; prompt: string; nextFireAt: number; selector: unknown }>
+  scheduleList(sessionId: string): ScheduleView[]
   scheduleDelete(id: string): boolean
 
   jobList(): Array<unknown>
@@ -166,8 +167,4 @@ export interface IpcApi {
   tgVerifySignal(signalHash: string): Promise<{ found: boolean; detail: string }>
 
   onEvent(callback: (event: unknown) => void): () => void
-}
-
-export interface KeyStatus {
-  [providerId: string]: boolean
 }

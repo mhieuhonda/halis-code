@@ -9,9 +9,8 @@ import { useChatStore } from '../../stores/chat'
 import { useSwarmStore } from '../../stores/swarm'
 import type { ModelInfo } from '@shared/types'
 
-/* opencode-style model preferences, persisted locally like the TUI's
- * model-preference.json: a short favorites + recent list on top of the
- * picker. */
+/* Model preferences persisted locally: a short favorites + recent list
+ * on top of the picker. */
 const FAV_KEY = 'halis.model.favorites'
 const RECENT_KEY = 'halis.model.recent'
 const MAX_PREFS = 10
@@ -82,7 +81,7 @@ export function ModelPicker({ value, onChange, direction = 'up', className = '' 
 
   const star = (m: ModelInfo) => (
     <button
-      className="shrink-0 p-1 bg-transparent border-none cursor-pointer text-[color:var(--dsw-alias-label-dimmed)] hover:text-[var(--dsw-alias-state-warning-primary)] transition-colors duration-100"
+      className="shrink-0 p-1 bg-transparent border-none cursor-pointer text-[color:var(--hal-alias-label-dimmed)] hover:text-[var(--hal-alias-state-warn-primary)] transition-colors duration-100"
       title={t('model_favorite_toggle')}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => {
@@ -90,7 +89,7 @@ export function ModelPicker({ value, onChange, direction = 'up', className = '' 
         setFavs(toggleModelPref(FAV_KEY, m.id))
       }}
     >
-      <Star size={13} className={favs.includes(m.id) ? 'fill-[var(--dsw-alias-state-warning-primary)] text-[var(--dsw-alias-state-warning-primary)]' : ''} />
+      <Star size={13} className={favs.includes(m.id) ? 'fill-[var(--hal-alias-state-warn-primary)] text-[var(--hal-alias-state-warn-primary)]' : ''} />
     </button>
   )
 
@@ -98,7 +97,7 @@ export function ModelPicker({ value, onChange, direction = 'up', className = '' 
     <div
       key={m.id}
       className={`group flex items-center gap-2 min-h-[32px] pl-2.5 pr-1 rounded-md cursor-pointer transition-colors duration-100 ${
-        m.id === value ? 'bg-[var(--dsw-alias-interactive-bg-hover)]' : 'hover:bg-[var(--dsw-alias-interactive-bg-hover)]'
+        m.id === value ? 'bg-[var(--hal-alias-interactive-bg-hover)]' : 'hover:bg-[var(--hal-alias-interactive-bg-hover)]'
       }`}
       title={`${m.id}`}
       onMouseDown={(e) => e.preventDefault()}
@@ -111,8 +110,8 @@ export function ModelPicker({ value, onChange, direction = 'up', className = '' 
       <span className="flex-1 min-w-0 truncate text-[13px] text-ink">{m.name}</span>
       {extraBadge}
       {m.free ? <Badge color="#22c55e">free</Badge> : null}
-      <span className="text-[10.5px] text-[color:var(--dsw-alias-label-tertiary)] truncate max-w-[110px]">{providerName(m)}</span>
-      {m.id === value ? <Check size={13} className="shrink-0 text-[color:var(--dsw-alias-state-success-primary)]" /> : <span className="w-[13px] shrink-0" />}
+      <span className="text-[10.5px] text-[color:var(--hal-alias-label-tertiary)] truncate max-w-[110px]">{providerName(m)}</span>
+      {m.id === value ? <Check size={13} className="shrink-0 text-[color:var(--hal-alias-state-success-primary)]" /> : <span className="w-[13px] shrink-0" />}
       <span className="opacity-0 group-hover:opacity-100 transition-opacity">{star(m)}</span>
     </div>
   )
@@ -123,12 +122,12 @@ export function ModelPicker({ value, onChange, direction = 'up', className = '' 
     return (
       <div key={label} className="px-1">
         <div className="flex items-baseline gap-1.5 px-1.5 pt-2 pb-1">
-          <span className="text-[11px] font-medium text-[color:var(--dsw-alias-label-tertiary)]">{label}</span>
-          <span className="text-[10px] text-[color:var(--dsw-alias-label-caption)]">{models.length}</span>
+          <span className="text-[11px] font-medium text-[color:var(--hal-alias-label-tertiary)]">{label}</span>
+          <span className="text-[10px] text-[color:var(--hal-alias-label-caption)]">{models.length}</span>
         </div>
         {shown.map((m) => row(m))}
         {cap && models.length > cap ? (
-          <div className="px-2.5 py-1.5 text-[11px] text-[color:var(--dsw-alias-label-caption)]">{t('model_more', { n: models.length - cap })}</div>
+          <div className="px-2.5 py-1.5 text-[11px] text-[color:var(--hal-alias-label-caption)]">{t('model_more', { n: models.length - cap })}</div>
         ) : null}
       </div>
     )
@@ -140,7 +139,7 @@ export function ModelPicker({ value, onChange, direction = 'up', className = '' 
     <div ref={rootRef} className={`relative min-w-0 ${className}`}>
       <button
         type="button"
-        className="inline-flex items-center gap-1 h-7 max-w-[280px] rounded-sm bg-transparent pl-2 pr-1.5 text-[13px] font-medium text-muted outline-none cursor-pointer hover:bg-[var(--dsw-alias-interactive-bg-hover)] transition-colors duration-100"
+        className="inline-flex items-center gap-1 h-7 max-w-[280px] rounded-sm bg-transparent pl-2 pr-1.5 text-[13px] font-medium text-muted outline-none cursor-pointer hover:bg-[var(--hal-alias-interactive-bg-hover)] transition-colors duration-100"
         onClick={() => setOpen((v) => !v)}
         title={current ? `${current.id}` : t('select_model')}
       >
@@ -159,8 +158,8 @@ export function ModelPicker({ value, onChange, direction = 'up', className = '' 
 
       {open ? (
         <div
-          className={`dsh-menu-surface absolute ${popupPos} left-0 z-20 w-[360px] rounded-lg overflow-hidden flex flex-col p-1.5 pop`}
-          style={{ boxShadow: 'var(--dsw-elevation-prominent)' }}
+          className={`hal-menu-surface absolute ${popupPos} left-0 z-20 w-[360px] rounded-lg overflow-hidden flex flex-col p-1.5 pop`}
+          style={{ boxShadow: 'var(--hal-elevation-prominent)' }}
         >
           <input
             ref={searchRef}
@@ -173,14 +172,14 @@ export function ModelPicker({ value, onChange, direction = 'up', className = '' 
               }
             }}
             placeholder={t('model_search')}
-            className="shrink-0 h-8 mx-0.5 mb-1 rounded-md bg-[var(--dsw-alias-bg-layer-1)] border-[0.5px] border-[color:var(--dsw-alias-border-l4)] px-2.5 text-[12.5px] text-ink placeholder:text-[color:var(--dsw-alias-label-dimmed)] outline-none focus:border-[color:var(--dsw-alias-state-business-primary)]"
+            className="shrink-0 h-8 mx-0.5 mb-1 rounded-md bg-[var(--hal-alias-bg-layer-1)] border-[0.5px] border-[color:var(--hal-alias-border-l4)] px-2.5 text-[12.5px] text-ink placeholder:text-[color:var(--hal-alias-label-dimmed)] outline-none focus:border-[color:var(--hal-alias-state-business-primary)]"
           />
           <div className="overflow-y-auto min-h-0 max-h-[380px]">
             {q ? (
               (() => {
                 const hits = catalog.models.filter(matches)
                 const ranked = [...hits.filter((m) => favs.includes(m.id)), ...hits.filter((m) => !favs.includes(m.id))]
-                return ranked.length ? ranked.map((m) => row(m)) : <div className="px-2.5 py-4 text-[12px] text-[color:var(--dsw-alias-label-tertiary)]">{t('model_none')}</div>
+                return ranked.length ? ranked.map((m) => row(m)) : <div className="px-2.5 py-4 text-[12px] text-[color:var(--hal-alias-label-tertiary)]">{t('model_none')}</div>
               })()
             ) : (
               <>
@@ -226,7 +225,7 @@ export function Composer() {
     const value = text.trim()
     if (!value || chat.running) return
     setText('')
-    void chat.send(value, chat.activeMode === 'agent' ? modelId : undefined)
+    void chat.send(value, chat.activeMode === 'agent' ? modelId || settings?.defaultModelId || undefined : undefined)
   }
 
   const mentionStart = (() => {
@@ -248,13 +247,13 @@ export function Composer() {
       {/* typing indicators (swarm) */}
       <div className="h-5 flex items-center gap-3 mb-1 px-2">
         {Object.entries(chat.typing).map(([id, info]) => (
-          <span key={id} className="inline-flex items-center gap-1.5 text-[11px] text-[color:var(--dsw-alias-label-secondary)] fade-in">
-            <span className="typing-dot w-1 h-1 rounded-full bg-[color:var(--dsw-alias-state-business-primary)] inline-block" />
+          <span key={id} className="inline-flex items-center gap-1.5 text-[11px] text-[color:var(--hal-alias-label-secondary)] fade-in">
+            <span className="typing-dot w-1 h-1 rounded-full bg-[color:var(--hal-alias-state-business-primary)] inline-block" />
             {info.name} {t('typing')}
           </span>
         ))}
         {chat.swarmRound ? (
-          <span className="text-[11px] text-[color:var(--dsw-alias-label-tertiary)] ml-auto font-mono">
+          <span className="text-[11px] text-[color:var(--hal-alias-label-tertiary)] ml-auto font-mono">
             {t('round_label')} {chat.swarmRound.round}/{chat.swarmRound.maxRounds}
           </span>
         ) : null}
@@ -264,9 +263,9 @@ export function Composer() {
       <div
         className="relative flex flex-col gap-2 pt-2"
         style={{
-          borderRadius: 'var(--dsw-radius-panel)',
-          background: 'var(--dsw-specific-input-major)',
-          boxShadow: focused ? 'var(--dsw-elevation-prominent)' : 'var(--dsw-elevation-soft)',
+          borderRadius: 'var(--hal-radius-panel)',
+          background: 'var(--hal-specific-input-major)',
+          boxShadow: focused ? 'var(--hal-elevation-prominent)' : 'var(--hal-elevation-soft)',
           transition: 'box-shadow 150ms ease',
         }}
       >
@@ -274,8 +273,8 @@ export function Composer() {
         <div className="relative">
           {text ? null : (
             <div
-              className="absolute left-[22px] right-4 top-[10px] text-[color:var(--dsw-alias-label-caption)] pointer-events-none truncate"
-              style={{ fontSize: 'var(--dsh-content-font-size, 14px)', lineHeight: 'calc(24px + var(--dsh-content-font-delta, 0px))' }}
+              className="absolute left-[22px] right-4 top-[10px] text-[color:var(--hal-alias-label-caption)] pointer-events-none truncate"
+              style={{ fontSize: 'var(--hal-content-font-size, 14px)', lineHeight: 'calc(24px + var(--hal-content-font-delta, 0px))' }}
             >
               {isAgent ? t('placeholder_agent') : t('placeholder_swarm')}
             </div>
@@ -286,10 +285,10 @@ export function Composer() {
             aria-label={isAgent ? t('placeholder_agent') : t('placeholder_swarm')}
             className="block w-full bg-transparent outline-none border-none resize-none selectable min-h-[36px] max-h-[200px] px-[14px] pt-[6px] pb-0 text-ink"
             style={{
-              fontFamily: 'var(--dsw-font-family)',
-              fontSize: 'var(--dsh-content-font-size, 14px)',
-              lineHeight: 'calc(24px + var(--dsh-content-font-delta, 0px))',
-              caretColor: 'var(--dsw-alias-state-business-primary)',
+              fontFamily: 'var(--hal-font-family)',
+              fontSize: 'var(--hal-content-font-size, 14px)',
+              lineHeight: 'calc(24px + var(--hal-content-font-delta, 0px))',
+              caretColor: 'var(--hal-alias-state-business-primary)',
             }}
             rows={1}
             onFocus={() => setFocused(true)}
@@ -309,8 +308,8 @@ export function Composer() {
           {isAgent ? (
             <ModelPicker value={modelId || settings?.defaultModelId || ''} onChange={(id) => { setModelId(id); void loadSettings() }} />
           ) : (
-            <span className="inline-flex items-center gap-1.5 h-7 px-2 rounded-sm text-[12px] font-medium text-[color:var(--dsw-alias-label-secondary)] hover:bg-[var(--dsw-alias-interactive-bg-hover)] cursor-default transition-colors duration-100">
-              <AtSign size={12} className="text-[color:var(--dsw-alias-state-business-primary)]" />
+            <span className="inline-flex items-center gap-1.5 h-7 px-2 rounded-sm text-[12px] font-medium text-[color:var(--hal-alias-label-secondary)] hover:bg-[var(--hal-alias-interactive-bg-hover)] cursor-default transition-colors duration-100">
+              <AtSign size={12} className="text-[color:var(--hal-alias-state-business-primary)]" />
               {swarmConfig.agents.length} agents
               {swarmConfig.plannerCoordination ? <Badge color="#8d7fff">planner</Badge> : null}
             </span>
@@ -318,7 +317,7 @@ export function Composer() {
           <div className="ml-auto flex items-center gap-2">
             {chat.running ? (
               <button
-                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] text-[color:var(--dsw-alias-state-error-secondary)] hover:bg-[var(--dsw-alias-interactive-bg-hover-danger)] cursor-pointer bg-transparent border-none transition-colors duration-100"
+                className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[12px] text-[color:var(--hal-alias-state-error-secondary)] hover:bg-[var(--hal-alias-interactive-bg-hover-danger)] cursor-pointer bg-transparent border-none transition-colors duration-100"
                 onClick={() => void chat.stop()}
               >
                 <Square size={10} /> {t('stop_turn')}
@@ -328,9 +327,9 @@ export function Composer() {
               onClick={chat.running ? () => void chat.stop() : submit}
               disabled={!chat.running && !text.trim()}
               className="shrink-0 w-[34px] h-[34px] rounded-full flex items-center justify-center cursor-pointer border-none text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-100"
-              style={{ background: 'var(--dsw-alias-button-info-fill)' }}
-              onMouseEnter={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.background = 'var(--dsw-alias-button-info-hover)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--dsw-alias-button-info-fill)' }}
+              style={{ background: 'var(--hal-alias-button-info-fill)' }}
+              onMouseEnter={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.background = 'var(--hal-alias-button-info-hover)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--hal-alias-button-info-fill)' }}
               aria-label={chat.running ? t('stop_turn') : t('send')}
             >
               {chat.running ? <Spinner size={14} className="text-white" /> : <ArrowUp size={16} />}
@@ -341,20 +340,20 @@ export function Composer() {
         {/* @mention popup — DSH menu surface */}
         {suggestions.length > 0 && mentionStart !== null ? (
           <div
-            className="dsh-menu-surface absolute bottom-[calc(100%+6px)] left-2 rounded-lg overflow-hidden z-10 p-1 pop"
-            style={{ boxShadow: 'var(--dsw-elevation-prominent)' }}
+            className="hal-menu-surface absolute bottom-[calc(100%+6px)] left-2 rounded-lg overflow-hidden z-10 p-1 pop"
+            style={{ boxShadow: 'var(--hal-elevation-prominent)' }}
           >
             {suggestions.map((a) => (
               <button
                 key={a.id}
-                className="flex items-center gap-2 min-h-[34px] px-2.5 rounded-md hover:bg-[var(--dsw-alias-interactive-bg-hover)] w-full text-left cursor-pointer bg-transparent border-none transition-colors duration-100"
+                className="flex items-center gap-2 min-h-[34px] px-2.5 rounded-md hover:bg-[var(--hal-alias-interactive-bg-hover)] w-full text-left cursor-pointer bg-transparent border-none transition-colors duration-100"
                 onMouseDown={(e) => { e.preventDefault(); applyMention(a.name) }}
               >
                 <span className="w-5 h-5 rounded-sm overflow-hidden shrink-0">
                   <AgentAvatar agent={a} size={20} className="rounded-sm" />
                 </span>
                 <span className="text-[13px] text-ink">{a.name}</span>
-                <span className="text-[11px] text-[color:var(--dsw-alias-label-tertiary)]">{a.roleId}</span>
+                <span className="text-[11px] text-[color:var(--hal-alias-label-tertiary)]">{a.roleId}</span>
               </button>
             ))}
           </div>
@@ -362,10 +361,10 @@ export function Composer() {
       </div>
 
       {chat.sendError ? (
-        <div className="mt-1.5 mx-1 rounded-md border-[0.5px] border-[color:var(--dsw-alias-state-error-secondary)] px-3 py-1.5 text-[12px] text-[color:var(--dsw-alias-state-error-secondary)] flex items-center gap-2" style={{ background: 'var(--dsw-alias-interactive-bg-hover-danger)' }}>
+        <div className="mt-1.5 mx-1 rounded-md border-[0.5px] border-[color:var(--hal-alias-state-error-secondary)] px-3 py-1.5 text-[12px] text-[color:var(--hal-alias-state-error-secondary)] flex items-center gap-2" style={{ background: 'var(--hal-alias-interactive-bg-hover-danger)' }}>
           <span className="flex-1">{t('send_failed')} — {chat.sendError}</span>
           <button
-            className="text-[color:var(--dsw-alias-label-tertiary)] hover:text-ink cursor-pointer bg-transparent border-none p-0 transition-colors duration-100"
+            className="text-[color:var(--hal-alias-label-tertiary)] hover:text-ink cursor-pointer bg-transparent border-none p-0 transition-colors duration-100"
             onClick={() => useChatStore.setState({ sendError: null })}
           >
             <X size={12} />
@@ -373,13 +372,13 @@ export function Composer() {
         </div>
       ) : null}
 
-      <div className="px-2 mt-1.5 text-[10.5px] text-[color:var(--dsw-alias-label-caption)] flex items-center gap-2">
+      <div className="px-2 mt-1.5 text-[10.5px] text-[color:var(--hal-alias-label-caption)] flex items-center gap-2">
         <span>Enter ↵ {t('send')}</span>
         <span>·</span>
         <span>Shift+Enter ⏎</span>
         <span className="ml-auto inline-flex items-center gap-1">
-          <span className="dsh-kbd">Ctrl</span>
-          <span className="dsh-kbd">K</span>
+          <span className="hal-kbd">Ctrl</span>
+          <span className="hal-kbd">K</span>
           {t('palette_open')}
         </span>
       </div>
