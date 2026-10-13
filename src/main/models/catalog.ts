@@ -1,11 +1,11 @@
 /**
- * Model catalog registry: bundled snapshot + live refresh from models.dev
- * (the public catalog opencode maintains) + local Ollama auto-detection.
+ * Model catalog registry: bundled snapshot + live refresh from opencode's
+ * catalog (the exact source opencode ships) + local Ollama auto-detection.
  */
 import type { CatalogSnapshot, ModelInfo, ProviderInfo } from '@shared/types'
 import { BUNDLED_MODELS, BUNDLED_PROVIDERS } from './catalog-data'
 
-const MODELS_DEV_URL = 'https://models.dev/api.json'
+const MODELS_DEV_URL = 'https://models.opencode.ai/api.json'
 const OLLAMA_URL = 'http://127.0.0.1:11434'
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000
 
@@ -81,16 +81,17 @@ export class ModelCatalog {
     return models
   }
 
-  /** Groups for the model picker. */
-  groups(): Array<{ id: string; label: string; models: ModelInfo[] }> {
-    const models = this.snapshot.models
-    const byName = (a: ModelInfo, b: ModelInfo) => a.name.localeCompare(b.name)
-    return [
-      { id: 'free-no-key', label: 'Free · no key needed', models: models.filter((m) => m.free && this.getProvider(m.providerId)?.keyless).sort(byName) },
-      { id: 'free-key', label: 'Free tier · free API key', models: models.filter((m) => m.free && !this.getProvider(m.providerId)?.keyless).sort(byName) },
-      { id: 'local', label: 'Local · on your machine', models: models.filter((m) => m.providerId === 'ollama').sort(byName) },
-      { id: 'all', label: 'All models', models: [...models].sort(byName) },
-    ]
+  /** Models grouped by provider, opencode-style: provider sections in
+   *  bundled order (opencode's popular list first), free models first. */
+  byProvider(): Array<{ provider: ProviderInfo; models: ModelInfo[] }> {
+    return this.snapshot.providers
+      .map((provider) => ({
+        provider,
+        models: this.snapshot.models
+          .filter((m) => m.providerId === provider.id)
+          .sort((a, b) => Number(b.free) - Number(a.free) || a.name.localeCompare(b.name)),
+      }))
+      .filter((g) => g.models.length > 0)
   }
 
   setUpdatedListener(cb: (snap: CatalogSnapshot) => void): void {
@@ -162,10 +163,11 @@ export class ModelCatalog {
       }
       providers.push(bundled)
       const seen = new Set<string>()
-      // Keep the bundled models as the BASE: models.dev renames/retires
-      // entries, and the user's selected model (including the default
-      // `pollinations/openai-fast`) must not vanish on a background refresh —
-      // `Unknown model:` would break the session until the user re-picks.
+      // Keep the bundled models as the BASE: the remote catalog renames/
+      // retires entries, and the user's selected model (including the
+      // default `opencode/ling-3.1-flash-free`) must not vanish on a
+      // background refresh — `Unknown model:` would break the session until
+      // the user re-picks.
       for (const model of BUNDLED_MODELS.filter((m) => m.providerId === bundled.id)) {
         const id = cleanModelToken(model.id)
         if (seen.has(id)) continue

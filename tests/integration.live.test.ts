@@ -1,10 +1,11 @@
 /**
- * Live integration test — runs a REAL agent turn against the free
- * Pollinations gateway (no API key), exercises the tool loop (write_file,
- * read_file, run_command) under the real sandbox + permission engine, and
- * probes the live Telegraph testnet node (free discovery + x402 quote).
+ * Live integration test — runs a REAL agent turn against the free OpenCode
+ * Zen model (`ling-3.1-flash-free`, key from opencode.ai/zen), exercises the
+ * tool loop (write_file, read_file, run_command) under the real sandbox +
+ * permission engine, and probes the live Telegraph testnet node (free
+ * discovery + x402 quote).
  *
- * Requires network. Skipped automatically when offline.
+ * Requires network + OPENCODE_API_KEY. Skipped automatically when offline.
  */
 import { describe, expect, it, beforeAll } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs'
@@ -28,10 +29,14 @@ import { ReceiptLedger } from '@main/telegraph/receipts'
 import { listIntents, listMiners, quoteAsk } from '@main/telegraph/client'
 import { TELEGRAPH_NETWORKS } from '@shared/types'
 
+const LIVE_MODEL = 'opencode/ling-3.1-flash-free'
+const KEY = process.env.OPENCODE_API_KEY ?? ''
+
 let online = false
 beforeAll(async () => {
+  if (!KEY) return
   try {
-    const res = await fetch('https://text.pollinations.ai/models', { signal: AbortSignal.timeout(8000) })
+    const res = await fetch('https://models.opencode.ai/api.json', { signal: AbortSignal.timeout(8000) })
     online = res.ok
   } catch {
     online = false
@@ -40,10 +45,10 @@ beforeAll(async () => {
 
 describe('live: free model agent turn', () => {
   it(
-    'runs a full tool loop on pollinations/openai-fast',
+    'runs a full tool loop on opencode/ling-3.1-flash-free',
     { timeout: 180_000, retry: 1 },
     async () => {
-      if (!online) return console.warn('offline — skipping live test')
+      if (!KEY || !online) return console.warn('no OPENCODE_API_KEY or offline — skipping live test')
       const ws = mkdtempSync(join(tmpdir(), 'halis-e2e-'))
       try {
         const catalog = new ModelCatalog()
@@ -88,7 +93,7 @@ describe('live: free model agent turn', () => {
           {
             sessionId: 'e2e',
             messageId: 'm1',
-            modelId: 'pollinations/openai-fast',
+            modelId: LIVE_MODEL,
             systemPrompt: buildSingleAgentPrompt(ws, 'en', taskBoard.renderForPrompt()),
             history: [
               {

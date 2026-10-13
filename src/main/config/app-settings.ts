@@ -6,7 +6,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   language: 'en',
   theme: 'light',
   workspace: '',
-  defaultModelId: 'pollinations/openai-fast',
+  defaultModelId: 'opencode/ling-3.1-flash-free',
   telegraph: {
     networkId: 'base-sepolia',
     autoApproveUpTo: 0,

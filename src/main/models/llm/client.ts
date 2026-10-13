@@ -25,7 +25,7 @@ export class LlmDispatcher {
   /**
    * Explicit key overrides the vault (used by per-agent keys in Swarm).
    * A blank/whitespace override (e.g. a swarm agent with no per-agent key)
-   * falls through to the vault, so a key saved once in Models & Keys works
+   * falls through to the vault, so a key saved once in Settings → Models & API keys works
    * for every agent on that provider without re-entering it.
    */
   resolve(modelId: string, keyOverride?: string): ProviderResolution {
@@ -37,7 +37,7 @@ export class LlmDispatcher {
     const explicit = keyOverride?.trim()
     const key = explicit ? explicit : this.lookupKey(model.providerId)
     if (!providerInfo.keyless && !key) {
-      throw new LlmError(`No API key set for ${providerInfo.name}. Open Models & Keys to add one (${providerInfo.envKey ?? 'API key'}).`, undefined, providerInfo.id)
+      throw new LlmError(`No API key set for ${providerInfo.name}. Open Settings → Models & API keys to add one (${providerInfo.envKey ?? 'API key'}).`, undefined, providerInfo.id)
     }
     if (providerInfo.apiStyle === 'anthropic') {
       return { provider: new AnthropicProvider(key!, providerInfo.baseURL, providerInfo.name), model }

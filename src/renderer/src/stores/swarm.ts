@@ -33,7 +33,6 @@ const FALLBACK_ROLE: AgentRole = {
 function blankAgent(roles: AgentRole[], existing: AgentConfig[], index: number): AgentConfig {
   const role = roles.find((r) => r.id === 'coder') ?? roles[0] ?? FALLBACK_ROLE
   const colors = ['#7C6CFF', '#4ADE80', '#38BDF8', '#F472B6', '#FBBF24', '#2DD4BF', '#F97316', '#A78BFA']
-  const avatars = ['🤖', '🧭', '📐', '⌨️', '🔍', '🛡️', '🧪', '⚙️', '📚', '📝', '🦾', '🧠', '🐙', '🦊', '🐝', '⚡']
   let name = `Agent${index + 1}`
   let n = index + 1
   while (existing.some((a) => a.name.toLowerCase() === name.toLowerCase())) {
@@ -43,10 +42,10 @@ function blankAgent(roles: AgentRole[], existing: AgentConfig[], index: number):
   return {
     id: `ag_${Math.random().toString(36).slice(2, 10)}`,
     name,
-    avatar: avatars[index % avatars.length]!,
+    avatar: '',
     color: colors[index % colors.length]!,
     roleId: role.id,
-    modelId: 'pollinations/openai-fast',
+    modelId: 'opencode/ling-3.1-flash-free',
     apiKey: '',
     permissions: {
       readOnly: !!role.defaultPermissions.readOnly,

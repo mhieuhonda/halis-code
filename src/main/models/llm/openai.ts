@@ -1,9 +1,8 @@
 /**
  * OpenAI-compatible chat client with SSE streaming and function calling.
- * Covers OpenAI, DeepSeek, Groq, OpenRouter, Mistral, Z.AI, Moonshot,
- * MiniMax, Together, Cerebras, xAI, Google (OpenAI-compat endpoint),
- * Pollinations, LLM7, Ollama, OpenCode Zen and every other gateway that
- * speaks the /chat/completions dialect.
+ * Covers Anthropic popular list, OpenAI, Google (OpenAI-compat endpoint),
+ * OpenRouter, Vercel AI Gateway, OpenCode Zen, Ollama and every other
+ * gateway that speaks the /chat/completions dialect.
  */
 import type { LlmMessage, LlmProvider, LlmRequest, LlmResult, LlmStreamOptions, LlmToolCall } from './types'
 import { LlmError } from './types'
