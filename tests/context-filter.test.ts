@@ -1,6 +1,6 @@
 /** Context filter: each agent sees its messages + a digest, not everything. */
 import { describe, expect, it } from 'vitest'
-import { buildAgentContext, messageConcerns } from '@main/harness/context-filter'
+import { buildAgentContext, messageConcerns, seedUserAsk } from '@main/harness/context-filter'
 import type { AgentConfig, ChatMessage } from '@shared/types'
 
 function agent(id: string, name: string, roleId = 'coder'): AgentConfig {
@@ -110,5 +110,27 @@ describe('buildAgentContext', () => {
     const ctx = buildAgentContext({ agent: bao, agents, plannerId: 'a1', messages: big, objective: '', window: { charBudget: 5000 } })
     const total = ctx.systemSections.join('').length + ctx.transcript.map((t) => t.text).join('').length
     expect(total).toBeLessThan(7000)
+  })
+})
+
+describe('seedUserAsk', () => {
+  it('combines the objective and the latest user message', () => {
+    const messages = [
+      msg({ from: 'user', role: 'user', content: 'first ask' }),
+      msg({ from: 'a1', role: 'assistant', content: 'working' }),
+      msg({ from: 'user', role: 'user', content: '  latest ask  ' }),
+    ]
+    expect(seedUserAsk('Build the thing', messages)).toBe('Build the thing\n\nlatest ask')
+  })
+
+  it('never returns an empty ask', () => {
+    expect(seedUserAsk('   ', [])).toBe('Assist the user with their request.')
+    expect(seedUserAsk('', [msg({ from: 'a1', role: 'assistant', content: 'only assistant chatter' })])).toBe(
+      'Assist the user with their request.',
+    )
+  })
+
+  it('works with the objective alone', () => {
+    expect(seedUserAsk('Ship it', [msg({ from: 'a1', role: 'assistant', content: 'ok' })])).toBe('Ship it')
   })
 })

@@ -16,7 +16,7 @@ import { newId } from '../util/id'
 import type { LlmDispatcher } from '../models/llm/client'
 import type { LlmMessage } from '../models/llm/types'
 import { AgentRunner } from '../harness/loop'
-import { buildAgentContext } from '../harness/context-filter'
+import { buildAgentContext, seedUserAsk } from '../harness/context-filter'
 import { TodoStore, type ToolContext } from '../harness/tools'
 import type { ToolRegistry } from '../harness/tools'
 import type { ApprovalManager } from '../harness/approvals'
@@ -308,6 +308,13 @@ export class SwarmOrchestrator {
     const history: LlmMessage[] = [
       ...context.transcript.map((t) => ({ role: t.role, content: t.text }) as LlmMessage),
     ]
+    // Context filtering can yield an empty transcript (a broadcast user turn
+    // reaches this agent only through the digest). The provider APIs require
+    // at least one user/assistant message, so seed the turn with the actual
+    // request instead of failing the whole agent with a 400.
+    if (!history.length) {
+      history.push({ role: 'user', content: seedUserAsk(objective, session.messages) })
+    }
     const systemPrompt = buildSystemPrompt({
       agent,
       allAgents,

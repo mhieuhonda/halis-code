@@ -40,6 +40,18 @@ export function messageConcerns(message: ChatMessage, agentId: string, plannerId
   return false
 }
 
+/**
+ * Fallback user ask for an agent whose filtered transcript came out empty
+ * (a broadcast user turn reaches agents only through the digest). Provider
+ * APIs require at least one user/assistant message — an all-system list is
+ * rejected with a 400 and fails the whole agent turn. Combines the swarm
+ * objective with the latest user message so the agent still sees the ask.
+ */
+export function seedUserAsk(objective: string, messages: ChatMessage[]): string {
+  const lastUser = [...messages].reverse().find((m) => m.role === 'user')
+  return [objective.trim(), lastUser?.content.trim()].filter(Boolean).join('\n\n') || 'Assist the user with their request.'
+}
+
 /** Compact a message for the digest section. */
 function digestLine(message: ChatMessage, nameOf: (id: string) => string): string {
   const who = message.role === 'user' ? 'User' : nameOf(message.from)
