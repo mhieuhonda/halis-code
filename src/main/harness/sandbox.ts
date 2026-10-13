@@ -30,7 +30,7 @@ const BLOCKED_PATTERNS: Array<{ pattern: RegExp; why: string }> = [
   { pattern: /\b(npm|npx|pnpm|yarn|bun)\s+(install|i|add)\s+.*\s--force\s.*postinstall/i, why: 'forced post-install scripts' },
 ]
 
-const INTERACTIVE = [/\bvim?\b(?!\s*-)/, /\bnano\b/, /\bless\b/, /\bmore\b/, /\btop\b/, /\bhtop\b/, /\bssh\b(?!.*(?:git@|BatchMode))/]
+const INTERACTIVE = [/\bvim?\b/, /\bnano\b/, /\bless\b/, /\bmore\b/, /\btop\b/, /\bhtop\b/, /\bssh\b(?!.*(?:git@|BatchMode))/]
 
 export interface Sandbox {
   /** Resolve and jail a path inside the workspace (or its .halis dir). */
@@ -115,18 +115,34 @@ export function createSandbox(workspace: string): Sandbox {
         throw new SandboxError('Interactive terminal programs are not supported. Use non-interactive commands.')
       }
     }
-    // `cd` outside the workspace (.. / ~ / any absolute dir that is not the
-    // workspace) is a common escape — with or without a command chained after
-    // it. Commands run with cwd = workspace, so any of these leaves the
-    // sandboxed directory; the old trailing-only anchor caught the harmless
-    // bare `cd /` while `cd .. && cat ../../x` sailed through.
-    const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const cdOutside =
-      /\bcd\s+["']?(~|\.\.)(\s|\/|$)/.test(cmd) ||
-      /\bcd\s+["']?\/(\s|$|\*)/.test(cmd) ||
-      (/\bcd\s+["']?\//.test(cmd) && !new RegExp(`\\bcd\\s+["']?(?:${esc(root)}|${esc(realRoot)})(?:\\s|/|$)`).test(cmd))
-    if (cdOutside) {
-      throw new SandboxError('Commands must stay inside the workspace directory.')
+    // `cd` is the common escape hatch: commands run with cwd = workspace, so
+    // every `cd` re-anchors the sandbox. Screen each occurrence individually
+    // (a single whole-string exception test let `cd <ws> && cd /etc` through)
+    // and fail closed on forms that resolve outside our control (~, $VAR,
+    // flags, `cd -`, bare `cd` → $HOME).
+    const insideRoot = (p: string) => {
+      const r = resolve(p)
+      return r === root || r.startsWith(root + sep) || r === realRoot || r.startsWith(realRoot + sep)
+    }
+    for (const m of cmd.matchAll(/\bcd\s+("(?:[^"\\]|\\.)*"|'[^']*'|[^\s;|&]+)/g)) {
+      let target = m[1] ?? ''
+      if (target.length >= 2 && (target.startsWith('"') || target.startsWith("'")) && target.endsWith(target[0])) {
+        target = target.slice(1, -1)
+      }
+      if (target.startsWith('-') || target.includes('~') || target.includes('$')) {
+        throw new SandboxError('Commands must stay inside the workspace directory.')
+      }
+      if (!insideRoot(isAbsolute(target) ? target : resolve(root, target))) {
+        throw new SandboxError('Commands must stay inside the workspace directory.')
+      }
+    }
+    // Bare `cd` (no target) jumps to $HOME — catch it at command position so
+    // arguments that merely look like `cd` (e.g. `mkdir cd`) stay allowed.
+    for (const seg of cmd.split(/&&|\|\||[;|&\n]/)) {
+      const tokens = seg.trim().split(/\s+/)
+      if (tokens.length === 1 && tokens[0]?.replace(/^["']|["']$/g, '') === 'cd') {
+        throw new SandboxError('Commands must stay inside the workspace directory.')
+      }
     }
   }
 

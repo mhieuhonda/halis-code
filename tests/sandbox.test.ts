@@ -68,7 +68,26 @@ describe('screenCommand', () => {
     ['shutdown -h now', /power control/],
     [':(){ :|:& };:', /fork bomb/],
     ['vim src/main.ts', /Interactive/],
+    // Flagged interactive forms must block too (piped stdio would stall).
+    ['vim -x vault.txt', /Interactive/],
     ['cd /etc && cat passwd', /inside the workspace/],
+    // Every chained cd is checked individually — allowing the workspace as
+    // the first hop must not whitelist a later hop outside it.
+    [`cd ${ws} && cd /etc`, /inside the workspace/],
+    [`cd ${ws} && cd ..`, /inside the workspace/],
+    [`cd ${ws} && cd ~`, /inside the workspace/],
+    ['cd $HOME && ls', /inside the workspace/],
+    ['cd ~', /inside the workspace/],
+    ['cd ..', /inside the workspace/],
+    ['cd /', /inside the workspace/],
+    ['cd', /inside the workspace/],
+    ['cd -', /inside the workspace/],
+    ['ls && cd', /inside the workspace/],
+    ['mkdir cd && touch cd/x', null],
+    [`cd ${ws}`, null],
+    [`cd ${ws}/src && ls`, null],
+    ['cd src && ls', null],
+    ['cd "src" && ls', null],
     // Quoted / long-flag / nested-shell variants must not bypass the blocklist.
     ['rm -rf "/"', /filesystem root/],
     ["rm -rf '/'", /filesystem root/],
