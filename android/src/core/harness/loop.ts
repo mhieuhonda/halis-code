@@ -1,0 +1,289 @@
+/**
+ * The agent loop — one turn = a series of LLM steps. Each step streams a
+ * response and may carry tool calls; tools run through the permission
+ * engine (approval cards when needed), then their results feed the next
+ * step. The turn ends when the model answers without tool calls, hits the
+ * step cap, or is aborted.
+ */
+import type { HarnessEvent, ToolRun } from '@shared/types'
+import type { LlmDispatcher } from '../llm/client'
+import type { LlmMessage, LlmResult, LlmStreamEvent, LlmToolCall } from '../llm/types'
+import { evaluate } from './permissions'
+import type { ToolContext, ToolRegistry } from './tools'
+import { truncateToolOutput } from './util/truncate'
+import { raceWithAbort } from './util/abort-race'
+
+export interface TurnRequest {
+  sessionId: string
+  /** Streaming message identity for the UI. */
+  messageId: string
+  modelId: string
+  apiKey?: string
+  systemPrompt: string
+  history: LlmMessage[]
+  /** Swarm mode enables swarm-only tools. */
+  swarm: boolean
+  maxSteps: number
+  toolContext: ToolContext
+  signal?: AbortSignal
+}
+
+export interface TurnResult {
+  text: string
+  reasoning: string
+  steps: number
+  toolRuns: ToolRun[]
+  aborted: boolean
+  error?: string
+  finishReason: LlmResult['finishReason']
+  /** Accumulated token usage across all steps in the turn. */
+  usage: { inputTokens: number; outputTokens: number }
+}
+
+/**
+ * Recover common model-side argument glitches: polluted keys (channel
+ * markers), missing `path` for path-based tools, stringified booleans.
+ */
+function normalizeArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...args }
+  for (const [k, v] of Object.entries(out)) {
+    if (v === 'true') out[k] = true
+    else if (v === 'false') out[k] = false
+  }
+  if (typeof out.path !== 'string' || !out.path) {
+    for (const [k, v] of Object.entries(out)) {
+      if (k !== 'path' && /(^|[^a-z])path([^a-z]|$)/i.test(k) && typeof v === 'string' && v) {
+        out.path = v
+        break
+      }
+    }
+    if ((!out.path || typeof out.path !== 'string') && typeof out._raw === 'string') {
+      const m = (out._raw as string).match(/"path"\s*:\s*"([^"]+)"/)
+      if (m) out.path = m[1]
+    }
+  }
+  if (out.path && typeof out.path === 'string') {
+    out.path = out.path.replace(/\[channel\]\s*>\s*\w+\s*/gi, '').trim()
+  }
+  return out
+}
+
+export class AgentRunner {
+  constructor(
+    private readonly dispatcher: LlmDispatcher,
+    private readonly registry: ToolRegistry,
+  ) {}
+
+  async runTurn(req: TurnRequest, emit: (event: HarnessEvent) => void): Promise<TurnResult> {
+    const ctx = req.toolContext
+    const history: LlmMessage[] = [...req.history]
+    const toolRuns: ToolRun[] = []
+    let steps = 0
+    let text = ''
+    // Text streamed during the CURRENT step. A mid-stream abort throws away
+    // the provider's internal result, but the deltas already reached the UI —
+    // keeping them here preserves the user's partial answer in history.
+    let streamText = ''
+    let reasoning = ''
+    let aborted = false
+    let lastFinish: LlmResult['finishReason'] = 'stop'
+    const usage = { inputTokens: 0, outputTokens: 0 }
+
+    try {
+      while (steps < req.maxSteps) {
+        if (req.signal?.aborted) {
+          aborted = true
+          break
+        }
+        steps++
+        const isFinalStep = steps === req.maxSteps
+        const messages: LlmMessage[] = [{ role: 'system', content: req.systemPrompt }, ...history]
+        if (isFinalStep && steps > 1) {
+          messages.push({
+            role: 'user',
+            content: 'Step limit reached. Wrap up now: summarize what you did and what remains. Do not call any more tools.',
+          })
+        }
+
+        const result = await this.dispatcher.stream(
+          req.modelId,
+          {
+            model: req.modelId,
+            messages,
+            tools: isFinalStep ? undefined : this.registry.llmTools(req.swarm),
+            signal: req.signal,
+          },
+          {
+            signal: req.signal,
+            onEvent: (ev: LlmStreamEvent) => {
+              if (ev.type === 'text') {
+                streamText += ev.delta
+                emit({ type: 'message-delta', sessionId: req.sessionId, messageId: req.messageId, delta: ev.delta })
+              } else if (ev.type === 'reasoning') emit({ type: 'message-reasoning', sessionId: req.sessionId, messageId: req.messageId, delta: ev.delta })
+            },
+          },
+          req.apiKey,
+        )
+        lastFinish = result.finishReason
+        // Multi-step turns stream every step's narration under the same
+        // messageId — the final message must keep ALL of it.
+        const stepText = result.text || streamText
+        if (stepText) text = text ? `${text}\n\n${stepText}` : stepText
+        streamText = ''
+        if (result.reasoning) reasoning = reasoning ? `${reasoning}\n\n${result.reasoning}` : result.reasoning
+        usage.inputTokens += result.usage?.inputTokens ?? 0
+        usage.outputTokens += result.usage?.outputTokens ?? 0
+
+        if (!result.toolCalls.length) break
+        if (isFinalStep) break
+
+        // Record the assistant turn with its tool calls.
+        history.push({ role: 'assistant', content: result.text, toolCalls: result.toolCalls })
+
+        for (const call of result.toolCalls) {
+          const run = await this.executeToolCall(call, ctx, req, emit)
+          history.push({
+            role: 'tool',
+            toolCallId: call.id,
+            toolName: call.name,
+            content: run.state === 'completed' ? String(run.result ?? '') : `ERROR: ${run.error ?? 'not executed'}`,
+            isError: run.state !== 'completed',
+          })
+          toolRuns.push(run)
+        }
+      }
+    } catch (err) {
+      if (req.signal?.aborted || (err as Error)?.name === 'AbortError') {
+        aborted = true
+        if (streamText) text = text ? `${text}\n\n${streamText}` : streamText
+      } else {
+        const message = err instanceof Error ? err.message : String(err)
+        const partial = streamText ? (text ? `${text}\n\n${streamText}` : streamText) : text
+        return { text: partial, reasoning, steps, toolRuns, aborted, error: message, finishReason: 'error', usage }
+      }
+    }
+
+    return { text, reasoning, steps, toolRuns, aborted, finishReason: lastFinish, usage }
+  }
+
+  private async executeToolCall(call: LlmToolCall, ctx: ToolContext, req: TurnRequest, emit: (event: HarnessEvent) => void): Promise<ToolRun> {
+    let args: Record<string, unknown> = {}
+    try {
+      args = JSON.parse(call.arguments || '{}') as Record<string, unknown>
+    } catch {
+      // Models occasionally wrap JSON in prose or channel markers — try to
+      // recover the outermost object before giving up.
+      const match = call.arguments.match(/\{[\s\S]*\}/)
+      if (match) {
+        try {
+          args = JSON.parse(match[0]) as Record<string, unknown>
+        } catch {
+          args = { _raw: call.arguments }
+        }
+      } else {
+        args = { _raw: call.arguments }
+      }
+    }
+    args = normalizeArgs(args)
+
+    let tool = this.registry.get(call.name)
+    if (!tool) {
+      // Harmony-mangled names: recover the tool whose name survives.
+      const cleaned = call.name
+        .replace(/<\|[^|>]{0,40}\|>/g, ' ')
+        .replace(/\[channel\]\s*>\s*\w+/gi, ' ')
+        .trim()
+      tool = this.registry.listFor(req.swarm).find((t) => cleaned === t.name || cleaned.includes(t.name))
+    }
+    const run: ToolRun = {
+      toolCallId: call.id,
+      tool: tool?.name ?? call.name,
+      args,
+      state: 'running',
+      startedAt: Date.now(),
+    }
+    const emitRun = (state: ToolRun['state'], patch: Partial<ToolRun> = {}) => {
+      Object.assign(run, { state }, patch)
+      const { _data: _omit, ...clean } = run as ToolRun & { _data?: unknown }
+      void _omit
+      emit({ type: 'tool-update', sessionId: req.sessionId, messageId: req.messageId, run: clean })
+    }
+    emit({ type: 'tool-start', sessionId: req.sessionId, messageId: req.messageId, run: { ...run } })
+
+    if (!tool) {
+      emitRun('error', { error: `Unknown tool "${call.name}". Available: ${this.registry.listFor(req.swarm).map((t) => t.name).join(', ')}`, endedAt: Date.now() })
+      return run
+    }
+
+    // --- Permission engine ---
+    // "Always allow" rules must be read LIVE, not from the snapshot captured
+    // at turn start — the user clicking "Always" on the first action must
+    // cover the remaining actions of the same turn.
+    const kind = tool.kind
+    const readOnly = tool.readOnly
+    const decision = evaluate({
+      tool: tool.name,
+      kind,
+      readOnly,
+      agent: ctx.permissions,
+      alwaysRules: ctx.approvals.rulesFor(ctx.agentId),
+      agentId: ctx.agentId,
+      autoApproveAll: ctx.autoApproveAll,
+    })
+
+    if (decision.effect === 'deny') {
+      emitRun('rejected', { error: `Denied: ${decision.reason}`, endedAt: Date.now() })
+      return run
+    }
+    // USDC spends quote their exact price during execution (from the 402
+    // challenge) — the tool raises the approval card with the real number.
+    const needsLoopApproval = decision.effect === 'ask' && kind !== 'usdc-spend'
+    if (needsLoopApproval) {
+      if (req.signal?.aborted) {
+        emitRun('rejected', { error: 'Turn aborted', endedAt: Date.now() })
+        return run
+      }
+      emitRun('awaiting-approval', {})
+      const { wait } = ctx.approvals.request({
+        sessionId: req.sessionId,
+        agentId: ctx.agentId,
+        agentName: ctx.agentName,
+        agentColor: ctx.agentColor,
+        kind,
+        title: `Allow ${tool.name}?`,
+        detail: 'This action requires your approval.',
+        risk: 'low',
+        tool: tool.name,
+      })
+      const response = await raceWithAbort(wait, req.signal)
+      if (response === null) {
+        emitRun('rejected', { error: 'Turn aborted', endedAt: Date.now() })
+        return run
+      }
+      if (response === 'reject') {
+        emitRun('rejected', { error: 'You rejected this action.', endedAt: Date.now() })
+        return run
+      }
+      run.approval = { approvedBy: response === 'always' ? 'always' : 'user', at: Date.now() }
+    }
+
+    // --- Execute ---
+    if (req.signal?.aborted) {
+      emitRun('rejected', { error: 'Turn aborted', endedAt: Date.now() })
+      return run
+    }
+    const prevToolCallId = ctx.toolCallId
+    ctx.toolCallId = call.id
+    try {
+      const result = await tool.execute(args, ctx)
+      // Global output budget: clip long results.
+      const truncated = truncateToolOutput(result.output, call.id)
+      emitRun('completed', { result: truncated.text, endedAt: Date.now() })
+    } catch (err) {
+      emitRun('error', { error: err instanceof Error ? err.message : String(err), endedAt: Date.now() })
+    } finally {
+      ctx.toolCallId = prevToolCallId
+    }
+    return run
+  }
+}

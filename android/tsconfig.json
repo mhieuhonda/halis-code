@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "types": ["vite/client"],
+    "paths": {
+      "@shared/*": ["./src/shared/*"],
+      "@core/*": ["./src/core/*"]
+    }
+  },
+  "include": ["src", "capacitor.config.ts"]
+}
