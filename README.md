@@ -159,6 +159,26 @@ English by default, Tiếng Việt in Settings → Language. The entire UI, incl
 
 The renderer boots in the **Light** theme; **Dark** is one click away in Settings → Appearance (⚙ Giao diện) and is remembered across restarts.
 
+## Android
+
+Halis Code ships a native Android edition (`android/`, Capacitor + React 19 + TypeScript 7), built as a phone-first companion:
+
+- **Everything that works on a phone**: agent chat, the 20-agent swarm (addressing protocol, planner, context filtering, speak budget), Telegraph (burner wallet, x402 paid asks, receipts ledger, signal verification), web_search / web_fetch, ask_user question cards, todo checklists, reminders (one-shot / interval / daily / weekly / cron), the shared task board, delegate_task, auto-compaction, the searchable model catalog with BYOK vault, light/dark themes and full English/Tiếng Việt UI.
+- **What stays on desktop, by design**: file tools, terminal commands, git tools, background jobs, MCP stdio and the workspace picker. The Android edition never reads or writes files and never executes commands — the harness tool registry simply does not include them.
+- Android 7.1.1+ (minSdk 25), phone-first UI: bottom navigation, bottom sheets, safe-area padding, session drawer, pinned approval cards.
+
+### Build
+
+```bash
+cd android
+npm install
+npm run build      # web assets (vite)
+npx cap sync android
+cd android && ./gradlew assembleDebug   # or open in Android Studio
+```
+
+CI does it all: `.github/workflows/android.yml` builds the APK on every push touching `android/**` and attaches debug (plus signed release when the `ANDROID_KEYSTORE_B64` / `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD` secrets are set) to GitHub releases.
+
 ## Install & run
 
 ```bash
