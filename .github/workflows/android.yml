@@ -15,6 +15,7 @@ permissions:
 
 env:
   APK_DIR: android/android/app/build/outputs/apk
+  HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_B64 != '' }}
 
 jobs:
   apk:
@@ -70,18 +71,18 @@ jobs:
         run: npx cap sync android
 
       - name: Decode signing keystore
-        if: ${{ github.event_name == 'release' && secrets.ANDROID_KEYSTORE_B64 != '' }}
+        if: ${{ github.event_name == 'release' && env.HAS_KEYSTORE == 'true' }}
         env:
           ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
         working-directory: android/android
         run: |
           echo "$ANDROID_KEYSTORE_B64" | base64 -d > keystore.jks
-          cat > keystore.properties <<'PROPS'
-          storeFile=keystore.jks
-          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
-          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
-          PROPS
+          {
+            echo "storeFile=keystore.jks"
+            echo "storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}"
+            echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}"
+            echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}"
+          } > keystore.properties
 
       - name: Build debug APK
         working-directory: android/android
