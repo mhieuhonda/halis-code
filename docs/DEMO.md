@@ -11,7 +11,7 @@ npm run dev        # dev build with HMR
 npm run dist       # electron-builder output for your platform
 ```
 
-No API key is needed for the first run *if* you use a local Ollama server; otherwise paste a free OpenCode Zen key (from [opencode.ai/zen](https://opencode.ai/zen)) in Settings → **Models & API keys** — the default model is the free-tier `ling-3.1-flash-free`. Telegraph discovery (miners, intents, signals) is free and works before any wallet exists.
+No API key is needed for the first run *if* you use a local Ollama server; otherwise paste a free OpenRouter key (from [openrouter.ai/keys](https://openrouter.ai/keys)) in Settings → **Models & API keys** — the default model rides the free `cohere/north-mini-code:free` lane. Telegraph discovery (miners, intents, signals) is free and works before any wallet exists.
 
 The app boots in the **Light** theme. Prefer dark? Settings → **Appearance** → Dark applies instantly and is remembered.
 
@@ -65,5 +65,5 @@ Mainnet readiness: chain ID, USDC address, explorer, node URL and price source a
 | Ask fails with insufficient funds | Fund the wallet with testnet USDC (faucet); check the balance card. |
 | Ask fails 402 with an empty wallet | Same as above — the 402 challenge is the price quote; paying needs USDC. |
 | Node unreachable badge | `devnode.telegraphprotocol.com` briefly down — retry; discovery is free. |
-| Model picker empty of paid models | Keys live in Settings → Models & API keys — paste a provider key, or stay on the OpenCode Zen free tier / local Ollama. |
+| Model picker empty of paid models | Keys live in Settings → Models & API keys — paste a provider key, or stay on the OpenRouter free lane / local Ollama. |
 | Telegraph tab missing | Settings → Telegraph Protocol switch is off; flip it back on. |

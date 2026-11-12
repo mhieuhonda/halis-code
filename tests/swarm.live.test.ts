@@ -4,9 +4,8 @@
  * Exercises @mention routing, the context filter, tool approvals and the
  * task flow.
  *
- * Uses the free OpenCode Zen model by default (OPENCODE_API_KEY from
- * opencode.ai/zen). Set OPENROUTER_TEST_KEY to run the same turn on free
- * OpenRouter models instead.
+ * Runs on the free OpenRouter lane (`cohere/north-mini-code:free`).
+ * Set OPENROUTER_TEST_KEY to enable it.
  */
 import { describe, expect, it } from 'vitest'
 import { mkdtempSync, existsSync, readFileSync, rmSync } from 'node:fs'
@@ -30,10 +29,9 @@ import { ReceiptLedger } from '@main/telegraph/receipts'
 import { TELEGRAPH_NETWORKS } from '@shared/types'
 
 const OR_KEY = process.env.OPENROUTER_TEST_KEY ?? ''
-const ZEN_KEY = process.env.OPENCODE_API_KEY ?? ''
-const CODER_MODEL = OR_KEY ? 'openrouter/cohere/north-mini-code:free' : 'opencode/ling-3.1-flash-free'
-const REVIEWER_MODEL = OR_KEY ? 'openrouter/cohere/north-mini-code:free' : 'opencode/ling-3.1-flash-free'
-const KEY = OR_KEY || ZEN_KEY
+const CODER_MODEL = 'openrouter/cohere/north-mini-code:free'
+const REVIEWER_MODEL = 'openrouter/cohere/north-mini-code:free'
+const KEY = OR_KEY
 
 function agent(id: string, name: string, roleId: string, modelId: string): import('@shared/types').AgentConfig {
   return {
@@ -54,7 +52,7 @@ describe('live: swarm turn on free models', () => {
     'planner + coder + reviewer finish a small file task',
     { timeout: 300_000, retry: 1 },
     async () => {
-      if (!KEY) return console.warn('no OPENCODE_API_KEY / OPENROUTER_TEST_KEY — skipping live test')
+      if (!KEY) return console.warn('no OPENROUTER_TEST_KEY — skipping live test')
       const ws = mkdtempSync(join(tmpdir(), 'halis-swarm-'))
       try {
         const catalog = new ModelCatalog()

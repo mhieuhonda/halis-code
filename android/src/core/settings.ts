@@ -8,7 +8,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   language: 'en',
   theme: 'light',
   workspace: '',
-  defaultModelId: 'opencode/ling-3.1-flash-free',
+  defaultModelId: 'openrouter/cohere/north-mini-code:free',
   telegraph: {
     networkId: 'base-sepolia',
     autoApproveUpTo: 0,

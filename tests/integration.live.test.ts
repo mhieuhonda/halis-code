@@ -1,11 +1,11 @@
 /**
- * Live integration test — runs a REAL agent turn against the free OpenCode
- * Zen model (`ling-3.1-flash-free`, key from opencode.ai/zen), exercises the
+ * Live integration test — runs a REAL agent turn against the free
+ * OpenRouter lane (`cohere/north-mini-code:free`), exercises the
  * tool loop (write_file, read_file, run_command) under the real sandbox +
  * permission engine, and probes the live Telegraph testnet node (free
  * discovery + x402 quote).
  *
- * Requires network + OPENCODE_API_KEY (model) / TELEGRAPH_LIVE=1 (node).
+ * Requires network + OPENROUTER_TEST_KEY (model) / TELEGRAPH_LIVE=1 (node).
  * Skipped automatically when offline.
  */
 import { describe, expect, it, beforeAll } from 'vitest'
@@ -30,8 +30,8 @@ import { ReceiptLedger } from '@main/telegraph/receipts'
 import { listIntents, listMiners, quoteAsk } from '@main/telegraph/client'
 import { TELEGRAPH_NETWORKS } from '@shared/types'
 
-const LIVE_MODEL = 'opencode/ling-3.1-flash-free'
-const KEY = process.env.OPENCODE_API_KEY ?? ''
+const LIVE_MODEL = 'openrouter/cohere/north-mini-code:free'
+const KEY = process.env.OPENROUTER_TEST_KEY ?? ''
 const TELEGRAPH_LIVE = process.env.TELEGRAPH_LIVE === '1'
 
 let online = false
@@ -39,7 +39,7 @@ let telegraphOnline = false
 beforeAll(async () => {
   if (!KEY) return
   try {
-    const res = await fetch('https://models.opencode.ai/api.json', { signal: AbortSignal.timeout(8000) })
+    const res = await fetch('https://models.dev/api.json', { signal: AbortSignal.timeout(8000) })
     online = res.ok
   } catch {
     online = false
@@ -48,10 +48,10 @@ beforeAll(async () => {
 
 describe('live: free model agent turn', () => {
   it(
-    'runs a full tool loop on opencode/ling-3.1-flash-free',
+    'runs a full tool loop on the openrouter free lane',
     { timeout: 180_000, retry: 1 },
     async () => {
-      if (!KEY || !online) return console.warn('no OPENCODE_API_KEY or offline — skipping live test')
+      if (!KEY || !online) return console.warn('no OPENROUTER_TEST_KEY or offline — skipping live test')
       const ws = mkdtempSync(join(tmpdir(), 'halis-e2e-'))
       try {
         const catalog = new ModelCatalog()

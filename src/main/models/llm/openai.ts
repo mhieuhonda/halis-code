@@ -1,7 +1,7 @@
 /**
  * OpenAI-compatible chat client with SSE streaming and function calling.
  * Covers Anthropic popular list, OpenAI, Google (OpenAI-compat endpoint),
- * OpenRouter, Vercel AI Gateway, OpenCode Zen, Ollama and every other
+ * OpenRouter, Vercel AI Gateway, Ollama and every other
  * gateway that speaks the /chat/completions dialect.
  */
 import type { LlmMessage, LlmProvider, LlmRequest, LlmResult, LlmStreamOptions, LlmToolCall } from './types'

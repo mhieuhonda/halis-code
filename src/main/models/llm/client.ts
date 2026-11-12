@@ -50,6 +50,9 @@ export class LlmDispatcher {
     if (!providerInfo.keyless && !key) {
       throw new LlmError(`No API key set for ${providerInfo.name}. Open Settings → Models & API keys to add one (${providerInfo.envKey ?? 'API key'}).`, undefined, providerInfo.id)
     }
+    if (!providerInfo.baseURL) {
+      throw new LlmError(`${providerInfo.name} has no public API endpoint configured — it is listed for reference only. Pick a provider with a callable endpoint.`, undefined, providerInfo.id)
+    }
     if (providerInfo.apiStyle === 'anthropic') {
       return { provider: new AnthropicProvider(key!, providerInfo.baseURL, providerInfo.name), model }
     }

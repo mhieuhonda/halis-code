@@ -17,37 +17,37 @@ import type { AgentConfig, ChatMessage } from '@shared/types'
 /* ------------------------- dispatcher key fallback ------------------------- */
 
 const providers: ProviderInfo[] = [
-  { id: 'opencode', name: 'OpenCode Zen', apiStyle: 'openai', baseURL: 'https://opencode.ai/zen/v1', envKey: 'OPENCODE_API_KEY' },
+  { id: 'zen', name: 'Zen Gateway', apiStyle: 'openai', baseURL: 'https://gateway.example.com/v1', envKey: 'ZEN_API_KEY' },
   { id: 'pollinations', name: 'Pollinations', apiStyle: 'openai', baseURL: 'https://text.pollinations.ai/openai', keyless: true },
 ]
 const models: ModelInfo[] = [
-  { id: 'opencode/glm-5', apiId: 'glm-5', name: 'GLM-5', providerId: 'opencode', free: false, toolCall: true },
+  { id: 'zen/glm-5', apiId: 'glm-5', name: 'GLM-5', providerId: 'zen', free: false, toolCall: true },
   { id: 'pollinations/openai-fast', apiId: 'openai-fast', name: 'OpenAI Fast', providerId: 'pollinations', free: true, toolCall: true },
 ]
 const catalog: CatalogSnapshot = { providers, models, updatedAt: Date.now(), source: 'bundled' }
 
 describe('LlmDispatcher vault fallback', () => {
   it('falls back to the vault key when the override is an empty string', async () => {
-    const dispatcher = new LlmDispatcher(() => catalog, (providerId) => (providerId === 'opencode' ? 'vault-key' : undefined))
+    const dispatcher = new LlmDispatcher(() => catalog, (providerId) => (providerId === 'zen' ? 'vault-key' : undefined))
     // Old bug: keyOverride '' !== undefined blocked the vault → "No API key".
-    const resolved = dispatcher.resolve('opencode/glm-5', '')
+    const resolved = dispatcher.resolve('zen/glm-5', '')
     expect(resolved).toBeTruthy()
   })
 
   it('falls back to the vault key for whitespace-only overrides', () => {
     const dispatcher = new LlmDispatcher(() => catalog, () => 'vault-key')
-    expect(() => dispatcher.resolve('opencode/glm-5', '   ')).not.toThrow()
+    expect(() => dispatcher.resolve('zen/glm-5', '   ')).not.toThrow()
   })
 
   it('still prefers a non-empty per-agent key over the vault', () => {
     const dispatcher = new LlmDispatcher(() => catalog, () => 'vault-key')
-    const resolved = dispatcher.resolve('opencode/glm-5', 'agent-key')
+    const resolved = dispatcher.resolve('zen/glm-5', 'agent-key')
     expect(resolved).toBeTruthy()
   })
 
   it('throws when neither the override nor the vault has a key', () => {
     const dispatcher = new LlmDispatcher(() => catalog, () => undefined)
-    expect(() => dispatcher.resolve('opencode/glm-5', '')).toThrow(/No API key set/)
+    expect(() => dispatcher.resolve('zen/glm-5', '')).toThrow(/No API key set/)
   })
 
   it('resolves keyless providers without any key', () => {
@@ -68,8 +68,10 @@ describe('model catalog id hygiene', () => {
   })
 
   it('resolves model ids saved with wrapping quotes (older configs)', () => {
-    const direct = modelCatalog.getModel('opencode/glm-5')
-    const quoted = modelCatalog.getModel('"opencode/glm-5"')
+    const bundled = modelCatalog.get().models[0]
+    expect(bundled).toBeTruthy()
+    const direct = modelCatalog.getModel(bundled.id)
+    const quoted = modelCatalog.getModel(`"${bundled.id}"`)
     expect(direct).toBeTruthy()
     expect(quoted?.id).toBe(direct?.id)
   })

@@ -40,7 +40,7 @@ function agentFromRole(role: AgentRole, name: string, index: number): AgentConfi
     avatar: '',
     color: colors[index % colors.length]!,
     roleId: role.id,
-    modelId: 'opencode/ling-3.1-flash-free',
+    modelId: 'openrouter/cohere/north-mini-code:free',
     apiKey: '',
     permissions: {
       readOnly: !!role.defaultPermissions.readOnly,
