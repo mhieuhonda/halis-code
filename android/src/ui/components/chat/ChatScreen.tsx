@@ -1,21 +1,20 @@
 /**
- * Chat screen — the primary surface. Handles both Agent and Swarm modes
- * (segmented switch, like the desktop sidebar), sessions drawer, pinned
- * approval / question cards, todo panel, reminders and the composer.
+ * Chat screen — the session panel. OpenCode-style 48px session header
+ * (workspace trigger + title + actions), the message timeline, docked
+ * approval/question cards, the todo pill and the composer.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ListTodo, Menu, MessageSquarePlus, Clock } from 'lucide-react'
+import { ChevronDown, Clock, FolderOpen, ListTodo, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { useChatStore } from '../../stores/chat'
 import { useAppStore } from '../../stores/app'
 import { useT } from '../../i18n'
 import { MessageBubble } from './MessageBubble'
 import { ApprovalCard } from './ApprovalCard'
 import { Composer } from './Composer'
-import { SessionsDrawer } from '../SessionsDrawer'
 import { ModelPicker } from '../ModelPicker'
 import { bridge } from '../../lib/bridge'
+import logoUrl from '../../../assets/logo.png'
 import type { ScheduleView } from '@shared/types'
-import { pushToast } from '../ui'
 
 export function ChatScreen() {
   const t = useT()
@@ -27,17 +26,21 @@ export function ChatScreen() {
   const openSession = useChatStore((s) => s.openSession)
   const newSession = useChatStore((s) => s.newSession)
   const loadSessions = useChatStore((s) => s.loadSessions)
+  const deleteSession = useChatStore((s) => s.deleteSession)
+  const renameSession = useChatStore((s) => s.renameSession)
   const approvals = useChatStore((s) => s.approvals)
   const todos = useChatStore((s) => s.todos)
   const typing = useChatStore((s) => s.typing)
   const swarmRound = useChatStore((s) => s.swarmRound)
   const loadTasks = useChatStore((s) => s.loadTasks)
   const settings = useAppStore((s) => s.settings)
-  const catalog = useAppStore((s) => s.catalog)
+  const workspace = useAppStore((s) => s.workspace)
 
-  const [drawerOpen, setDrawerOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [todosOpen, setTodosOpen] = useState(false)
+  const [headerMenu, setHeaderMenu] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const [renameText, setRenameText] = useState('')
   const [reminders, setReminders] = useState<ScheduleView[]>([])
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -83,108 +86,137 @@ export function ChatScreen() {
     stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
   }
 
-  const modeSessions = sessions.filter((s) => s.mode === activeMode)
   const sessionApprovals = approvals.filter((a) => !a.sessionId || a.sessionId === activeSessionId)
   const doneTodos = todos.filter((td) => td.status === 'completed').length
-  const defaultModelName = catalog?.models.find((m) => m.id === settings?.defaultModelId)?.name
-
-  const pickModel = (modelId: string) => {
-    if (!activeSessionId) return
-    // Update the in-memory session meta so the chip reflects immediately;
-    // the id rides with the next chatSend (same contract as desktop).
-    useChatStore.setState((state) => ({
-      sessions: state.sessions.map((s) => (s.id === activeSessionId ? { ...s, modelId } : s)),
-    }))
-  }
+  const running = Object.keys(typing).length > 0 || (swarmRound?.round ?? 0) > 0
+  const workspaceName = workspace.workspace ? workspace.workspace.split(/[\\/]/).filter(Boolean).pop() : undefined
+  const title = activeSession?.title ?? (activeMode === 'swarm' ? t('new_swarm_session') : t('new_chat'))
 
   return (
     <>
-      <div className="topbar safe-top">
-        <button className="icon-btn" onClick={() => setDrawerOpen(true)} aria-label="sessions">
-          <Menu size={21} />
-        </button>
-        <div className="grow" style={{ minWidth: 0 }}>
-          <div className="topbar-title">{activeSession?.title ?? (activeMode === 'swarm' ? t('new_swarm_session') : t('new_chat'))}</div>
-          {swarmRound ? (
-            <div className="hint">
-              {t('round_label')} {swarmRound.round}/{swarmRound.maxRounds}
+      <div className="session-header">
+        <div className="sh-trigger" onClick={() => setPickerOpen(false)} style={{ cursor: 'default' }}>
+          <FolderOpen size={14} style={{ color: 'var(--v2-icon-muted)' }} />
+          <span style={{ maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {workspaceName || t('workspace_label')}
+          </span>
+          <span style={{ color: 'var(--v2-text-faint)' }}>/</span>
+          {renaming ? (
+            <input
+              className="field"
+              style={{ minHeight: 26, padding: '2px 8px', width: 150 }}
+              autoFocus
+              value={renameText}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && activeSessionId) {
+                  void renameSession(activeSessionId, renameText)
+                  setRenaming(false)
+                }
+              }}
+              onBlur={() => setRenaming(false)}
+            />
+          ) : (
+            <span className="sh-title">{title}</span>
+          )}
+        </div>
+
+        {running ? <span className="working-shimmer">{t('working')}…</span> : null}
+        {swarmRound ? (
+          <span className="chip chip-purple">
+            {t('round_label')} {swarmRound.round}/{swarmRound.maxRounds}
+          </span>
+        ) : null}
+
+        <div className="sh-actions">
+          <button className="icon-btn" onClick={() => setHeaderMenu(!headerMenu)} aria-label="session menu">
+            <MoreHorizontal size={16} />
+          </button>
+        </div>
+
+        {headerMenu ? (
+          <>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 29 }} onClick={() => setHeaderMenu(false)} />
+            <div className="menu" style={{ top: 46, bottom: 'auto', right: 10, left: 'auto' }}>
+              <button
+                className="menu-item"
+                onClick={() => {
+                  setHeaderMenu(false)
+                  setRenameText(activeSession?.title ?? '')
+                  setRenaming(true)
+                }}
+              >
+                <Pencil size={14} />
+                {t('edit')}
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => {
+                  setHeaderMenu(false)
+                  if (activeSessionId && confirm(`${t('delete_session')}: ${title}?`)) void deleteSession(activeSessionId)
+                }}
+              >
+                <Trash2 size={14} />
+                {t('delete')}
+              </button>
             </div>
-          ) : null}
-        </div>
-        <div className="segmented">
-          <button className={activeMode === 'agent' ? 'active' : ''} onClick={() => useChatStore.setState({ activeMode: 'agent' })}>
-            {t('mode_agent')}
-          </button>
-          <button className={activeMode === 'swarm' ? 'active' : ''} onClick={() => useChatStore.setState({ activeMode: 'swarm' })}>
-            {t('mode_swarm')}
-          </button>
-        </div>
-        <button
-          className="icon-btn"
-          onClick={() => {
-            stickToBottom.current = true
-            void newSession(activeMode)
-          }}
-          aria-label="new"
-        >
-          <MessageSquarePlus size={21} />
-        </button>
+          </>
+        ) : null}
       </div>
 
-      <div className="chat-scroll" ref={scrollRef} onScroll={onScroll}>
+      <div className="timeline" ref={scrollRef} onScroll={onScroll}>
         {!messages.length ? (
-          <div style={{ padding: '56px 18px', textAlign: 'center' }}>
-            <div style={{ fontSize: 21, fontWeight: 700, marginBottom: 8 }}>{activeMode === 'swarm' ? t('greeting_swarm') : t('empty_chat_title')}</div>
-            <div className="hint" style={{ maxWidth: 320, margin: '0 auto 18px' }}>
-              {activeMode === 'swarm' ? t('chief_banner') : t('empty_chat_sub')}
+          <div className="empty-state">
+            <img src={logoUrl} alt="" className="logo" draggable={false} />
+            <div style={{ fontSize: 20, fontWeight: 670, letterSpacing: '-0.32px' }}>
+              {activeMode === 'swarm' ? t('greeting_swarm') : t('empty_chat_title')}
             </div>
-            {activeMode === 'agent' && defaultModelName ? <div className="chip chip-accent">{defaultModelName}</div> : null}
+            <div className="hint">{activeMode === 'swarm' ? t('chief_banner') : t('empty_chat_sub')}</div>
           </div>
         ) : (
           messages.map((m) => <MessageBubble key={m.id} message={m} />)
         )}
 
         {Object.entries(typing).map(([agentId, info]) => (
-          <div key={agentId} className="hint" style={{ padding: '2px 4px 8px' }}>
+          <div key={agentId} className="typing-row" style={{ padding: '2px 0 8px' }}>
             <span className="typing-dot" />
             <span className="typing-dot" />
-            <span className="typing-dot" /> {info.name} {t('typing')}
+            <span className="typing-dot" />
+            {info.name} {t('typing')}
           </div>
         ))}
       </div>
 
-      {sessionApprovals.length ? (
-        <div style={{ maxHeight: '42dvh', overflowY: 'auto', padding: '8px 12px 0', borderTop: '1px solid var(--hal-border)', background: 'var(--hal-bg-soft)' }}>
-          {sessionApprovals.map((a) => (
-            <ApprovalCard key={a.id} request={a} />
-          ))}
-        </div>
-      ) : null}
-
       {todos.length ? (
-        <div className="panel" style={{ padding: '0 12px' }}>
-          <button className="row" style={{ width: '100%', border: 'none', background: 'transparent', padding: '9px 0', cursor: 'pointer' }} onClick={() => setTodosOpen(!todosOpen)}>
-            <ListTodo size={15} style={{ color: 'var(--hal-accent)' }} />
-            <b style={{ fontSize: 13 }}>
+        <div className="composer-dock" style={{ paddingTop: 6 }}>
+          <button className="todo-pill" onClick={() => setTodosOpen(!todosOpen)}>
+            <ListTodo size={14} style={{ color: 'var(--v2-icon-accent)' }} />
+            <span style={{ flex: 1 }}>
               {t('todo_title')} · {doneTodos}/{todos.length}
-            </b>
-            <ChevronDown size={15} style={{ marginLeft: 'auto', transform: todosOpen ? 'rotate(180deg)' : undefined, transition: 'transform .15s', color: 'var(--hal-ink-muted)' }} />
+            </span>
+            <ChevronDown size={14} style={{ transform: todosOpen ? 'rotate(180deg)' : undefined, transition: 'transform .15s' }} />
           </button>
           {todosOpen ? (
-            <div style={{ paddingBottom: 8 }}>
+            <div className="dock-card" style={{ marginBottom: 6 }}>
               {todos.map((td, i) => (
-                <div key={i} className="row" style={{ gap: 8, padding: '3px 0', fontSize: 13.5 }}>
+                <div key={i} className="row" style={{ gap: 8, padding: '3px 0', fontSize: 13 }}>
                   <span
                     style={{
-                      width: 15,
-                      height: 15,
-                      borderRadius: '50%',
-                      border: td.status === 'completed' ? 'none' : '2px solid var(--hal-border-strong)',
-                      background: td.status === 'completed' ? 'var(--hal-green)' : td.status === 'in_progress' ? 'var(--hal-accent)' : 'transparent',
+                      width: 14,
+                      height: 14,
+                      borderRadius: 4,
                       flex: '0 0 auto',
+                      background: td.status === 'completed' ? 'var(--v2-state-success-fg)' : td.status === 'in_progress' ? 'var(--v2-bg-accent)' : 'transparent',
+                      boxShadow: td.status === 'completed' || td.status === 'in_progress' ? 'none' : 'inset 0 0 0 0.5px var(--v2-border-strong)',
                     }}
                   />
-                  <span style={{ textDecoration: td.status === 'completed' ? 'line-through' : undefined, color: td.status === 'pending' ? 'var(--hal-ink-soft)' : undefined }}>{td.content}</span>
+                  <span
+                    style={{
+                      color: td.status === 'completed' ? 'var(--v2-text-faint)' : td.status === 'in_progress' ? 'var(--v2-text-base)' : 'var(--v2-text-muted)',
+                      textDecoration: td.status === 'completed' ? 'line-through' : undefined,
+                    }}
+                  >
+                    {td.content}
+                  </span>
                 </div>
               ))}
             </div>
@@ -193,7 +225,7 @@ export function ChatScreen() {
       ) : null}
 
       {reminders.length ? (
-        <div className="panel" style={{ padding: '8px 12px', display: 'flex', gap: 6, overflowX: 'auto' }}>
+        <div className="composer-dock" style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingTop: 6, paddingBottom: 0 }}>
           {reminders.map((r) => (
             <span key={r.id} className="chip" style={{ flex: '0 0 auto' }}>
               <Clock size={11} />
@@ -203,20 +235,25 @@ export function ChatScreen() {
         </div>
       ) : null}
 
-      <Composer mode={activeMode} />
+      <div className="composer-dock" style={{ paddingTop: 8 }}>
+        {sessionApprovals.length ? (
+          <div style={{ maxHeight: '42dvh', overflowY: 'auto' }}>
+            {sessionApprovals.map((a) => (
+              <ApprovalCard key={a.id} request={a} />
+            ))}
+          </div>
+        ) : null}
+        <Composer mode={activeMode} onOpenPicker={() => setPickerOpen(true)} />
+      </div>
 
-      <SessionsDrawer
-        open={drawerOpen}
-        mode={activeMode}
-        onClose={() => setDrawerOpen(false)}
-        onNew={() => {
-          setDrawerOpen(false)
-          stickToBottom.current = true
-          void newSession(activeMode)
-        }}
-      />
-
-      <ModelPicker open={pickerOpen} onClose={() => setPickerOpen(false)} currentId={activeSession?.modelId} onPick={(m) => pickModel(m.id)} />
+      <ModelPicker open={pickerOpen} onClose={() => setPickerOpen(false)} currentId={activeSession?.modelId ?? settings?.defaultModelId} onPick={(m) => {
+        if (!activeSessionId) return
+        // Update the in-memory session meta so the chip reflects immediately;
+        // the id rides with the next chatSend (same contract as desktop).
+        useChatStore.setState((state) => ({
+          sessions: state.sessions.map((s) => (s.id === activeSessionId ? { ...s, modelId: m.id } : s)),
+        }))
+      }} />
     </>
   )
 }

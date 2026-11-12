@@ -67,9 +67,9 @@ export function SwarmScreen() {
 
   return (
     <>
-      <div className="topbar safe-top">
-        <Users size={19} style={{ color: 'var(--hal-accent)' }} />
-        <b className="grow">{t('swarm_setup_title')}</b>
+      <div className="page-header">
+        <Users size={19} style={{ color: 'var(--v2-text-accent)' }} />
+        <div className="page-title">{t('swarm_setup_title')}</div>
         <button className="btn btn-primary btn-sm" disabled={!loaded} onClick={() => void doSave()}>
           <Save size={15} /> {t('save_team')}
         </button>
@@ -138,7 +138,7 @@ export function SwarmScreen() {
                             height: 30,
                             borderRadius: 10,
                             background: color,
-                            border: agent.color === color ? '2.5px solid var(--hal-ink)' : 'none',
+                            border: agent.color === color ? '2.5px solid var(--v2-text-base)' : 'none',
                             cursor: 'pointer',
                           }}
                           onClick={() => updateAgent(agent.id, { color })}
@@ -164,7 +164,7 @@ export function SwarmScreen() {
                     <label className="hint" style={{ display: 'block', marginTop: 10 }}>{t('agent_key')}</label>
                     <input
                       className="field"
-                      style={{ fontFamily: 'monospace', fontSize: 13 }}
+                      style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}
                       type="password"
                       placeholder={t('key_placeholder_vault')}
                       value={agent.apiKey ?? ''}
@@ -224,7 +224,7 @@ export function SwarmScreen() {
             </div>
             {config.plannerCoordination ? <div className="hint" style={{ marginTop: 8 }}>{t('chief_hint')}</div> : null}
             {warnings.length ? (
-              <div className="card" style={{ padding: 10, marginTop: 10, borderColor: 'var(--hal-amber)' }}>
+              <div className="card" style={{ padding: 10, marginTop: 10, boxShadow: 'inset 0 0 0 0.5px var(--v2-state-warning-fg)' }}>
                 {warnings.map((w, i) => (
                   <div key={i} className="hint">
                     ⚠ {w}
@@ -251,7 +251,7 @@ export function SwarmScreen() {
 function PermToggle({ label, on, onChange }: { label: string; on: boolean; onChange: (v: boolean) => void }) {
   return (
     <label className="row" style={{ padding: '6px 0', fontSize: 13.5, cursor: 'pointer' }}>
-      <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--hal-accent)' }} />
+      <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--v2-text-accent)' }} />
       {label}
     </label>
   )

@@ -277,8 +277,7 @@ export class ModelCatalog {
    * mid-session when upstream retires it.
    */
   private mergeModelsDev(dev: Record<string, ModelsDevProvider>): { providers: ProviderInfo[]; models: ModelInfo[] } {
-    const providers: ProviderInfo[] = []
-    const models: ModelInfo[] = []
+    const built: Array<{ info: ProviderInfo; models: ModelInfo[] }> = []
     for (const [providerId, entry] of Object.entries(dev)) {
       if (BANNED_BRAND.test(providerId) || BANNED_BRAND.test(entry.name ?? '')) continue
       if (!entry || typeof entry !== 'object') continue
@@ -291,23 +290,24 @@ export class ModelCatalog {
         apiId: cleanModelToken(m.apiId),
       }))
       if (liveModels.length === 0 && bundledModels.length === 0) continue
-      providers.push(toProviderInfo(providerId, entry))
       const seen = new Set<string>()
-      for (const model of bundledModels) {
+      const models: ModelInfo[] = []
+      for (const model of [...bundledModels, ...liveModels]) {
         if (seen.has(model.id)) continue
         seen.add(model.id)
         models.push(model)
       }
-      for (const model of liveModels) {
-        if (seen.has(model.id)) continue
-        seen.add(model.id)
-        models.push(model)
-      }
+      built.push({ info: toProviderInfo(providerId, entry), models })
     }
+    // Popular providers first — and the model list must follow the same
+    // order, the picker walks the flat model array.
+    built.sort((a, b) => providerRank(a.info.id) - providerRank(b.info.id) || a.info.name.localeCompare(b.info.name))
+    const providers = built.map((b) => b.info)
+    const models = built.flatMap((b) => b.models)
     // The local daemon entry is never part of the upstream payload.
     const ollama = BUNDLED_PROVIDERS.find((p) => p.id === 'ollama')
     if (ollama) providers.push(ollama)
-    return { providers: sortProviders(providers), models }
+    return { providers, models }
   }
 
   private async fetchOllama(): Promise<ModelInfo[]> {

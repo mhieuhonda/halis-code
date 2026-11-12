@@ -51,8 +51,8 @@ export function TelegraphScreen() {
 
   return (
     <>
-      <div className="topbar safe-top">
-        <b className="grow">{t('tg_title')}</b>
+      <div className="page-header">
+        <div className="page-title">{t('tg_title')}</div>
         <button className="icon-btn" onClick={() => void refreshAll()} aria-label="refresh">
           <RefreshCw size={18} className={busy ? 'spin' : ''} />
         </button>
@@ -60,7 +60,7 @@ export function TelegraphScreen() {
 
       <div className="screen">
         {settings && !settings.telegraphEnabled ? (
-          <div className="card" style={{ padding: 12, marginBottom: 12, borderColor: 'var(--hal-amber)' }}>
+          <div className="card" style={{ padding: 12, marginBottom: 12, boxShadow: 'inset 0 0 0 0.5px var(--v2-state-warning-fg)' }}>
             <div className="hint">{t('tg_disabled_banner')}</div>
           </div>
         ) : null}
@@ -68,7 +68,7 @@ export function TelegraphScreen() {
         {/* status card */}
         <div className="card" style={{ padding: 14, marginBottom: 12 }}>
           <div className="row" style={{ gap: 8 }}>
-            <Wallet size={18} style={{ color: 'var(--hal-accent)' }} />
+            <Wallet size={18} style={{ color: 'var(--v2-text-accent)' }} />
             <b style={{ fontSize: 15 }}>{t('tg_wallet')}</b>
             <span className={`chip ${status?.nodeReachable ? 'chip-green' : 'chip-amber'}`} style={{ marginLeft: 'auto' }}>
               {status ? (status.nodeReachable ? t('connected') : t('tg_offline')) : '…'}
@@ -81,7 +81,7 @@ export function TelegraphScreen() {
           {status?.walletAddress ? (
             <>
               <div className="row" style={{ marginTop: 10 }}>
-                <div className="grow hint" style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                <div className="grow hint" style={{ fontFamily: 'var(--font-mono)', wordBreak: 'break-all' }}>
                   {status.walletAddress}
                 </div>
                 <button className="icon-btn" onClick={() => void copy(status.walletAddress!, t('wallet_copied'))} aria-label="copy">
@@ -169,7 +169,7 @@ export function TelegraphScreen() {
                     <span className="chip chip-green">${lastAsk.costUsd.toFixed(2)}</span>
                     <span className="hint">{lastAsk.durationMs}ms</span>
                   </div>
-                  <div style={{ marginTop: 6, maxHeight: 220, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--hal-ink-soft)' }}>
+                  <div style={{ marginTop: 6, maxHeight: 220, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--v2-text-muted)' }}>
                     {typeof lastAsk.result === 'string' ? lastAsk.result : JSON.stringify(lastAsk.result, null, 2)?.slice(0, 4000)}
                   </div>
                 </>
@@ -182,7 +182,7 @@ export function TelegraphScreen() {
         <div className="card" style={{ padding: 14, marginBottom: 12 }}>
           <b style={{ fontSize: 14 }}>{t('tg_verify')}</b>
           <div className="row" style={{ marginTop: 8, gap: 8 }}>
-            <input className="field grow" style={{ fontFamily: 'monospace', fontSize: 12.5 }} placeholder="signal hash…" value={verifyText} onChange={(e) => setVerifyText(e.target.value)} />
+            <input className="field grow" style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5 }} placeholder="signal hash…" value={verifyText} onChange={(e) => setVerifyText(e.target.value)} />
             <button
               className="btn btn-sm"
               disabled={!verifyText.trim()}
@@ -217,7 +217,7 @@ export function TelegraphScreen() {
             </summary>
             <div style={{ marginTop: 8 }}>
               {miners.slice(0, 40).map((m) => (
-                <div key={m.id} className="row" style={{ padding: '7px 0', borderBottom: '1px solid var(--hal-border)', fontSize: 13 }}>
+                <div key={m.id} className="row" style={{ padding: '7px 0', borderBottom: '1px solid var(--v2-border-muted)', fontSize: 13 }}>
                   <span className="grow" style={{ fontWeight: 600 }}>{m.name}</span>
                   {m.minPriceUsdc !== undefined ? <span className="chip">${m.minPriceUsdc.toFixed(3)}</span> : null}
                   <span className="hint" style={{ maxWidth: '45%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -231,7 +231,7 @@ export function TelegraphScreen() {
       </div>
 
       <Sheet open={importOpen} onClose={() => setImportOpen(false)} title={t('tg_import_wallet')}>
-        <input className="field" style={{ fontFamily: 'monospace', fontSize: 13 }} placeholder="0x…" value={importKey} onChange={(e) => setImportKey(e.target.value)} />
+        <input className="field" style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }} placeholder="0x…" value={importKey} onChange={(e) => setImportKey(e.target.value)} />
         <button
           className="btn btn-primary"
           style={{ width: '100%', marginTop: 10 }}
@@ -250,7 +250,7 @@ export function TelegraphScreen() {
       </Sheet>
 
       <Sheet open={!!exportKey} onClose={() => setExportKey(null)} title={t('tg_export_wallet')}>
-        <div style={{ fontFamily: 'monospace', fontSize: 13, wordBreak: 'break-all', padding: 10, background: 'var(--hal-bg-soft)', borderRadius: 10 }}>{exportKey}</div>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, wordBreak: 'break-all', padding: 10, background: 'var(--v2-bg-layer-01)', borderRadius: 10 }}>{exportKey}</div>
         <button
           className="btn btn-primary"
           style={{ width: '100%', marginTop: 10 }}
@@ -281,7 +281,7 @@ function ReceiptRow({ receipt: r, onCopy }: { receipt: TelegraphReceipt; onCopy:
       {r.query ? <div className="hint" style={{ marginTop: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>“{r.query}”</div> : null}
       {r.txHash ? (
         <div className="row" style={{ marginTop: 6, gap: 6 }}>
-          <span className="hint" style={{ fontFamily: 'monospace', fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span className="hint" style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {r.txHash.slice(0, 22)}…
           </span>
           <button className="icon-btn" style={{ width: 30, height: 30 }} onClick={() => void onCopy(r.txHash, t('copied'))} aria-label="copy tx">

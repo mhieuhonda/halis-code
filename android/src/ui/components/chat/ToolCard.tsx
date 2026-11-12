@@ -1,23 +1,27 @@
-/** Tool run card — collapsible, state-colored. */
+/**
+ * Tool row — desktop recipe: a 16px status icon, 13px/530 tool name, muted
+ * argument subtitle, tabular duration, and an expandable body hanging off a
+ * 0.5px vertical guide line.
+ */
 import { memo, useState } from 'react'
-import { CheckCircle2, ChevronDown, CircleDashed, Clock, XCircle, ShieldQuestion } from 'lucide-react'
+import { Check, ChevronDown, CircleDashed, X, ShieldQuestion } from 'lucide-react'
 import type { ToolRun } from '@shared/types'
 import { useT } from '../../i18n'
 
 const stateIcon = (state: ToolRun['state']) => {
   switch (state) {
     case 'completed':
-      return <CheckCircle2 size={14} style={{ color: 'var(--hal-green)' }} />
+      return <Check size={13} style={{ color: 'var(--v2-state-success-fg)' }} />
     case 'error':
     case 'rejected':
-      return <XCircle size={14} style={{ color: 'var(--hal-red)' }} />
+      return <X size={13} style={{ color: 'var(--v2-state-danger-fg)' }} />
     case 'awaiting-approval':
-      return <ShieldQuestion size={14} style={{ color: 'var(--hal-amber)' }} />
+      return <ShieldQuestion size={13} style={{ color: 'var(--v2-state-warning-fg)' }} />
     case 'running':
       return <span className="spinner" style={{ width: 12, height: 12 }} />
     case 'pending':
     default:
-      return <CircleDashed size={14} style={{ color: 'var(--hal-ink-muted)' }} />
+      return <CircleDashed size={13} style={{ color: 'var(--v2-icon-faint)' }} />
   }
 }
 
@@ -36,6 +40,7 @@ function argSummary(run: ToolRun): string {
 export const ToolCard = memo(function ToolCard({ run }: { run: ToolRun }) {
   const [open, setOpen] = useState(false)
   const t = useT()
+  const failed = run.state === 'error' || run.state === 'rejected'
   const stateLabel =
     run.state === 'completed'
       ? t('connected')
@@ -45,32 +50,23 @@ export const ToolCard = memo(function ToolCard({ run }: { run: ToolRun }) {
           ? t('approval_title')
           : run.state === 'rejected'
             ? t('stopped')
-            : run.state === 'running'
-              ? t('working')
-              : ''
+            : undefined
   const duration = run.endedAt ? Math.max(1, Math.round((run.endedAt - run.startedAt) / 100) / 10) : undefined
   const output = typeof run.result === 'string' ? run.result : run.result ? JSON.stringify(run.result, null, 2) : run.error ?? ''
 
   return (
-    <div className="tool-card">
-      <button className="tool-head" onClick={() => setOpen(!open)} style={{ width: '100%', border: 'none', background: 'transparent' }}>
-        {stateIcon(run.state)}
-        <span style={{ fontWeight: 650, color: 'var(--hal-ink)' }}>{run.tool}</span>
-        <span className="grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 450 }}>
-          {argSummary(run)}
-        </span>
-        {duration !== undefined ? (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: 'var(--hal-ink-muted)', fontSize: 11 }}>
-            <Clock size={11} />
-            {duration}s
-          </span>
-        ) : null}
-        <ChevronDown size={13} style={{ transform: open ? 'rotate(180deg)' : undefined, transition: 'transform .15s', color: 'var(--hal-ink-muted)' }} />
+    <div className="tool-row">
+      <button className="tool-trigger" onClick={() => setOpen(!open)}>
+        <span className="tool-icon">{stateIcon(run.state)}</span>
+        <span className="tool-title">{run.tool}</span>
+        <span className={`tool-sub ${failed ? 'error' : ''}`}>{argSummary(run)}</span>
+        {stateLabel ? <span className="tool-status">{stateLabel}</span> : null}
+        {duration !== undefined ? <span className="tool-status">{duration}s</span> : null}
+        <ChevronDown size={13} style={{ transform: open ? 'rotate(180deg)' : undefined, transition: 'transform .15s', color: 'var(--v2-icon-faint)', flex: '0 0 auto' }} />
       </button>
       {open ? (
-        <div className="tool-output">
-          {stateLabel ? <div style={{ marginBottom: 4, fontWeight: 600 }}>{stateLabel}</div> : null}
-          {output || '—'}
+        <div className="tool-body">
+          <div className="tool-output selectable">{output || '—'}</div>
         </div>
       ) : null}
     </div>

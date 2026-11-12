@@ -7,10 +7,10 @@ import { useT } from '../i18n'
 import { Sheet } from './ui'
 
 const COLUMNS: Array<{ status: TaskStatus; key: 'status_todo' | 'status_in_progress' | 'status_blocked' | 'status_done'; color: string }> = [
-  { status: 'todo', key: 'status_todo', color: 'var(--hal-ink-muted)' },
-  { status: 'in_progress', key: 'status_in_progress', color: 'var(--hal-accent)' },
-  { status: 'blocked', key: 'status_blocked', color: 'var(--hal-amber)' },
-  { status: 'done', key: 'status_done', color: 'var(--hal-green)' },
+  { status: 'todo', key: 'status_todo', color: 'var(--v2-text-faint)' },
+  { status: 'in_progress', key: 'status_in_progress', color: 'var(--v2-text-accent)' },
+  { status: 'blocked', key: 'status_blocked', color: 'var(--v2-state-warning-fg)' },
+  { status: 'done', key: 'status_done', color: 'var(--v2-state-success-fg)' },
 ]
 
 export function BoardScreen() {
@@ -30,8 +30,8 @@ export function BoardScreen() {
 
   return (
     <>
-      <div className="topbar safe-top">
-        <b className="grow">{t('tasks_title')}</b>
+      <div className="page-header">
+        <div className="page-title">{t('tasks_title')}</div>
         <button className="icon-btn" onClick={() => void loadTasks()} aria-label="refresh">
           <RefreshCw size={18} />
         </button>

@@ -1,4 +1,4 @@
-/** Shared mobile UI primitives: bottom sheet, toasts, switch, section row. */
+/** Shared primitives: bottom sheet, toasts, switch, settings rows. */
 import { useEffect, useState, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 
@@ -18,16 +18,17 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-handle" />
         {title ? (
-          <div className="row" style={{ marginBottom: 10 }}>
-            <div className="grow" style={{ fontWeight: 650, fontSize: 16 }}>
-              {title}
-            </div>
+          <div className="sheet-head">
+            <div className="sheet-title">{title}</div>
             <button className="icon-btn" onClick={onClose} aria-label="close">
-              <X size={19} />
+              <X size={16} />
             </button>
           </div>
-        ) : null}
+        ) : (
+          <div className="sheet-head" />
+        )}
         {children}
       </div>
     </div>
@@ -92,24 +93,20 @@ export function Switch({ on, onChange }: { on: boolean; onChange: (next: boolean
   )
 }
 
-/* ------------------------------- Row --------------------------------- */
+/* ------------------------------- Rows -------------------------------- */
 
 export function SettingRow({ label, hint, children, onClick }: { label: string; hint?: string; children?: ReactNode; onClick?: () => void }) {
   return (
-    <div className="row" style={{ padding: '12px 0', gap: 12, cursor: onClick ? 'pointer' : undefined }} onClick={onClick}>
-      <div className="grow">
-        <div style={{ fontWeight: 600, fontSize: 14.5 }}>{label}</div>
-        {hint ? <div className="hint" style={{ marginTop: 2 }}>{hint}</div> : null}
+    <div className={`settings-row ${onClick ? 'clickable' : ''}`} onClick={onClick}>
+      <div className="settings-label">
+        <div className="t">{label}</div>
+        {hint ? <div className="d">{hint}</div> : null}
       </div>
-      {children}
+      <div className="settings-control">{children}</div>
     </div>
   )
 }
 
 export function SectionTitle({ children }: { children: ReactNode }) {
-  return (
-    <div style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--hal-ink-muted)', margin: '18px 0 6px' }}>
-      {children}
-    </div>
-  )
+  return <div className="settings-title">{children}</div>
 }

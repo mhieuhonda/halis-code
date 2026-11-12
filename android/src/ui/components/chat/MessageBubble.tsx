@@ -1,4 +1,8 @@
-/** Message bubble — user / agent / system, with markdown, tools, receipts. */
+/**
+ * Message row — desktop timeline anatomy: user messages as right-aligned
+ * layer-02 bubbles, assistant messages under a slim identity header with
+ * markdown, tool rows and receipts.
+ */
 import { memo, useState } from 'react'
 import { Brain, ChevronDown } from 'lucide-react'
 import type { ChatMessage } from '@shared/types'
@@ -6,11 +10,11 @@ import { Markdown } from '../Markdown'
 import { ToolCard } from './ToolCard'
 import { useT } from '../../i18n'
 
-function roleEmoji(message: ChatMessage): string {
+function roleInitial(message: ChatMessage): string {
   if (message.agentAvatar) return message.agentAvatar
-  if (message.from === 'halis') return '🤖'
-  if (message.role === 'user') return '👤'
-  return '✦'
+  if (message.from === 'halis') return 'H'
+  if (message.role === 'user') return 'Y'
+  return 'A'
 }
 
 export const MessageBubble = memo(function MessageBubble({ message }: { message: ChatMessage }) {
@@ -20,9 +24,11 @@ export const MessageBubble = memo(function MessageBubble({ message }: { message:
 
   if (message.role === 'system') {
     return (
-      <div className="bubble bubble-system">
-        {message.fromName && message.fromName !== 'Halis' ? <b>{message.fromName}: </b> : null}
-        {message.content}
+      <div className="msg">
+        <div className="hint hint-faint" style={{ textAlign: 'center', padding: '2px 8px' }}>
+          {message.fromName && message.fromName !== 'Halis' ? `${message.fromName}: ` : ''}
+          {message.content}
+        </div>
       </div>
     )
   }
@@ -30,83 +36,70 @@ export const MessageBubble = memo(function MessageBubble({ message }: { message:
   const isUser = message.role === 'user'
   const toolParts = (message.parts ?? []).filter((p) => p.type === 'tool')
 
-  return (
-    <div style={{ marginBottom: 10 }}>
-      {!isUser ? (
-        <div className="row" style={{ gap: 6, marginBottom: 4 }}>
-          <span
-            style={{
-              width: 22,
-              height: 22,
-              borderRadius: 8,
-              background: message.agentColor ?? 'var(--hal-accent-soft)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 12,
-              flex: '0 0 auto',
-            }}
-          >
-            {roleEmoji(message)}
-          </span>
-          <b style={{ fontSize: 13 }}>{message.fromName}</b>
-          {message.to?.length ? (
-            <span className="chip" style={{ fontSize: 10, padding: '1px 7px' }}>
-              → {message.to.length > 2 ? `${message.to.length}` : message.to.join(', ')}
-            </span>
-          ) : null}
-          <span className="hint" style={{ fontSize: 10.5 }}>
-            {time}
-          </span>
-          {message.usage ? (
-            <span className="hint" style={{ fontSize: 10.5, marginLeft: 'auto' }}>
-              {message.usage.inputTokens}↑ {message.usage.outputTokens}↓
-            </span>
-          ) : null}
+  if (isUser) {
+    return (
+      <div className="msg msg-user">
+        <div className={`bubble-user ${message.streaming ? 'pending' : ''}`}>{message.content}</div>
+        <div className="msg-meta">
+          {message.usage ? <span>{message.usage.inputTokens}↑ {message.usage.outputTokens}↓</span> : null}
+          <span className="msg-time">{time}</span>
         </div>
-      ) : null}
+      </div>
+    )
+  }
 
-      <div className={`bubble ${isUser ? 'bubble-user' : 'bubble-agent'} ${message.error ? 'bubble-error' : ''}`} style={isUser ? { marginBottom: 2 } : undefined}>
-        {message.reasoning ? (
-          <button
-            onClick={() => setShowReasoning(!showReasoning)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'transparent', border: 'none', padding: 0, color: isUser ? 'rgba(255,255,255,.8)' : 'var(--hal-ink-muted)', fontSize: 12, fontWeight: 600, marginBottom: 4 }}
-          >
-            <Brain size={12} />
-            {t('reasoning')}
-            <ChevronDown size={11} style={{ transform: showReasoning ? 'rotate(180deg)' : undefined }} />
-          </button>
+  return (
+    <div className="msg">
+      <div className="agent-head">
+        <span
+          className="agent-avatar"
+          style={{
+            background: `linear-gradient(180deg, #ffffff29, #ffffff00), ${message.agentColor ?? 'var(--v2-avatar-agent-bg)'}`,
+          }}
+        >
+          {roleInitial(message)}
+        </span>
+        <span className="agent-name">{message.fromName}</span>
+        {message.to?.length ? (
+          <span className="chip">→ {message.to.length > 2 ? `${message.to.length}` : message.to.join(', ')}</span>
         ) : null}
-        {showReasoning && message.reasoning ? (
-          <div
-            style={{
-              fontSize: 12.5,
-              color: isUser ? 'rgba(255,255,255,.75)' : 'var(--hal-ink-muted)',
-              borderLeft: '2px solid currentColor',
-              paddingLeft: 8,
-              margin: '4px 0 8px',
-              whiteSpace: 'pre-wrap',
-              maxHeight: 180,
-              overflowY: 'auto',
-            }}
-          >
-            {message.reasoning}
-          </div>
-        ) : null}
-
-        {message.content ? <Markdown>{message.content}</Markdown> : null}
-        {!message.content && message.streaming ? (
-          <span style={{ display: 'inline-flex' }}>
-            <span className="typing-dot" />
-            <span className="typing-dot" />
-            <span className="typing-dot" />
+        <span className="msg-time">{time}</span>
+        {message.usage ? (
+          <span className="msg-time" style={{ marginLeft: 'auto' }}>
+            {message.usage.inputTokens}↑ {message.usage.outputTokens}↓
           </span>
         ) : null}
-        {message.error ? <div style={{ fontWeight: 600 }}>{message.error}</div> : null}
       </div>
 
+      {message.reasoning ? (
+        <>
+          <button className="reasoning-toggle" onClick={() => setShowReasoning(!showReasoning)}>
+            <Brain size={12} />
+            {t('reasoning')}
+            <ChevronDown size={11} style={{ transform: showReasoning ? 'rotate(180deg)' : undefined, transition: 'transform .15s' }} />
+          </button>
+          {showReasoning ? <div className="reasoning-body selectable">{message.reasoning}</div> : null}
+        </>
+      ) : null}
+
+      {message.content ? (
+        <div className="selectable">
+          <Markdown>{message.content}</Markdown>
+        </div>
+      ) : null}
+      {!message.content && message.streaming ? (
+        <span className="typing-row">
+          <span className="typing-dot" />
+          <span className="typing-dot" />
+          <span className="typing-dot" />
+        </span>
+      ) : null}
+      {message.error ? (
+        <div className="composer-error" style={{ margin: 0 }}>{message.error}</div>
+      ) : null}
+
       {toolParts.length ? (
-        <div style={{ marginTop: 2 }}>
+        <div style={{ marginTop: 4 }}>
           {toolParts.map((part) => (
             <ToolCard key={part.run.toolCallId} run={part.run} />
           ))}
