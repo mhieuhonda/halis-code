@@ -95,7 +95,7 @@ export function ChatScreen() {
   return (
     <>
       <div className="session-header">
-        <div className="sh-trigger" onClick={() => setPickerOpen(false)} style={{ cursor: 'default' }}>
+        <div className="sh-trigger">
           <FolderOpen size={14} style={{ color: 'var(--v2-icon-muted)' }} />
           <span style={{ maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {workspaceName || t('workspace_label')}

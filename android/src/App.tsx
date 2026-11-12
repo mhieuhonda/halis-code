@@ -56,6 +56,13 @@ export default function App() {
   }, [])
 
   // The hardware back button pops the drawer first (main.tsx drives history).
+  // Closing through the UI rewinds the pushed entry as well, so stale history
+  // states never trap the back button — one press at the root exits the app.
+  const closeDrawer = () => {
+    setDrawerOpen(false)
+    if (drawerOpen && typeof window.history.state?.drawer === 'number') window.history.back()
+  }
+
   useEffect(() => {
     if (drawerOpen) {
       window.history.pushState({ drawer: ++routeSeq }, '')
@@ -80,7 +87,7 @@ export default function App() {
 
   const navigate = (next: Route) => {
     setRoute(next)
-    setDrawerOpen(false)
+    closeDrawer()
   }
 
   return (
@@ -139,7 +146,7 @@ export default function App() {
       <Sidebar
         open={drawerOpen}
         route={route}
-        onClose={() => setDrawerOpen(false)}
+        onClose={closeDrawer}
         onNavigate={navigate}
         approvals={approvals.length > 0}
         running={runningSessions.length > 0}

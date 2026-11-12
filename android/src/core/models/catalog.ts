@@ -7,6 +7,7 @@
  */
 import type { ApiStyle, CatalogSnapshot, ModelInfo, ProviderInfo } from '@shared/types'
 import { BUNDLED_MODELS, BUNDLED_PROVIDERS } from './catalog-data'
+import { httpFetch } from '../native'
 
 const MODELS_DEV_URL = 'https://models.dev/api.json'
 
@@ -231,7 +232,9 @@ export class ModelCatalog {
 
   private async fetchModelsDev(): Promise<Record<string, ModelsDevProvider> | null> {
     try {
-      const res = await fetch(MODELS_DEV_URL, { signal: AbortSignal.timeout(20_000) })
+      // Native HTTP stack: no CORS in the WebView, and the payload is
+      // megabytes — CapacitorHttp handles both better than web fetch.
+      const res = await httpFetch(MODELS_DEV_URL, { signal: AbortSignal.timeout(30_000) })
       if (!res.ok) return null
       // The endpoint returns an object keyed by provider id; anything else
       // (null, array, scalar) would break the merge below.

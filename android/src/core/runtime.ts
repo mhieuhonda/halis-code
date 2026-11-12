@@ -28,6 +28,19 @@ import type {
 import { loadSettings, setSettings, currentSettingsSync } from './settings'
 import { KeyVault } from './keyvault'
 import { modelCatalog } from './models/catalog'
+
+/** First id that exists in the current catalog — sessions saved with models
+ *  the refreshed catalog retired would otherwise die with `Unknown model`
+ *  on the next turn. */
+function resolvableModelId(...ids: Array<string | undefined>): string {
+  for (const id of ids) {
+    if (id && modelCatalog.getModel(id)) return id
+  }
+  // Nothing resolvable (catalog refreshed away every candidate): hand back
+  // the first non-empty id so the dispatcher's error names something real.
+  return ids.find((id): id is string => !!id) ?? ''
+}
+
 import { LlmDispatcher } from './llm/client'
 import type { LlmMessage } from './llm/types'
 import { AgentRunner } from './harness/loop'
@@ -232,7 +245,7 @@ export class HalisMobile {
       this.emit({ type: 'message-start', sessionId: session.id, message: reminderMessage })
 
       if (session.mode === 'agent') {
-        await this.runSingleAgent(session, session.modelId ?? (await loadSettings()).defaultModelId, controller)
+        await this.runSingleAgent(session, resolvableModelId(session.modelId, (await loadSettings()).defaultModelId), controller)
       } else {
         await this.runSwarm(session, controller)
       }
@@ -312,7 +325,7 @@ export class HalisMobile {
       this.emit({ type: 'message-start', sessionId, message: userMessage })
 
       if (session.mode === 'agent') {
-        await this.runSingleAgent(session, params.modelId ?? session.modelId ?? (await loadSettings()).defaultModelId, controller)
+        await this.runSingleAgent(session, resolvableModelId(params.modelId, session.modelId, (await loadSettings()).defaultModelId), controller)
       } else {
         await this.runSwarm(session, controller)
       }
