@@ -1,5 +1,5 @@
 /**
- * Chat screen — the session panel. OpenCode-style 48px session header
+ * Chat screen — the session panel: 48px session header
  * (workspace trigger + title + actions), the message timeline, docked
  * approval/question cards, the todo pill and the composer.
  */
